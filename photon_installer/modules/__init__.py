@@ -1,3 +1,7 @@
+#/*
+# * Copyright © 2020 VMware, Inc.
+# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+# */
 from os.path import dirname, basename, isfile, join
 import glob
 import sys
