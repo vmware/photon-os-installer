@@ -33,7 +33,7 @@ Photon OS Installer Project aims to seperate out installer source code from [Pho
 
 The executable generated can be found inside dist directory created.
 
-Currently following images can be built based on architecture mentioned in table.\
+Currently following images can be built based on architecture mentioned in table.
 | x86_64        | arm64         |
 | ------------- | -------------:|
 | iso           | iso           |
@@ -47,7 +47,7 @@ Currently following images can be built based on architecture mentioned in table
 | rpi3          |               |
 
 
-Building Photon Cloud images using Photon OS Installer\
+Building Photon Cloud images using Photon OS Installer
 ```bash
 ➜  ~ pip3 install git+https://github.com/vmware/photon-os-installer.git
 ➜  ~ git clone https://github.com/vmware/photon.git
