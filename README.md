@@ -33,19 +33,36 @@ Photon OS Installer Project aims to seperate out installer source code from [Pho
 
 The executable generated can be found inside dist directory created.
 
-Building Photon Cloud images using Photon OS Installer
+Currently following images can be built based on architecture mentioned in table.\
+| x86_64        | arm64         |
+| ------------- | -------------:|
+| iso           | iso           |
+| ova           | ova           |
+| ova_uefi      | ova_uefi      |
+| minimal-iso   |               |
+| rt-iso        |               |
+| ami           |               |
+| gce           |               |
+| azure         |               |
+| rpi3          |               |
+
+
+Building Photon Cloud images using Photon OS Installer\
 ```bash
 ➜  ~ pip3 install git+https://github.com/vmware/photon-os-installer.git
 ➜  ~ git clone https://github.com/vmware/photon.git
 ➜  ~ cd photon
-➜  ~ make image IMG_NAME=<img-name>
+➜  ~ make image IMG_NAME=ami
 ```
 
-Using Photon OS Installer as python library
-install config mentioned below can be referred from [Photon Project](https://github.com/vmware/photon/blob/master/support/image-builder/azure/config_azure.json)
+Using Photon OS Installer as python library\
+install config mentioned below can be referred from [Photon Project](https://github.com/vmware/photon/blob/master/installer/sample_ks.cfg)
 ```python
 import photon_installer
 from photon_installer.installer import Installer
+import json
+with open('path_to_file/config.json') as f:
+    install_config = json.load(f)
 installer = Installer(working_directory='/root/photon/stage/ova', rpm_path='/root/photon/stage/RPMS', log_path='/root/photon/stage/LOGS')
 installer.configure(install_config)
 installer.execute()

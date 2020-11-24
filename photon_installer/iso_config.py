@@ -182,7 +182,7 @@ class IsoConfig(object):
 
     def add_ui_pages(self, install_config, ui_config, maxy, maxx):
         items = []
-        license_agreement = License(maxy, maxx)
+        license_agreement = License(maxy, maxx, ui_config['eula_file_path'], ui_config['license_display_title'])
         select_disk = SelectDisk(maxy, maxx, install_config)
         custom_partition = CustomPartition(maxy, maxx, install_config)
         package_selector = PackageSelector(maxy, maxx, install_config, ui_config['options_file'])

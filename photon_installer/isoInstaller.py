@@ -18,17 +18,17 @@ from commandutils import CommandUtils
 from jsonwrapper import JsonWrapper
 
 class IsoInstaller(object):
-    def __init__(self, install_config_file, ui_config_file, repo_path, options_file='input.json'):
+    def __init__(self, options):
         install_config=None
         self.media_mount_path = None
         photon_media = None
-        ks_path = install_config_file
+        ks_path = options.install_config_file
         # Path to RPMS repository: local media or remote URL
         # If --repo-path= provided - use it,
         # if not provided - use kernel repo= parameter,
         # if not provided - use /RPMS path from photon_media,
         # exit otherwise.
-        repo_path = repo_path
+        repo_path = options.repo_path
 
         with open('/proc/cmdline', 'r') as f:
             kernel_params = shlex.split(f.read().replace('\n', ''))
@@ -56,13 +56,18 @@ class IsoInstaller(object):
         if ks_path:
             install_config=self._load_ks_config(ks_path)
 
-        if ui_config_file:
-            if not ui_config_file.startswith("/"):
-                ui_config_file = os.path.join(os.getcwd(), ui_config_file)
-            ui_config = (JsonWrapper(ui_config_file)).read()
+        if options.ui_config_file:
+            ui_config = (JsonWrapper(options.ui_config_file)).read()
         else:
             ui_config={}
-        ui_config['options_file'] = options_file
+        ui_config['options_file'] = options.options_file
+
+        #initializing eula file path
+        ui_config['eula_file_path'] = options.eula_file_path
+
+        #initializing license display text
+        ui_config['license_display_title'] = options.license_display_title
+
 
         # Run installer
         installer = Installer(rpm_path=repo_path, log_path="/var/log")
@@ -152,4 +157,4 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--repo-path", dest="repo_path")
     options = parser.parse_args()
 
-    IsoInstaller(options.install_config_file, options.ui_config_file, options.repo_path, options.options_file)
+    IsoInstaller(options)

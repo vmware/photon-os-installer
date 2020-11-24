@@ -10,9 +10,10 @@
 from window import Window
 from actionresult import ActionResult
 from textpane import TextPane
+from os.path import join, dirname
 
 class License(object):
-    def __init__(self, maxy, maxx):
+    def __init__(self, maxy, maxx, eula_file_path, display_title):
         self.maxx = maxx
         self.maxy = maxy
         self.win_width = maxx - 4
@@ -28,15 +29,23 @@ class License(object):
         self.window = Window(self.win_height, self.win_width, self.maxy, self.maxx,
                              'Welcome to the Photon installer', False)
 
+        if eula_file_path:
+            self.eula_file_path = eula_file_path
+        else:
+            self.eula_file_path = join(dirname(__file__), 'EULA.txt')
+
+        if display_title:
+            self.title = display_title
+        else:
+            self.title = 'VMWARE LICENSE AGREEMENT'
+
     def display(self):
-        from os.path import join, dirname
         accept_decline_items = [('<Accept>', self.accept_function),
                                 ('<Cancel>', self.exit_function)]
 
-        title = 'VMWARE 4.0 BETA LICENSE AGREEMENT'
-        self.window.addstr(0, (self.win_width - len(title)) // 2, title)
+        self.window.addstr(0, (self.win_width - len(self.title)) // 2, self.title)
         self.text_pane = TextPane(self.text_starty, self.maxx, self.text_width,
-                                  join(dirname(__file__), "EULA.txt"), self.text_height, accept_decline_items)
+                                  self.eula_file_path, self.text_height, accept_decline_items)
 
         self.window.set_action_panel(self.text_pane)
 
