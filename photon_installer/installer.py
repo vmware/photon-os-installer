@@ -56,6 +56,7 @@ class Installer(object):
         'disk',
         'eject_cdrom',
         'hostname',
+        'insecure_installation',
         'install_linux_esx',
         'linux_flavor',
         'live',
@@ -115,6 +116,8 @@ class Installer(object):
     create, append and validate configuration date - install_config
     """
     def configure(self, install_config, ui_config = None):
+        if install_config and 'insecure_installation' in install_config:
+            insecure_installation = install_config.pop('insecure_installation')
         # Initialize logger and cmd first
         if not install_config:
             # UI installation
@@ -133,6 +136,8 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
+        if 'insecure_installation' in locals():
+            install_config['insecure_installation'] = insecure_installation
         self._add_defaults(install_config)
 
         issue = self._check_install_config(install_config)
@@ -250,6 +255,9 @@ class Installer(object):
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
             install_config['photon_docker_image'] = "photon:latest"
+
+        if 'insecure_installation' not in install_config:
+            install_config['insecure_installation'] = False
 
     def _check_install_config(self, install_config):
         """
@@ -851,6 +859,8 @@ class Installer(object):
                 repo_file.write("baseurl=file://{}\n".format(self.rpm_cache_dir))
                 keepcache = True
             repo_file.write("gpgcheck=0\nenabled=1\n")
+            if self.install_config['insecure_installation']:
+                repo_file.write("sslverify=0\n")
         with open(self.tdnf_conf_path, "w") as conf_file:
             conf_file.writelines([
                 "[main]\n",
@@ -1300,4 +1310,3 @@ class Installer(object):
             if os.path.exists(filepath):
                 return filepath
         raise Exception("File {} not found in the following directories {}".format(filename, self.install_config['search_path']))
-
