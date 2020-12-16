@@ -29,6 +29,7 @@ class IsoInstaller(object):
         # if not provided - use /RPMS path from photon_media,
         # exit otherwise.
         repo_path = options.repo_path
+        self.insecure_installation = None
 
         with open('/proc/cmdline', 'r') as f:
             kernel_params = shlex.split(f.read().replace('\n', ''))
@@ -42,6 +43,8 @@ class IsoInstaller(object):
                     repo_path = arg[len("repo="):]
             elif arg.startswith("photon.media="):
                 photon_media = arg[len("photon.media="):]
+            elif arg.startswith("insecure_installation="):
+                self.insecure_installation = bool(int(arg[len("insecure_installation="):]))
 
         if photon_media:
             self.mount_media(photon_media)
@@ -54,7 +57,13 @@ class IsoInstaller(object):
                 return
 
         if ks_path:
-            install_config=self._load_ks_config(ks_path)
+            install_config = self._load_ks_config(ks_path)
+
+        # insecure_installation flag added through commandline overrides that of ks_config
+        if self.insecure_installation:
+            if not install_config:
+                install_config = {}
+            install_config['insecure_installation'] = self.insecure_installation
 
         if options.ui_config_file:
             ui_config = (JsonWrapper(options.ui_config_file)).read()
@@ -77,7 +86,12 @@ class IsoInstaller(object):
 
     def _load_ks_config(self, path):
         """kick start configuration"""
-        if path.startswith("http://"):
+
+        if path.startswith("http://") and not self.insecure_installation:
+            raise Exception("Refusing to download kick start configuration from non-https URLs. \
+                            \nPass insecure_installation=1 as a parameter when giving http url in ks.")
+
+        if path.startswith("https://") or path.startswith("http://"):
             # Do 5 trials to get the kick start
             # TODO: make sure the installer run after network is up
             ks_file_error = "Failed to get the kickstart file at {0}".format(path)
@@ -85,16 +99,16 @@ class IsoInstaller(object):
             for _ in range(0, 5):
                 err_msg = ""
                 try:
-                    response = requests.get(path, timeout=3)
-                    if response.ok:
-                        return json.loads(response.text)
-                    err_msg = response.text
+                    if self.insecure_installation:
+                        response = requests.get(path, timeout=3, verify=False)
+                    else:
+                        response = requests.get(path, timeout=3, verify=True)
                 except Exception as e:
                     err_msg = e
+                else:
+                    return json.loads(response.text)
 
-                print(ks_file_error)
-                print("error msg: {0}".format(err_msg))
-                print("retry in a second")
+                print("error msg: {0}  Retry after {1} seconds".format(err_msg, wait))
                 time.sleep(wait)
                 wait = wait * 2
 
