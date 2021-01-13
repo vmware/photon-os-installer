@@ -16,7 +16,7 @@ import signal
 import sys
 import glob
 import modules.commons
-import random
+import secrets
 import curses
 import stat
 import tempfile
@@ -209,7 +209,7 @@ class Installer(object):
 
         # define 'hostname' as 'photon-<RANDOM STRING>'
         if "hostname" not in install_config or install_config['hostname'] == "":
-            install_config['hostname'] = 'photon-%12x' % random.randrange(16**12)
+            install_config['hostname'] = 'photon-%12x' % secrets.randbelow(16**12)
 
         # Set password if needed.
         # Installer uses 'shadow_password' and optionally 'password'/'age'

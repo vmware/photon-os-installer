@@ -5,7 +5,7 @@
 import os
 import sys
 import re
-import random
+import secrets
 import requests
 import cracklib
 import curses
@@ -34,7 +34,7 @@ class IsoConfig(object):
         self.hostname_accepted_chars.extend(range(48, 58))
         # Adding the . and -
         self.hostname_accepted_chars.extend([ord('.'), ord('-')])
-        self.random_id = '%12x' % random.randrange(16**12)
+        self.random_id = '%12x' % secrets.randbelow(16**12)
         self.random_hostname = "photon-" + self.random_id.strip()
         self.logger = Logger.get_logger()
 

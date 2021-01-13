@@ -7,7 +7,7 @@
 #     Date: Fri Aug 30 11:28:18 IST 2019
 #   Author: Ankit Jain <ankitja@vmware.com>
 
-import random
+import secrets
 from networkmanager import NetworkManager
 from menu import Menu
 from window import Window
@@ -126,7 +126,7 @@ class NetworkConfigure(object):
 
         elif selection == self.NET_CONFIG_OPTION_DHCP_HOSTNAME:
             network_config = {}
-            random_id = '%12x' % random.randrange(16**12)
+            random_id = '%12x' % secrets.randbelow(16**12)
             random_hostname = 'photon-' + random_id.strip()
             accepted_chars = list(range(ord('A'), ord('Z')+1))
             accepted_chars = list(range(ord('a'), ord('z')+1))
