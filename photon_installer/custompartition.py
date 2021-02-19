@@ -28,24 +28,30 @@ class CustomPartition(object):
         self.text_width = self.win_width - 6
         self.cp_config = {}
         self.cp_config['partitionsnumber'] = 0
-        self.devices = Device.refresh_devices_bytes()
+        self.devices = None
         self.has_slash = False
         self.has_remain = False
         self.has_empty = False
 
         self.disk_size = []
         self.disk_to_index = {}
+
+        self.window = Window(self.win_height, self.win_width, self.maxy, self.maxx,
+                             'Welcome to the Photon installer', False, can_go_next=False)
+        Device.refresh_devices()
+
+    def initialize_devices(self):
+        self.devices = Device.refresh_devices_bytes()
+
         # Subtract BIOS&ESP SIZE from the disk_size since this much is hardcoded for bios
         # and efi partition in installer.py
         for index, device in enumerate(self.devices):
             self.disk_size.append((device.path, int(device.size) / 1048576 - (BIOSSIZE + ESPSIZE + 2)))
             self.disk_to_index[device.path] = index
 
-        self.window = Window(self.win_height, self.win_width, self.maxy, self.maxx,
-                             'Welcome to the Photon installer', False, can_go_next=False)
-        Device.refresh_devices()
-
     def display(self):
+        self.initialize_devices()
+
         if 'autopartition' in self.install_config and self.install_config['autopartition'] == True:
             return ActionResult(True, None)
 

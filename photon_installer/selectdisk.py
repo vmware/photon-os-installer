@@ -35,7 +35,7 @@ class SelectDisk(object):
                              'Select a disk', True,
                              items=self.disk_buttom_items, menu_helper=self.save_index,
                              position=2, tab_enabled=False)
-        self.devices = Device.refresh_devices()
+        self.devices = None
 
     def display(self):
         self.window.addstr(0, 0, 'Please select a disk and a method how to partition it:\n' +
@@ -44,6 +44,7 @@ class SelectDisk(object):
 
         self.disk_menu_items = []
 
+        self.devices = Device.refresh_devices()
         # Fill in the menu items
         for index, device in enumerate(self.devices):
             #if index > 0:
