@@ -18,6 +18,7 @@ if __name__ == '__main__':
     parser.add_argument("-l", "--log-path", dest="log_path")
     parser.add_argument("-e", "--eula-file", dest="eula_file_path", default=None)
     parser.add_argument("-t", "--license-title", dest="license_display_title", default=None)
+    parser.add_argument("-v", "--photon-release-version", dest="photon_release_version")
 
     options = parser.parse_args()
 

@@ -59,11 +59,16 @@ class IsoInstaller(object):
         if ks_path:
             install_config = self._load_ks_config(ks_path)
 
+
         # insecure_installation flag added through commandline overrides that of ks_config
         if self.insecure_installation:
             if not install_config:
                 install_config = {}
             install_config['insecure_installation'] = self.insecure_installation
+
+        if not install_config:
+            install_config = {}
+        install_config['photon_release_version'] = options.photon_release_version
 
         if options.ui_config_file:
             ui_config = (JsonWrapper(options.ui_config_file)).read()

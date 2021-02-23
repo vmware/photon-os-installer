@@ -66,6 +66,7 @@ class Installer(object):
         'packagelist_file',
         'partition_type',
         'partitions',
+        'photon_release_version',
         'network',
         'password',
         'postinstall',
@@ -118,6 +119,10 @@ class Installer(object):
     def configure(self, install_config, ui_config = None):
         if install_config and 'insecure_installation' in install_config:
             insecure_installation = install_config.pop('insecure_installation')
+
+        if install_config and 'photon_release_version' in install_config:
+            photon_release_version = install_config.pop('photon_release_version')
+
         # Initialize logger and cmd first
         if not install_config:
             # UI installation
@@ -138,6 +143,9 @@ class Installer(object):
 
         if 'insecure_installation' in locals():
             install_config['insecure_installation'] = insecure_installation
+
+        if 'photon_release_version' in locals():
+            install_config['photon_release_version'] = photon_release_version
         self._add_defaults(install_config)
 
         issue = self._check_install_config(install_config)
@@ -653,8 +661,9 @@ class Installer(object):
             self.exit_gracefully()
 
         # Install filesystem rpm
-        tdnf_cmd = "tdnf install filesystem --installroot {0} --assumeyes -c {1}".format(self.photon_root,
-                        self.tdnf_conf_path)
+        tdnf_cmd = "tdnf install  filesystem --releasever {0} --installroot {1} --assumeyes -c {2}".format(
+                    self.install_config['photon_release_version'], self.photon_root,
+                    self.tdnf_conf_path)
         retval = self.cmd.run(tdnf_cmd)
         if retval != 0:
             retval = self.cmd.run(['docker', 'run',
@@ -894,8 +903,9 @@ class Installer(object):
         packages_to_install = {}
         total_size = 0
         stderr = None
-        tdnf_cmd = "tdnf install --installroot {0} --assumeyes -c {1} {2}".format(self.photon_root,
-                        self.tdnf_conf_path, " ".join(selected_packages))
+        tdnf_cmd = "tdnf install --releasever {0} --installroot {1} --assumeyes -c {2} {3}".format(
+                    self.install_config['photon_release_version'], self.photon_root,
+                    self.tdnf_conf_path, " ".join(selected_packages))
         self.logger.debug(tdnf_cmd)
 
         # run in shell to do not throw exception if tdnf not found
