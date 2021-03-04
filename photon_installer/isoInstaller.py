@@ -148,8 +148,8 @@ class IsoInstaller(object):
         elif photon_media == "cdrom":
             cmdline.append('/dev/cdrom')
         else:
-            print("Unsupported installer media, check photon.media in kernel cmdline")
-            raise Exception("Can not mount the cd")
+            #User specified mount path
+            cmdline.append(photon_media)
 
         cmdline.extend(['-o', 'ro', mount_path])
 
