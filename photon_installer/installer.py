@@ -403,7 +403,7 @@ class Installer(object):
             self._setup_grub()
             self._create_fstab()
         self._execute_modules(modules.commons.POST_INSTALL)
-        self._disable_network_in_chroot()
+        self._deactivate_network_in_chroot()
         self._unmount_all()
 
     def exit_gracefully(self, signal1=None, frame1=None):
@@ -801,7 +801,7 @@ class Installer(object):
                 self.logger.error('Error importing module {}'.format(module))
                 continue
 
-            # the module default is disabled
+            # the module default is deactivate
             if not hasattr(mod, 'enabled') or mod.enabled is False:
                 self.logger.info("module {} is not enabled".format(module))
                 continue
@@ -983,9 +983,9 @@ class Installer(object):
         if os.path.exists("/etc/resolv.conf"):
             shutil.copy("/etc/resolv.conf", self.photon_root + '/etc/.')
 
-    def _disable_network_in_chroot(self):
+    def _deactivate_network_in_chroot(self):
         """
-        disable network in chroot
+        deactivate network in chroot
         """
         if os.path.exists(self.photon_root + '/etc/resolv.conf'):
             os.remove(self.photon_root + '/etc/resolv.conf')

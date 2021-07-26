@@ -56,7 +56,7 @@ Kickstart config file is a json format with following possible parameters:
 
 "insecure_installation" (optional)
 	Allow untrusted(selfsigned) https in kickstart iso and
-	disable ssl cert verification in repo for rpms installation.
+	deactivate ssl cert verification in repo for rpms installation.
 	Boolean: true or false
 	Default value: false
 	Example: { "insecure_installation": false }

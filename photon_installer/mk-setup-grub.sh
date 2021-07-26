@@ -6,7 +6,7 @@
 
 set -o errexit        # exit if error...insurance ;)
 set -o nounset        # exit if variable not initalized
-set +h            # disable hashall
+set +h            # deactivate hashall
 set -x
 SCRIPT_PATH=$(dirname $(realpath -s $0))
 
