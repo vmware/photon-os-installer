@@ -31,8 +31,8 @@ class OSTreeServerSelector(object):
                                         ("Custom RPM-OSTree Server", self.set_default_repo_installation, False)
                                     ]
 
-        host_menu = Menu(menu_starty,  maxx, ostree_host_menu_items)
-        self.window = Window(win_height, win_width, maxy, maxx, 'Select OSTree Server', True, host_menu)
+        host_menu = Menu(menu_starty,  maxx, ostree_host_menu_items, default_selected=0, tab_enable=False)
+        self.window = Window(win_height, win_width, maxy, maxx, 'Select OSTree Server', True, host_menu, can_go_next=True)
 
     def set_default_repo_installation(self,  is_default_repo ):
         self.install_config['ostree']['default_repo'] = is_default_repo
