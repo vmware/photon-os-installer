@@ -861,7 +861,7 @@ class Installer(object):
         keepcache = False
         with open(self.tdnf_repo_path, "w") as repo_file:
             repo_file.write("[photon-local]\n")
-            repo_file.write("name=VMware Photon OS installer repo\n")
+            repo_file.write("name=VMware Photon OS Installer\n")
             if self.rpm_path.startswith("https://") or self.rpm_path.startswith("http://"):
                 repo_file.write("baseurl={}\n".format(self.rpm_path))
             else:
