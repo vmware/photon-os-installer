@@ -2,6 +2,21 @@
  * Copyright © 2020 VMware, Inc.
  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
  */
+Ways to provide Kickstart path:
+
+1. Remote kickstart:-
+
+        ks=http://<kickstart-link>
+
+2. Kickstart from cdrom attched with iso:
+
+	ks=cdrom:/isolinux/sample_ks.cfg
+
+3. Secondary Device Kickstart
+
+	ks=<device-path>:<path-referential-to-device>
+	Ex- ks=/dev/sr1:/isolinux/sample_ks.cfg
+
 Kickstart config file is a json format with following possible parameters:
 
 "additional_files": (optional)

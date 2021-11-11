@@ -47,7 +47,7 @@ class IsoInstaller(object):
                 self.insecure_installation = bool(int(arg[len("insecure_installation="):]))
 
         if photon_media:
-            self.mount_media(photon_media)
+            self.media_mount_path = self.mount_media(photon_media)
 
         if not repo_path:
             if self.media_mount_path:
@@ -127,16 +127,20 @@ class IsoInstaller(object):
                 path = os.path.join(self.media_mount_path, path.replace("cdrom:/", "", 1))
             elif not path.startswith("/"):
                 path = os.path.join(os.getcwd(), path)
+            elif len(path.split(':')) == 2:
+                ks_path_split = path.split(':')
+                ks_mounted_path = self.mount_media(ks_path_split[0], mount_path='/mnt/ks')
+                if ks_path_split[1].startswith("/"):
+                    ks_path_split[1] = ks_path_split[1][1:]
+                path = os.path.join(ks_mounted_path, ks_path_split[1])
+            else:
+                raise Exception("Kickstart file provided is not in correct format.")
             return (JsonWrapper(path)).read()
 
-    def mount_media(self, photon_media):
-        """Mount the cd with RPMS"""
-        # check if the cd is already mounted
-        if self.media_mount_path:
-            return
-        mount_path = "/mnt/media"
+    def mount_media(self, photon_media, mount_path="/mnt/media"):
+        """Mount the external media"""
 
-        # Mount the cd to get the RPMS
+        # Make the mounted directories
         os.makedirs(mount_path, exist_ok=True)
 
         # Construct mount cmdline
@@ -158,13 +162,12 @@ class IsoInstaller(object):
             process = subprocess.Popen(cmdline)
             retval = process.wait()
             if retval == 0:
-                self.media_mount_path = mount_path
-                return
-            print("Failed to mount the cd, retry in a second")
+                return mount_path
+            print("Failed to mount the device, retry in a second")
             time.sleep(1)
-        print("Failed to mount the cd, exiting the installer")
+        print("Failed to mount the device, exiting the installer")
         print("check the logs for more details")
-        raise Exception("Can not mount the cd")
+        raise Exception("Can not mount the device")
 
 
 if __name__ == '__main__':
