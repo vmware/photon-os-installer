@@ -11,5 +11,5 @@ setup(name='photon-installer',
       description='Installer code for photon',
       packages=find_packages(include=['photon_installer', 'photon_installer.modules']),
       include_package_data=True,
-      version='1.0+'+get_installer_version(),
+      version='2.0+'+get_installer_version(),
       author_email='gpiyush@vmware.com')
