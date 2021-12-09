@@ -6,6 +6,7 @@
 #
 #    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
+import sys
 from device import Device
 from window import Window
 from actionresult import ActionResult
@@ -38,13 +39,23 @@ class SelectDisk(object):
         self.devices = None
 
     def display(self):
-        self.window.addstr(0, 0, 'Please select a disk and a method how to partition it:\n' +
-                           'Auto - single partition for /, no swap partition.\n' +
-                           'Custom - for customized partitioning')
 
         self.disk_menu_items = []
 
         self.devices = Device.refresh_devices()
+
+        if len(self.devices) == 0:
+            err_win = Window(self.win_height, self.win_width, self.maxy, self.maxx,
+                             'Select a disk', False, position=2, tab_enabled=False)
+            err_win.addstr(0, 0, 'No block devices found to select\n' +
+                           'Press any key to get to bash.')
+            err_win.show_window()
+            err_win.content_window().getch()
+            sys.exit(1)
+
+        self.window.addstr(0, 0, 'Please select a disk and a method how to partition it:\n' +
+                           'Auto - single partition for /, no swap partition.\n' +
+                           'Custom - for customized partitioning')
         # Fill in the menu items
         for index, device in enumerate(self.devices):
             #if index > 0:
