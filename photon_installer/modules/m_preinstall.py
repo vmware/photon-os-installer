@@ -16,6 +16,7 @@ def execute(installer):
         return
 
     tempdir = "/tmp/tempscripts"
+    scripts = []
     if not os.path.exists(tempdir):
         os.mkdir(tempdir)
 
@@ -28,13 +29,18 @@ def execute(installer):
         with open(script_file, 'wb') as outfile:
             outfile.write("\n".join(script).encode())
         os.chmod(script_file, 0o700)
+        scripts.append('builtin_preinstall.sh')
 
     if 'preinstallscripts' in installer.install_config:
         for scriptname in installer.install_config['preinstallscripts']:
             script_file = installer.getfile(scriptname)
             shutil.copy(script_file, tempdir)
+            scripts.append(os.path.basename(scriptname))
 
-    for script in os.listdir(tempdir):
+    for script in scripts:
+        if not os.access(os.path.join(tempdir, script), os.X_OK):
+            installer.logger.warning("Post install script {} is not executable. Skipping execution of script.".format(script))
+            continue
         installer.logger.info("Running script {}".format(script))
         cmd = ["/bin/bash"]
         cmd.append("-c")

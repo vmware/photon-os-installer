@@ -17,6 +17,7 @@ def execute(installer):
 
     tempdir = "/tmp/tempscripts"
     tempdir_full = installer.photon_root + tempdir
+    scripts = []
     if not os.path.exists(tempdir_full):
         os.mkdir(tempdir_full)
 
@@ -30,13 +31,18 @@ def execute(installer):
         with open(script_file, 'wb') as outfile:
             outfile.write("\n".join(script).encode())
         os.chmod(script_file, 0o700)
+        scripts.append('builtin_postinstall.sh')
 
     if 'postinstallscripts' in installer.install_config:
         for scriptname in installer.install_config['postinstallscripts']:
             script_file = installer.getfile(scriptname)
             shutil.copy(script_file, tempdir_full)
+            scripts.append(os.path.basename(scriptname))
 
-    for script in os.listdir(tempdir_full):
+    for script in scripts:
+        if not os.access(os.path.join(tempdir_full, script), os.X_OK):
+            installer.logger.warning("Post install script {} is not executable. Skipping execution of script.".format(script))
+            continue
         installer.logger.info("Running script {}".format(script))
         installer.cmd.run_in_chroot(installer.photon_root, "{}/{}".format(tempdir, script))
 
