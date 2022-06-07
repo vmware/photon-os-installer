@@ -578,6 +578,17 @@ class Installer(object):
         return subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', path],
                                        universal_newlines=True).rstrip('\n')
 
+    def _add_btrfs_subvolume_to_fstab(self, mnt_src, fstab_file, btrfs_partition, parent_subvol=''):
+        """
+        Recursive function to add btrfs subvolume and nested subvolumes to fstab
+        fstab entry ex - UUID=0b56138b-6124-4ec4-a7a3-7c503516a65c   /data/projects    btrfs   subvol=projects    0   0
+        """
+        for subvol in btrfs_partition["subvols"]:
+            if "mountpoint" in subvol:
+                fstab_file.write(f"{mnt_src}\t{subvol['mountpoint']}\tbtrfs\tsubvol="+ os.path.join(parent_subvol, subvol['name']) +"\t0\t0\n")
+            if "subvols" in subvol:
+                self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, subvol, os.path.join(parent_subvol, subvol['name']))
+
     def _create_fstab(self, fstab_path=None):
         """
         update fstab
@@ -596,8 +607,11 @@ class Installer(object):
                 dump = 1
                 fsck = 2
 
-                if partition.get('mountpoint', '') == '/':
-                    options = options + ',barrier,noatime,noacl,data=ordered'
+                # Add supported options according to partition filesystem
+                if partition.get('mountpoint', '') == '/' and partition.get('filesystem','') != 'xfs':
+                    options = options + ',barrier,noatime,noacl'
+                    if partition.get('filesystem','') != 'btrfs':
+                        options += ',data=ordered'
                     fsck = 1
 
                 if ptype == PartitionType.SWAP:
@@ -630,6 +644,10 @@ class Installer(object):
                     dump,
                     fsck
                     ))
+
+                if partition.get('filesystem', '') == "btrfs" and "btrfs" in partition and "subvols" in partition["btrfs"]:
+                    self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, partition["btrfs"])
+
             # Add the cdrom entry
             fstab_file.write("/dev/cdrom\t/mnt/cdrom\tiso9660\tro,noauto\t0\t0\n")
 
@@ -663,6 +681,11 @@ class Installer(object):
             if retval != 0:
                 self.logger.error("Failed to mount partition {}".format(partition["path"]))
                 self.exit_gracefully()
+            if partition['filesystem'] == "btrfs" and "btrfs" in partition:
+                if "label" in partition["btrfs"]:
+                    self.cmd.run(f"btrfs filesystem label {mountpoint} {partition['btrfs']['label']}")
+                if "subvols" in partition["btrfs"]:
+                    self._create_btrfs_subvolumes(mountpoint, partition["btrfs"], partition["path"])
 
     def _initialize_system(self):
         """
@@ -1069,6 +1092,50 @@ class Installer(object):
             return '8300'
         raise Exception("Unknown partition type: {}".format(ptype))
 
+    def _mount_btrfs_subvol(self, mountpoint, disk, subvol_name, fs_options=None, parent_subvol=""):
+        """
+        Mount btrfs subvolume if mountpoint specified.
+        Create mountpoint directory inside given photon root.
+        If nested subvolume then append parent subvolume to identify the given subvolume to mount.
+        If fs_options provided then append fs_options to given mount options.
+        """
+        self.logger.info(self.photon_root + mountpoint)
+        mountpt = self.photon_root + mountpoint
+        self.cmd.run(["mkdir", "-p", mountpt])
+        mount_cmd = ['mount', '-v', disk]
+        options = "subvol=" + os.path.join(parent_subvol, subvol_name)
+        if fs_options:
+            options += f",{fs_options}"
+        mount_cmd.extend(['-o', options, mountpt])
+        retval = self.cmd.run(mount_cmd)
+        if retval:
+            self.logger.error(f"Failed to mount subvolume {parent_subvol}/{subvol_name} to {mountpt}")
+            self.exit_gracefully()
+
+    def _create_btrfs_subvolumes(self, path, partition, disk, parent_subvol=""):
+        """
+        Recursive function to create btrfs subvolumes.
+
+        Iterate over list of subvols in a given btrfs partition.
+        If "mountpoint" exists inside subvolume mount the subvolume at given mountpoint.
+        Label the subvolume if "label" exists in subvolume.
+        Create nested subvolume if "subvols" key exists inside parent subvolume.
+        """
+        for subvol in partition["subvols"]:
+            if subvol.get("name") is None:
+                self.logger.error("Failed to get subvol 'name'")
+                self.exit_gracefully()
+            retval = self.cmd.run(["btrfs", "subvolume", "create", os.path.join(path, subvol["name"])])
+            if retval:
+                self.logger.error(f"Error: Failed to create subvolume {path}")
+                self.exit_gracefully()
+            if "mountpoint" in subvol:
+                self._mount_btrfs_subvol(subvol["mountpoint"], disk, subvol["name"], subvol.get("fs_options", None), parent_subvol)
+            if "label" in subvol:
+                self.cmd.run(f"btrfs filesystem label " + os.path.join(path, subvol['name']) + f" {subvol['label']}")
+            if "subvols" in subvol:
+                self._create_btrfs_subvolumes(os.path.join(path, subvol["name"]), subvol, disk, os.path.join(parent_subvol, subvol["name"]))
+
     def _create_logical_volumes(self, physical_partition, vg_name, lv_partitions, extensible):
         """
         Create logical volumes
@@ -1316,6 +1383,11 @@ class Installer(object):
                 elif partition['mountpoint'] == '/boot':
                     partitions_data['boot'] = partition['path']
                     partitions_data['bootdirectory'] = '/'
+            if "filesystem" in partition:
+                if partition["filesystem"] == "xfs":
+                    self._add_packages_to_install('xfsprogs')
+                elif partition["filesystem"] == "btrfs":
+                    self._add_packages_to_install('btrfs-progs')
 
         # If no separate boot partition, then use /boot folder from root partition
         if 'boot' not in partitions_data:
@@ -1342,6 +1414,10 @@ class Installer(object):
                 mkfs_cmd = ['mkswap']
             else:
                 mkfs_cmd = ['mkfs', '-t', partition['filesystem']]
+
+            # Add force option to mkfs to override previously created partition
+            if partition["filesystem"] in ["btrfs", "xfs"]:
+                mkfs_cmd.extend(['-f'])
 
             if 'mkfs_options' in partition:
                 options = re.sub(r"[^\S]", " ", partition['mkfs_options']).split()

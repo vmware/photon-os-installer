@@ -112,7 +112,7 @@ class CustomPartition(object):
             else:
                 return False, "Input cannot be empty"
 
-        if typedata != 'swap' and typedata != 'ext3' and typedata != 'ext4':
+        if typedata not in ['swap', 'ext3', 'ext4', 'xfs', 'btrfs']:
             return False, "Invalid type"
 
         if len(mtdata) != 0 and mtdata[0] != '/':
@@ -151,7 +151,7 @@ class CustomPartition(object):
         self.partition_items.append(('Size in MB: ' +
                                      str(self.disk_size[self.device_index][1]) +
                                      ' available'))
-        self.partition_items.append(('Type: (ext3, ext4, swap)'))
+        self.partition_items.append(('Type: (ext3, ext4, xfs, btrfs, swap)'))
         self.partition_items.append(('Mountpoint:'))
         self.create_window = ReadMulText(
             self.maxy, self.maxx, 0,

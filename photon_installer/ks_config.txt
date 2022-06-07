@@ -123,7 +123,7 @@ Kickstart config file is a json format with following possible parameters:
 	Contains list of partitions to create.
 	Each partition is a dictionary of the following items:
 	"filesystem" (required)
-		Filesystem type. Supported values are: "swap", "ext4", "vfat".
+		Filesystem type. Supported values are: "swap", "ext4", "vfat", "xfs", "btrfs".
 	"disk" (optional if single disk device is available,
                 required if multiple disk devices are available)
                Target disk device will have the defined partition
@@ -142,6 +142,30 @@ Kickstart config file is a json format with following possible parameters:
 	"fs_options" (optional)
 		fs options to be passed to mount command as a string
                 ex - "fs_options": "nodev,noexec,nosuid"
+	"btrfs" (optional)
+		Creates btrfs volumes and subvolumes.
+		Value is a dictionary with 1 required and 1 optional key.
+		"label" (optional)
+			Name of the parent volume label.
+		"subvols" (optional)
+			Subvolumes inside parent volume.
+		Ex -
+		"disk": "/dev/sda",
+		"partitions": [
+                        {"mountpoint": "/", "size": 0, "filesystem": "btrfs"}]
+		Ex to create subvols -
+		{ "partitions" :
+			[{ "mountpoint": "/", "size": 2048, "filesystem": "btrfs",
+			      "btrfs" :
+				{
+					"label" : "main",
+					"subvols" : [
+						{"name": "rootfs", "mountpoint": "/root"},
+						{"name": "home", "mountpoint": "/home", "subvols": [{"name": "dir1", "mountpoint": "/dir1"}]}
+					]
+				}
+			}]
+		}
 	"lvm" (optional)
 		Will logical volume (LVM) for this partition.
 		Value is a dictionary with 2 required keys:
