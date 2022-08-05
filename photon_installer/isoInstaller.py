@@ -16,6 +16,7 @@ from argparse import ArgumentParser
 from installer import Installer
 from commandutils import CommandUtils
 from jsonwrapper import JsonWrapper
+from device import Device
 
 class IsoInstaller(object):
     def __init__(self, options):
@@ -163,8 +164,9 @@ class IsoInstaller(object):
             retval = process.wait()
             if retval == 0:
                 return mount_path
-            print("Failed to mount the device, retry in a second")
-            time.sleep(1)
+            print("Failed to mount the device, retry in 5 seconds")
+            Device.refresh_devices()
+            time.sleep(5)
         print("Failed to mount the device, exiting the installer")
         print("check the logs for more details")
         raise Exception("Can not mount the device")
