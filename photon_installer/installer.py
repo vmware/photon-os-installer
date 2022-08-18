@@ -652,8 +652,17 @@ class Installer(object):
 
         # Initialize rpm DB
         self.cmd.run(['mkdir', '-p', os.path.join(self.photon_root, "var/lib/rpm")])
-        retval = self.cmd.run(['rpm', '--root', self.photon_root, '--initdb',
-                               '--dbpath', '/var/lib/rpm'])
+
+        rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath /var/lib/rpm"
+        if self.cmd.checkIfHostRpmNotUsable():
+            rpm_db_init_cmd = f"tdnf install -y rpm && {rpm_db_init_cmd}"
+            retval = self.cmd.run(['docker', 'run', '--rm',
+                                  '-v', f"{self.photon_root}:{self.photon_root}",
+                                   self.install_config['photon_docker_image'],
+                                   '/bin/sh', '-c', rpm_db_init_cmd])
+        else:
+            retval = self.cmd.run(rpm_db_init_cmd)
+
         if retval != 0:
             self.logger.error("Failed to initialize rpm DB")
             self.exit_gracefully()
@@ -667,10 +676,11 @@ class Installer(object):
                                                     self.working_directory)
         retval = self.cmd.run(tdnf_cmd)
         if retval != 0:
-            retval = self.cmd.run(['docker', 'run',
-                                   '-v', self.rpm_cache_dir+':'+self.rpm_cache_dir,
-                                   '-v', self.working_directory+':'+self.working_directory,
-                                   self.install_config['photon_docker_image'], '/bin/sh', '-c', tdnf_cmd])
+            retval = self.cmd.run(["docker", "run", "--rm",
+                                   "-v", f"{self.rpm_cache_dir}:{self.rpm_cache_dir}",
+                                   "-v", f"{self.working_directory}:{self.working_directory}",
+                                   self.install_config["photon_docker_image"],
+                                   "/bin/sh", "-c", tdnf_cmd])
             if retval != 0:
                 self.logger.error("Failed to install filesystem rpm")
                 self.exit_gracefully()
@@ -960,10 +970,11 @@ class Installer(object):
                 self.logger.error(stderr.decode())
                 stderr = None
                 self.logger.info("Retry 'tdnf install' using docker image")
-                retval = self.cmd.run(['docker', 'run',
-                                       '-v', self.rpm_cache_dir+':'+self.rpm_cache_dir,
-                                       '-v', self.working_directory+':'+self.working_directory,
-                                       self.install_config['photon_docker_image'], '/bin/sh', '-c', tdnf_cmd])
+                retval = self.cmd.run(["docker", "run", "--rm",
+                                       "-v", f"{self.rpm_cache_dir}:{self.rpm_cache_dir}",
+                                       "-v", f"{self.working_directory}:{self.working_directory}",
+                                       self.install_config["photon_docker_image"],
+                                       "/bin/sh", "-c", tdnf_cmd])
 
         # 0 : succeed; 137 : package already installed; 65 : package not found in repo.
         if retval != 0 and retval != 137:

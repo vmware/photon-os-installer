@@ -17,6 +17,7 @@ from OpenSSL.crypto import load_certificate, FILETYPE_PEM
 class CommandUtils(object):
     def __init__(self, logger):
         self.logger = logger
+        self.hostRpmIsNotUsable = -1
 
     def run(self, cmd):
         self.logger.debug(cmd)
@@ -105,3 +106,24 @@ class CommandUtils(object):
             shutil.copyfileobj(r.raw, f)
 
         return True, None
+
+    def checkIfHostRpmNotUsable(self):
+        if self.hostRpmIsNotUsable >= 0:
+            return self.hostRpmIsNotUsable
+
+        # if rpm doesn't have zstd support
+        # if host rpm doesn't support sqlite backend db
+        cmds = [
+            "rpm --showrc | grep -qw 'rpmlib(PayloadIsZstd)'",
+            "rpm -E %{_db_backend} | grep -qw 'sqlite'",
+        ]
+
+        for cmd in cmds:
+            if self.run(cmd):
+                self.hostRpmIsNotUsable = 1
+                break
+
+        if self.hostRpmIsNotUsable < 0:
+            self.hostRpmIsNotUsable = 0
+
+        return self.hostRpmIsNotUsable
