@@ -636,7 +636,11 @@ class Installer(object):
                 continue
             mountpoint = self.photon_root + partition["mountpoint"]
             self.cmd.run(['mkdir', '-p', mountpoint])
-            retval = self.cmd.run(['mount', '-v', partition["path"], mountpoint])
+            mount_cmd = ['mount', '-v']
+            if "fs_options" in partition:
+                mount_cmd.extend(['-o', partition['fs_options']])
+            mount_cmd.extend([partition["path"], mountpoint])
+            retval = self.cmd.run(mount_cmd)
             if retval != 0:
                 self.logger.error("Failed to mount partition {}".format(partition["path"]))
                 self.exit_gracefully()
@@ -1313,8 +1317,8 @@ class Installer(object):
             else:
                 mkfs_cmd = ['mkfs', '-t', partition['filesystem']]
 
-            if 'fs_options' in partition:
-                options = re.sub(r"[^\S]", " ", partition['fs_options']).split()
+            if 'mkfs_options' in partition:
+                options = re.sub(r"[^\S]", " ", partition['mkfs_options']).split()
                 mkfs_cmd.extend(options)
 
             mkfs_cmd.extend([partition['path']])

@@ -142,8 +142,11 @@ Kickstart config file is a json format with following possible parameters:
 		Size of the partition in MB. If 0 then partition is considered
 		as expansible to fill rest of the disk. Only one expansible
 		partition is allowed.
-	"fs_options" (optional)
+	"mkfs_options" (optional)
 		Additional parameters for the mkfs command as a string
+	"fs_options" (optional)
+		fs options to be passed to mount command as a string
+                ex - "fs_options": "nodev,noexec,nosuid"
 	"lvm" (optional)
 		Will logical volume (LVM) for this partition.
 		Value is a dictionary with 2 required keys:
