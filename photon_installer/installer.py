@@ -1129,9 +1129,16 @@ class Installer(object):
         # 3) to create physical partition representation for VG
         vg_partitions = {}
 
+        # /dev/disk/by-path/pci-* -> ../../dev/sd* is symlink to device file
+        # To handle the case for ex:
+        # 'disk' : '/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0'
+        self.install_config['disk'] = os.path.realpath(self.install_config['disk'])
+
         default_disk = self.install_config['disk']
         partitions = self.install_config['partitions']
         for partition in partitions:
+            if 'disk' in partition:
+                partition['disk'] = os.path.realpath(partition['disk'])
             disk = partition.get('disk', default_disk)
             if disk not in ptv:
                 ptv[disk] = []

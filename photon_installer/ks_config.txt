@@ -57,6 +57,8 @@ Kickstart config file is a json format with following possible parameters:
 	Target"s disk device file path to install into, such as "/dev/sda".
 	Loop device is also supported.
 	Example: { "disk": "/dev/sdb" }
+	/dev/disk/by-path is also supported.
+	Example: { "disk": "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:1:0" }
 
 "eject_cdrom" (optional)
 	Eject or not cdrom after installation completed.
