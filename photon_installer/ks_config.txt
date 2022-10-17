@@ -238,6 +238,23 @@ Kickstart config file is a json format with following possible parameters:
 	Scripts will be looked up in "search_path" list.
 	Example: { "postinstallscripts": ["rpi3-custom-patch.sh"] }
 
+"preinstall" (optional)
+	Contains list of lines to be executed as a single script on
+	the target before installation starts.
+	if ks file defines any value($VALUE) that need to be populated dynamically
+	during runtime then it should be determined and exported in preinstall script.
+	Example: {
+			"disk": "$DISK"
+			"preinstall": [
+                                "#!/bin/sh",
+                                "ondisk=$(ls -lh /dev/disk/by-path/ | grep 'scsi-0:0:1:0' | cut -d' ' -f 9)",
+                                "export DISK=\"/dev/disk/by-path/$ondisk\""
+                                ] }
+"preinstallscripts" (optional)
+	Contains list of scripts to execute on the target before installation starts.
+	Scripts will be looked up in "search_path" list.
+	Example: { "preinstallscripts": ["find_disk.sh"] }
+
 "public_key" (optional)
 	To inject entry to authorized_keys as a string. Setting this variable
 	enables root login in sshd config.
