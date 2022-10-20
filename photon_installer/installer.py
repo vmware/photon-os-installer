@@ -56,7 +56,6 @@ class Installer(object):
         'disk',
         'eject_cdrom',
         'hostname',
-        'insecure_installation',
         'install_linux_esx',
         'linux_flavor',
         'live',
@@ -66,7 +65,6 @@ class Installer(object):
         'packagelist_file',
         'partition_type',
         'partitions',
-        'photon_release_version',
         'network',
         'password',
         'postinstall',
@@ -85,7 +83,8 @@ class Installer(object):
     linux_dependencies = ["devel", "drivers", "docs", "oprofile", "dtb"]
 
     def __init__(self, working_directory="/mnt/photon-root",
-                 rpm_path=os.path.dirname(__file__)+"/../stage/RPMS", log_path=os.path.dirname(__file__)+"/../stage/LOGS"):
+                 rpm_path=os.path.dirname(__file__)+"/../stage/RPMS", log_path=os.path.dirname(__file__)+"/../stage/LOGS",
+                 insecure_installation=False, photon_release_version='4.0'):
         self.exiting = False
         self.interactive = False
         self.install_config = None
@@ -94,6 +93,8 @@ class Installer(object):
         self.logger = None
         self.cmd = None
         self.working_directory = working_directory
+        self.insecure_installation = insecure_installation
+        self.photon_release_version = photon_release_version
 
         if os.path.exists(self.working_directory) and os.path.isdir(self.working_directory) and working_directory == '/mnt/photon-root':
             shutil.rmtree(self.working_directory)
@@ -117,12 +118,6 @@ class Installer(object):
     create, append and validate configuration date - install_config
     """
     def configure(self, install_config, ui_config=None):
-        if install_config and 'insecure_installation' in install_config:
-            insecure_installation = install_config.pop('insecure_installation')
-
-        if install_config and 'photon_release_version' in install_config:
-            photon_release_version = install_config.pop('photon_release_version')
-
         # Initialize logger and cmd first
         if not install_config:
             # UI installation
@@ -141,11 +136,6 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
-        if 'insecure_installation' in locals():
-            install_config['insecure_installation'] = insecure_installation
-
-        if 'photon_release_version' in locals():
-            install_config['photon_release_version'] = photon_release_version
         self._add_defaults(install_config)
 
         issue = self._check_install_config(install_config)
@@ -261,9 +251,6 @@ class Installer(object):
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
             install_config['photon_docker_image'] = "photon:latest"
-
-        if 'insecure_installation' not in install_config:
-            install_config['insecure_installation'] = False
 
     def _check_install_config(self, install_config):
         """
@@ -674,7 +661,7 @@ class Installer(object):
         # Install filesystem rpm
         tdnf_cmd = ("tdnf install -y filesystem --releasever {0} "
                     "--installroot {1} -c {2} "
-                    "--setopt=reposdir={3}").format(self.install_config['photon_release_version'],
+                    "--setopt=reposdir={3}").format(self.photon_release_version,
                                                     self.photon_root,
                                                     self.tdnf_conf_path,
                                                     self.working_directory)
@@ -883,7 +870,7 @@ class Installer(object):
                 repo_file.write("baseurl=file://{}\n".format(self.rpm_cache_dir))
                 keepcache = True
             repo_file.write("gpgcheck=0\nenabled=1\n")
-            if self.install_config['insecure_installation']:
+            if self.insecure_installation:
                 repo_file.write("sslverify=0\n")
         with open(self.tdnf_conf_path, "w") as conf_file:
             conf_file.writelines([
@@ -918,7 +905,7 @@ class Installer(object):
         stderr = None
         tdnf_cmd = ("tdnf install -y --releasever {0} --installroot {1} "
                     "-c {2} --setopt=reposdir={3} "
-                    "{4}").format(self.install_config['photon_release_version'],
+                    "{4}").format(self.photon_release_version,
                                   self.photon_root,
                                   self.tdnf_conf_path,
                                   self.working_directory,

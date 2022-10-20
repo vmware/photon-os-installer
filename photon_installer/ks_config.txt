@@ -71,13 +71,6 @@ Kickstart config file is a json format with following possible parameters:
 	Default value: "photon-<randomized string>"
 	Example: { "hostname": "photon-machine" }
 
-"insecure_installation" (optional)
-	Allow untrusted(selfsigned) https in kickstart iso and
-	deactivate ssl cert verification in repo for rpms installation.
-	Boolean: true or false
-	Default value: false
-	Example: { "insecure_installation": false }
-
 "live" (optional)
 	Should be set to flase if target system will not be run on
 	host machine. When it set to false, installer will not add EFI boot
@@ -279,8 +272,4 @@ Kickstart config file is a json format with following possible parameters:
         Default value: "photon:latest"
 	Example: { "photon_docker_image": "photon:3.0" }
 
-"photon_release_version"
-	Contains the photon release version
-	Acceptable values are: "4.0"
-	Example: {"photon_release_version": "4.0"}
 For reference, look at "sample_ks.cfg" file

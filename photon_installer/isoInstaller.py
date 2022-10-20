@@ -30,7 +30,7 @@ class IsoInstaller(object):
         # if not provided - use /RPMS path from photon_media,
         # exit otherwise.
         repo_path = options.repo_path
-        self.insecure_installation = None
+        self.insecure_installation = False
 
         with open('/proc/cmdline', 'r') as f:
             kernel_params = shlex.split(f.read().replace('\n', ''))
@@ -60,17 +60,6 @@ class IsoInstaller(object):
         if ks_path:
             install_config = self._load_ks_config(ks_path)
 
-
-        # insecure_installation flag added through commandline overrides that of ks_config
-        if self.insecure_installation:
-            if not install_config:
-                install_config = {}
-            install_config['insecure_installation'] = self.insecure_installation
-
-        if not install_config:
-            install_config = {}
-        install_config['photon_release_version'] = options.photon_release_version
-
         if options.ui_config_file:
             ui_config = (JsonWrapper(options.ui_config_file)).read()
         else:
@@ -85,7 +74,9 @@ class IsoInstaller(object):
 
 
         # Run installer
-        installer = Installer(rpm_path=repo_path, log_path="/var/log")
+        installer = Installer(rpm_path=repo_path, log_path="/var/log",
+                                insecure_installation=self.insecure_installation,
+                                photon_release_version=options.photon_release_version)
 
         installer.configure(install_config, ui_config)
         installer.execute()
