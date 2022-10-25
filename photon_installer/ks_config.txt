@@ -191,26 +191,51 @@ Kickstart config file is a json format with following possible parameters:
 			{"size": 128, "filesystem": "swap"} ] }
 	Example: Multiple Disk device partition table
 		{ "partitions": [
-					{
+				{
 					"disk": "/dev/sda",
 					"mountpoint": "/",
 					"size": 0,
 					"filesystem": "ext4"
-					},
-					{
+				},
+				{
 					"disk": "/dev/sdb",
 					"mountpoint": "/sdb",
 					"size": 0,
 					"filesystem": "ext4"
-					},
-					{
+				},
+				{
 					"disk": "/dev/sdc",
 					"mountpoint": "/sdc",
 					"size": 0,
 					"filesystem": "ext4"
-					},
-				]
+				},
+			]
 		}
+	"ab": (optional)
+		This feature enables the system to create a shadow partition
+		(snapshot of user-defined partition) of a user defined partition.
+		This is required to support the system upgrade/rollback functionality via
+		AB System Upgrade mechanism.
+		Acceptable values are: true, false
+		Default value: false
+		Example: In given the partition table below, the "/" partition will have
+		a shadow partition but the "/sda" partition will not have a shadow partition:
+			{ "partitions": [
+					{
+						"disk": "/dev/sda",
+						"mountpoint": "/",
+						"size": 0,
+						"filesystem": "ext4",
+						"ab": true
+					},
+					{
+						"disk": "/dev/sda",
+						"mountpoint": "/sda",
+						"size": 100,
+						"filesystem": "ext4"
+					}
+				]
+			}
 
 "network" (optional)
 	Used to configure network in live/installed system.

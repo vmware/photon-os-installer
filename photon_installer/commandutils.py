@@ -11,6 +11,7 @@ import random
 import shutil
 import ssl
 import requests
+import copy
 from urllib.parse import urlparse
 from OpenSSL.crypto import load_certificate, FILETYPE_PEM
 
@@ -138,3 +139,12 @@ class CommandUtils(object):
             return int(size)
         conv = {'k': 1024, 'm':1024**2, 'g':1024**3, 't':1024**4}
         return int(float(size[:-1]) * conv[size.lower()[-1]])
+
+
+    @staticmethod
+    def get_disk_size_bytes(disk):
+        cmd = ['blockdev', '--getsize64', disk]
+        process = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out,err = process.communicate()
+        retval = process.returncode
+        return retval, copy.copy(out.decode())

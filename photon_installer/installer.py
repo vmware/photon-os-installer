@@ -19,6 +19,8 @@ import secrets
 import curses
 import stat
 import tempfile
+import copy
+import json
 from logger import Logger
 from commandutils import CommandUtils
 from jsonwrapper import JsonWrapper
@@ -98,6 +100,7 @@ class Installer(object):
         self.working_directory = working_directory
         self.insecure_installation = insecure_installation
         self.photon_release_version = photon_release_version
+        self.ab_present = False
 
         if os.path.exists(self.working_directory) and os.path.isdir(self.working_directory) and working_directory == '/mnt/photon-root':
             shutil.rmtree(self.working_directory)
@@ -151,6 +154,8 @@ class Installer(object):
             raise Exception(issue)
 
         self.install_config = install_config
+
+        self._add_shadow_partitions()
 
     def execute(self):
         if 'setup_grub_script' in self.install_config:
@@ -345,7 +350,32 @@ class Installer(object):
             if install_config['password']['age'] < -1:
                 return "Password age should be -1, 0 or positive"
 
+        for partition in install_config['partitions']:
+            if partition.get('ab', False):
+                if partition.get('lvm', None):
+                    return "ab partition cannot be LVM"
+
         return None
+
+
+    def _add_shadow_partitions(self):
+        """
+        Add shadow partitions (copy those with 'ab' = true) to list of partitions
+        Both will have 'ab' = True
+        Shadow will have 'shadow'==True, the active one will have 'shadow'==False
+        """
+        shadow_parts = []
+        partitions = self.install_config['partitions']
+        for partition in partitions:
+            if 'lvm' not in partition and partition.get('ab', False):
+                shadow_part = copy.deepcopy(partition)
+                shadow_part['shadow'] = True
+                partition['shadow'] = False
+                shadow_parts.append(shadow_part)
+                self.ab_present = True
+
+        partitions.extend(shadow_parts)
+
 
     def _install(self, stdscreen=None):
         """
@@ -400,7 +430,7 @@ class Installer(object):
         """
         Install photon system
         """
-        self._partition_disk()
+        self._partition_disks()
         self._format_partitions()
         self._mount_partitions()
         if 'ostree' in self.install_config:
@@ -474,6 +504,9 @@ class Installer(object):
         for partition in self.install_config['partitions'][::-1]:
             if self._get_partition_type(partition) in [PartitionType.BIOS, PartitionType.SWAP]:
                 continue
+            if partition.get('shadow', False):
+                continue
+
             mountpoint = self.photon_root + partition["mountpoint"]
             if os.path.exists(mountpoint):
                 retval = self.cmd.run(['umount', '-l', mountpoint])
@@ -602,6 +635,8 @@ class Installer(object):
                 ptype = self._get_partition_type(partition)
                 if ptype == PartitionType.BIOS:
                     continue
+#                if partition.get('shadow', False):
+#                    continue
 
                 options = 'defaults'
                 dump = 1
@@ -635,6 +670,9 @@ class Installer(object):
                         mnt_src = "UUID={}".format(uuid)
                 if not mnt_src:
                     raise RuntimeError("Cannot get PARTUUID/UUID of: {}".format(path))
+
+                if partition.get('shadow', False):
+                    mnt_src = "# " + mnt_src
 
                 fstab_file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
                     mnt_src,
@@ -670,6 +708,8 @@ class Installer(object):
     def _mount_partitions(self):
         for partition in self.install_config['partitions'][::1]:
             if self._get_partition_type(partition) in [PartitionType.BIOS, PartitionType.SWAP]:
+                continue
+            if partition.get('shadow', False):
                 continue
             mountpoint = self.photon_root + partition["mountpoint"]
             self.cmd.run(['mkdir', '-p', mountpoint])
@@ -1266,6 +1306,7 @@ class Installer(object):
         # Add accumulated VG partitions
         for disk, vg_list in vg_partitions.items():
             ptv[disk].extend(vg_list.values())
+
         return ptv
 
     def _insert_boot_partitions(self):
@@ -1297,7 +1338,38 @@ class Installer(object):
             bios_partition = {'size': BIOSSIZE, 'filesystem': 'bios'}
             self.install_config['partitions'].insert(0, bios_partition)
 
-    def _partition_disk(self):
+
+    def __set_ab_partition_size(self, l2entries, used_size, total_disk_size):
+        for l2 in l2entries:
+            if l2['size'] == 0:
+                l2['size'] = int((total_disk_size - (used_size * (1024**2))) / (2 * (1024**2)))
+
+
+    def __ptv_update_partition_sizes(self, ptv):
+        # For ab partitions, if we copied a partition with size==0, we need to
+        # set the size explicitely for both to make sure their sizes are the
+        # same.
+        if self.ab_present:
+            for disk, l2entries in ptv.items():
+                retval, total_disk_size = CommandUtils.get_disk_size_bytes(disk)
+                if retval != 0:
+                    self.logger.info("Error code: {}".format(retval))
+                    raise Exception("Failed to get disk {0} size".format(disk))
+                total_disk_size = int(total_disk_size)
+                is_last_partition_ab = False
+                used_size = 1 # first usable sector is 2048, 512 * 2048 = 1MB
+                for l2 in l2entries:
+                    used_size += l2['size']
+                    if not 'lvs' in l2:
+                        if l2['partition'].get('ab', False) and l2['partition'].get('shadow', False):
+                            if l2['size'] == 0:
+                                is_last_partition_ab = True
+
+                if is_last_partition_ab:
+                    self.__set_ab_partition_size(l2entries, used_size, total_disk_size)
+
+
+    def _partition_disks(self):
         """
         Partition the disk
         """
@@ -1307,6 +1379,10 @@ class Installer(object):
 
         self._insert_boot_partitions()
         ptv = self._get_partition_tree_view()
+
+        self.__ptv_update_partition_sizes(ptv)
+
+        self.logger.info(json.dumps(ptv, indent=4))
 
         partitions = self.install_config['partitions']
         partitions_data = {}
@@ -1321,10 +1397,11 @@ class Installer(object):
                 raise Exception("Failed clearing disk {0}".format(disk))
 
             # Build partition command and insert 'part' into 'partitions'
-            partition_cmd = ['sgdisk']
             part_idx = 1
+            partition_cmd = ['sgdisk']
             # command option for extensible partition
             last_partition = None
+
             for l2 in l2entries:
                 if 'lvs' in l2:
                     # will be used for _create_logical_volumes() invocation
@@ -1339,7 +1416,8 @@ class Installer(object):
                 else:
                     partition_cmd.extend(['-n{}::+{}M'.format(part_idx, l2['size'])])
                     partition_cmd.extend(['-t{}:{}'.format(part_idx, l2['type'])])
-                part_idx = part_idx + 1
+                part_idx += 1
+
             # if extensible partition present, add it to the end of the disk
             if last_partition:
                 partition_cmd.extend(last_partition)
@@ -1379,16 +1457,16 @@ class Installer(object):
 
         # Create partitions_data (needed for mk-setup-grub.sh)
         for partition in partitions:
-            if "mountpoint" in partition:
+            if 'mountpoint' in partition and not partition.get('shadow', False):
                 if partition['mountpoint'] == '/':
                     partitions_data['root'] = partition['path']
                 elif partition['mountpoint'] == '/boot':
                     partitions_data['boot'] = partition['path']
                     partitions_data['bootdirectory'] = '/'
-            if "filesystem" in partition:
-                if partition["filesystem"] == "xfs":
+            if 'filesystem' in partition and not partition.get('shadow', False):
+                if partition['filesystem'] == "xfs":
                     self._add_packages_to_install('xfsprogs')
-                elif partition["filesystem"] == "btrfs":
+                elif partition['filesystem'] == "btrfs":
                     self._add_packages_to_install('btrfs-progs')
 
         # If no separate boot partition, then use /boot folder from root partition
@@ -1403,8 +1481,8 @@ class Installer(object):
         self.install_config['partitions_data'] = partitions_data
 
     def _format_partitions(self):
-        partitions = self.install_config['partitions']
-        self.logger.info(partitions)
+        partitions = self.install_config['partitions'].copy()
+        self.logger.info(json.dumps(partitions, indent=4))
 
         # Format the filesystem
         for partition in partitions:
