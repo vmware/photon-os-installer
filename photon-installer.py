@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument("-u", "--ui-config", dest="ui_config_file")
     parser.add_argument("-r", "--repo-path", dest="repo_path")
     parser.add_argument("-o", "--options-file", dest="options_file")
-    parser.add_argument("-w", "--working-dir", dest="working_dir")
+    parser.add_argument("-w", "--working-directory", dest="working_directory")
     parser.add_argument("-p", "--rpm-path", dest="rpm_path")
     parser.add_argument("-l", "--log-path", dest="log_path")
     parser.add_argument("-e", "--eula-file", dest="eula_file_path", default=None)
@@ -36,6 +36,7 @@ if __name__ == '__main__':
         else:
             raise Exception('install config file not provided')
 
-        installer = Installer(working_directory=working_directory, rpm_path=options.rpm_path,log_path=options.log_path)
+        installer = Installer(working_directory=options.working_directory, rpm_path=options.rpm_path,
+                            log_path=options.log_path, photon_release_version=options.photon_release_version)
         installer.configure(install_config)
         installer.execute()
