@@ -26,6 +26,7 @@ from progressbar import ProgressBar
 from window import Window
 from networkmanager import NetworkManager
 from enum import Enum
+from collections import abc
 
 BIOSSIZE = 4
 ESPSIZE = 10
@@ -69,6 +70,8 @@ class Installer(object):
         'password',
         'postinstall',
         'postinstallscripts',
+        'preinstall',
+        'preinstallscripts',
         'public_key',
         'photon_docker_image',
         'search_path',
@@ -129,6 +132,10 @@ class Installer(object):
         self.logger = Logger.get_logger(self.log_path, log_level, console)
         self.cmd = CommandUtils(self.logger)
 
+        # run preinstall scripts before installation begins
+        if install_config:
+            self._load_preinstall(install_config)
+
         # run UI configurator iff install_config param is None
         if not install_config and ui_config:
             from iso_config import IsoConfig
@@ -153,6 +160,31 @@ class Installer(object):
             curses.wrapper(self._install)
         else:
             self._install()
+
+    def _fill_dynamic_conf(self, install_config):
+        if isinstance(install_config, abc.Mapping) or isinstance(install_config, list):
+            for key, value in install_config.items():
+                if isinstance(value, abc.Mapping):
+                    yield from self._fill_dynamic_conf(value)
+                elif isinstance(value, list):
+                    for v in value:
+                        yield from self._fill_dynamic_conf(v)
+                else:
+                    if isinstance(value, str) and (value.startswith('$') and not value.startswith('$$')):
+                        if value[1:] in os.environ:
+                            install_config[key] = os.environ[value[1:]]
+                        else:
+                            raise Exception("Install configuration has dynamic value=\"{}\" for key=\"{}\" \
+                                            \n which is not exported in preinstall script. \
+                                            \n Please export dynamic values in preinstall script in ks file as below: \
+                                            \n export {}=\"<my-val>\"".format(value,key,value[1:]))
+
+    def _load_preinstall(self, install_config):
+        if 'preinstall' in install_config or 'preinstallscripts' in install_config:
+            self.install_config = install_config
+            self._execute_modules(modules.commons.PRE_INSTALL)
+            for fill_values in self._fill_dynamic_conf(install_config):
+                print(fill_values)
 
     def _add_defaults(self, install_config):
         """
