@@ -31,6 +31,10 @@ class IsoInstaller(object):
         # exit otherwise.
         repo_path = options.repo_path
         self.insecure_installation = False
+        # On Baremetal, time to emulate /dev/cdrom on different
+        # servers varies. So, adding a commandline parameter
+        # for retry count.
+        self.retry_mount_media = 3
 
         with open('/proc/cmdline', 'r') as f:
             kernel_params = shlex.split(f.read().replace('\n', ''))
@@ -46,6 +50,8 @@ class IsoInstaller(object):
                 photon_media = arg[len("photon.media="):]
             elif arg.startswith("insecure_installation="):
                 self.insecure_installation = bool(int(arg[len("insecure_installation="):]))
+            elif arg.startswith("photon.media.mount_retry="):
+                self.retry_mount_media = int(arg[len("photon.media.mount_retry="):])
 
         if photon_media:
             self.media_mount_path = self.mount_media(photon_media)
@@ -150,7 +156,7 @@ class IsoInstaller(object):
         cmdline.extend(['-o', 'ro', mount_path])
 
         # Retry mount the CD
-        for _ in range(0, 3):
+        for _ in range(0, self.retry_mount_media):
             process = subprocess.Popen(cmdline)
             retval = process.wait()
             if retval == 0:
