@@ -130,3 +130,11 @@ class CommandUtils(object):
             self.hostRpmIsNotUsable = 0
 
         return self.hostRpmIsNotUsable
+
+    def convertToBytes(self, size):
+        if not isinstance(size, str):
+            return int(size)
+        if not size[-1].isalpha():
+            return int(size)
+        conv = {'k': 1024, 'm':1024**2, 'g':1024**3, 't':1024**4}
+        return int(float(size[:-1]) * conv[size.lower()[-1]])

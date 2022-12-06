@@ -988,10 +988,12 @@ class Installer(object):
                     else:
                         info = output.split()
                         package = '{0}-{1}.{2}'.format(info[0], info[2], info[1])
-                        packages_to_install[package] = int(info[5])
-                        total_size += int(info[5])
+                        rpm_download_size = self.cmd.convertToBytes(info[5])
+                        packages_to_install[package] = rpm_download_size
+                        total_size += rpm_download_size
                 elif state == 2:
-                    if output == 'Downloading:\n':
+                    output_status = ["Downloading", "Testing transaction"]
+                    if output.startswith(tuple(output_status)):
                         self.progress_bar.update_message('Preparing ...')
                         state = 3
                 elif state == 3:
