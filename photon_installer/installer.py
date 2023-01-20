@@ -440,7 +440,7 @@ class Installer(object):
 
             self._cleanup_install_repo()
             self._unmount_all()
-        sys.exit(1)
+        raise Exception("Installer failed")
 
     def _setup_network(self):
         if 'network' not in self.install_config:
@@ -498,15 +498,16 @@ class Installer(object):
             if retval != 0:
                 self.logger.error("Failed to deactivate LVM volume group: {}".format(vg))
 
+        # Simulate partition hot remove to notify LVM
+        for pv in self.lvs_to_detach['pvs']:
+            retval = self.cmd.run(["dmsetup", "remove", pv])
+            if retval != 0:
+                self.logger.error("Failed to detach LVM physical volume: {}".format(pv))
+
         # Get the disks from partition table
         disks = set(partition.get('disk', self.install_config['disk']) for partition in self.install_config['partitions'])
         for disk in disks:
             if 'loop' in disk:
-                # Simulate partition hot remove to notify LVM
-                for pv in self.lvs_to_detach['pvs']:
-                    retval = self.cmd.run(["dmsetup", "remove", pv])
-                    if retval != 0:
-                        self.logger.error("Failed to detach LVM physical volume: {}".format(pv))
                 # Uninitialize device paritions mapping
                 retval = self.cmd.run(['kpartx', '-d', disk])
                 if retval != 0:
