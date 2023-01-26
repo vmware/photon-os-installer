@@ -79,13 +79,16 @@ class IsoInstaller(object):
         ui_config['license_display_title'] = options.license_display_title
 
 
-        # Run installer
-        installer = Installer(rpm_path=repo_path, log_path="/var/log",
+        try:
+            # Run installer
+            installer = Installer(rpm_path=repo_path, log_path="/var/log",
                                 insecure_installation=self.insecure_installation,
                                 photon_release_version=options.photon_release_version)
 
-        installer.configure(install_config, ui_config)
-        installer.execute()
+            installer.configure(install_config, ui_config)
+            installer.execute()
+        except Exception:
+            pass
 
     def _load_ks_config(self, path):
         """kick start configuration"""
