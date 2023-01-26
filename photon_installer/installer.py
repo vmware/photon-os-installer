@@ -547,34 +547,6 @@ class Installer(object):
                     self.logger.error("Failed to unmap partitions of the disk image {}". format(disk))
                     return None
 
-    def _bind_installer(self):
-        """
-        Make the photon_root/installer directory if not exits
-        The function finalize_system will access the file /installer/mk-finalize-system.sh
-        after chroot to photon_root.
-        Bind the /installer folder to self.photon_root/installer, so that after chroot
-        to photon_root,
-        the file can still be accessed as /installer/mk-finalize-system.sh.
-        """
-        # Make the photon_root/installer directory if not exits
-        if(self.cmd.run(['mkdir', '-p',
-                         os.path.join(self.photon_root, "installer")]) != 0 or
-           self.cmd.run(['mount', '--bind', self.installer_path,
-                         os.path.join(self.photon_root, "installer")]) != 0):
-            self.logger.error("Fail to bind installer")
-            self.exit_gracefully()
-
-    def _unbind_installer(self):
-        # unmount the installer directory
-        if os.path.exists(os.path.join(self.photon_root, "installer")):
-            retval = self.cmd.run(['umount', os.path.join(self.photon_root, "installer")])
-            if retval != 0:
-                self.logger.error("Fail to unbind the installer directory")
-            # remove the installer directory
-            retval = self.cmd.run(['rm', '-rf', os.path.join(self.photon_root, "installer")])
-            if retval != 0:
-                self.logger.error("Fail to remove the installer directory")
-
     def _bind_repo_dir(self):
         """
         Bind repo dir for tdnf installation
@@ -734,7 +706,6 @@ class Installer(object):
         """
         if self.install_config['ui']:
             self.progress_bar.update_message('Initializing system...')
-        self._bind_installer()
         self._bind_repo_dir()
 
         # Initialize rpm DB
@@ -743,7 +714,7 @@ class Installer(object):
         rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath /var/lib/rpm"
         if self.cmd.checkIfHostRpmNotUsable():
             rpm_db_init_cmd = f"tdnf install -y rpm && {rpm_db_init_cmd}"
-            retval = self.cmd.run(['docker', 'run', '--rm',
+            retval = self.cmd.run(['docker', 'run', '--ulimit',  'nofile=1024:1024', '--rm',
                                   '-v', f"{self.photon_root}:{self.photon_root}",
                                    self.install_config['photon_docker_image'],
                                    '/bin/sh', '-c', rpm_db_init_cmd])
@@ -763,7 +734,7 @@ class Installer(object):
                                                     self.working_directory)
         retval = self.cmd.run(tdnf_cmd)
         if retval != 0:
-            retval = self.cmd.run(["docker", "run", "--rm",
+            retval = self.cmd.run(["docker", "run", "--ulimit",  "nofile=1024:1024", "--rm",
                                    "-v", f"{self.rpm_cache_dir}:{self.rpm_cache_dir}",
                                    "-v", f"{self.working_directory}:{self.working_directory}",
                                    self.install_config["photon_docker_image"],
@@ -829,7 +800,6 @@ class Installer(object):
         self.cmd.run_in_chroot(self.photon_root, "rpm --import /etc/pki/rpm-gpg/*")
 
     def _cleanup_install_repo(self):
-        self._unbind_installer()
         self._unbind_repo_dir()
         # remove the tdnf cache directory.
         retval = self.cmd.run(['rm', '-rf', os.path.join(self.photon_root, "cache")])
@@ -1059,7 +1029,7 @@ class Installer(object):
                 self.logger.error(stderr.decode())
                 stderr = None
                 self.logger.info("Retry 'tdnf install' using docker image")
-                retval = self.cmd.run(["docker", "run", "--rm",
+                retval = self.cmd.run(["docker", "run", "--ulimit",  "nofile=1024:1024", "--rm",
                                        "-v", f"{self.rpm_cache_dir}:{self.rpm_cache_dir}",
                                        "-v", f"{self.working_directory}:{self.working_directory}",
                                        self.install_config["photon_docker_image"],

@@ -202,7 +202,9 @@ class IsoBuilder(object):
                             f"--rpmverbosity 10 -c {self.working_dir}/tdnf.conf {pkg_list}")
 
         self.logger.debug(tdnf_install_cmd)
-        self.runCmd((f'docker run --rm -v {self.working_dir}:{self.working_dir}'
+        # When using tdnf --installroot or rpm --root on chroot folder without /proc mounted, we must limit number of open files
+        # to avoid librpm hang scanning all possible FDs.
+        self.runCmd((f'docker run --ulimit nofile=1024:1024 --rm -v {self.working_dir}:{self.working_dir}'
                     f' photon:{self.photon_release_version} /bin/bash -c "{tdnf_install_cmd}"'))
 
         self.logger.debug("Succesfully installed photon-iso-config syslinux...")
