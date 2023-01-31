@@ -11,8 +11,15 @@ CUSTOM_PKG_LIST_FILE=$5
 PACKAGE_LIST_FILE_BASE_NAME="build_install_options_custom.json"
 CUSTOM_PKG_LIST_FILE_BASE_NAME=$(basename "${CUSTOM_PKG_LIST_FILE}")
 INITRD=$WORKINGDIR/photon-chroot
+LICENSE_TEXT="VMWARE $PHOTON_RELEASE_VER"
 
 mkdir -m 755 -p $INITRD
+
+if ! eval "$(grep -m 1 -w 'BETA LICENSE AGREEMENT' $WORKINGDIR/EULA.txt)"; then
+  LICENSE_TEXT+=" BETA"
+fi
+
+LICENSE_TEXT+=" LICENSE AGREEMENT"
 
 cat > ${WORKINGDIR}/photon-local.repo <<EOF
 [photon-local]
@@ -71,7 +78,7 @@ mv ${INITRD}/boot ${WORKINGDIR}/
 
 mkdir -p $INITRD/installer
 cp $SCRIPT_PATH/sample_ui.cfg ${INITRD}/installer
-cp $SCRIPT_PATH/EULA.txt ${INITRD}/installer
+mv ${WORKINGDIR}/EULA.txt ${INITRD}/installer
 
 # TODO: change minimal to custom.json
 cat > ${INITRD}/installer/build_install_options_custom.json << EOF
@@ -116,7 +123,7 @@ cat >> ${INITRD}/bin/bootphotoninstaller << EOF
 cd /installer
 ACTIVE_CONSOLE="\$(< /sys/devices/virtual/tty/console/active)"
 install() {
-  LANG=en_US.UTF-8 photon-installer -i iso -o $PACKAGE_LIST_FILE_BASE_NAME -e EULA.txt -t "VMWARE 4.0 LICENSE AGREEMENT" -v $PHOTON_RELEASE_VER && shutdown -r now
+  LANG=en_US.UTF-8 photon-installer -i iso -o $PACKAGE_LIST_FILE_BASE_NAME -e EULA.txt -t "$LICENSE_TEXT" -v $PHOTON_RELEASE_VER && shutdown -r now
 }
 try_run_installer() {
   if [ "\$ACTIVE_CONSOLE" == "tty0" ]; then

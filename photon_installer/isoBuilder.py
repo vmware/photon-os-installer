@@ -231,7 +231,8 @@ class IsoBuilder(object):
         # Download open source license for given branch and extract it in working dir.
         files_to_download = [f"https://github.com/vmware/photon/raw/{self.photon_release_version}/support/image-builder/iso/open_source_license.tar.gz",
                              f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-Apachev2",
-                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-GPL2.0"]
+                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-GPL2.0",
+                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/EULA.txt"]
         for file in files_to_download:
             self.logger.info(f"Downloading file: {file}")
             self.cmdUtil.wget(file, f'{self.working_dir}/{os.path.basename(file)}')
