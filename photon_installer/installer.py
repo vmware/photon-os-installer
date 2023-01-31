@@ -107,15 +107,17 @@ class Installer(object):
         if not os.path.exists(self.working_directory):
             os.mkdir(self.working_directory)
 
-        self.photon_root = self.working_directory + "/photon-chroot"
         self.installer_path = os.path.dirname(os.path.abspath(__file__))
+
+        self.photon_root = self.working_directory + "/photon-chroot"
         self.tdnf_conf_path = self.working_directory + "/tdnf.conf"
         self.tdnf_repo_path = self.working_directory + "/photon-local.repo"
 
-        self.setup_grub_command = os.path.dirname(__file__)+"/mk-setup-grub.sh"
+        self.setup_grub_command = os.path.join(os.path.dirname(__file__), "mk-setup-grub.sh")
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
         self.lvs_to_detach = {'vgs': [], 'pvs': []}
+
 
     """
     create, append and validate configuration date - install_config

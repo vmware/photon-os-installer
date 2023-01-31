@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 #
-# Copyright © 2020-2021 VMware, Inc.
+# Copyright © 2020-2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 #
 
@@ -35,7 +35,11 @@ def is_dirty():
 
 def get_installer_version():
     # if not a git repo, return empty string
-    if call(['git', 'branch'], stderr=STDOUT, stdout=open(os.devnull, 'w')):
+    try:
+        if call(['git', 'branch'], stderr=STDOUT, stdout=open(os.devnull, 'w')):
+            return ''
+    except FileNotFoundError:
+        # also return empty when we do not have git
         return ''
 
     version = get_version()

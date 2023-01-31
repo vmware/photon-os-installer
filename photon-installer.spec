@@ -10,7 +10,7 @@ added_files = [
 	('./photon_installer/modules/*', 'modules')
        ]
 
-a = Analysis(['photon-installer.py'],
+a = Analysis(['photon_installer/main.py'],
              pathex=['./photon_installer', './photon_installer/modules'],
              binaries=[],
              datas=added_files,

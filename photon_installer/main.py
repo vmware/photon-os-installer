@@ -1,11 +1,11 @@
 #/*
-# * Copyright © 2020 VMware, Inc.
+# * Copyright © 2020-2023 VMware, Inc.
 # * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 # */
 from os.path import dirname, join
 from argparse import ArgumentParser
 
-if __name__ == '__main__':
+def main():
     usage = "Usage: %prog [options]"
     parser = ArgumentParser(usage)
     parser.add_argument("-i", "--image-type", dest="image_type")
@@ -40,3 +40,7 @@ if __name__ == '__main__':
                             log_path=options.log_path, photon_release_version=options.photon_release_version)
         installer.configure(install_config)
         installer.execute()
+
+if __name__ == '__main__':
+    main()
+
