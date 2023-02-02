@@ -111,9 +111,6 @@ class Installer(object):
         self.installer_path = os.path.dirname(os.path.abspath(__file__))
         self.tdnf_conf_path = self.working_directory + "/tdnf.conf"
         self.tdnf_repo_path = self.working_directory + "/photon-local.repo"
-        self.rpm_cache_dir = self.photon_root + '/var/cache/tdnf/photon-local/rpms'
-        # used by tdnf.conf as cachedir=, tdnf will append the rest
-        self.rpm_cache_dir_short = self.photon_root + '/var/cache/tdnf'
 
         self.setup_grub_command = os.path.dirname(__file__)+"/mk-setup-grub.sh"
 
@@ -547,27 +544,6 @@ class Installer(object):
                     self.logger.error("Failed to unmap partitions of the disk image {}". format(disk))
                     return None
 
-    def _bind_repo_dir(self):
-        """
-        Bind repo dir for tdnf installation
-        """
-        if self.rpm_path.startswith("https://") or self.rpm_path.startswith("http://"):
-            return
-        if (self.cmd.run(['mkdir', '-p', self.rpm_cache_dir]) != 0 or
-                self.cmd.run(['mount', '--bind', self.rpm_path, self.rpm_cache_dir]) != 0):
-            self.logger.error("Fail to bind cache rpms")
-            self.exit_gracefully()
-
-    def _unbind_repo_dir(self):
-        """
-        Unbind repo dir after installation
-        """
-        if self.rpm_path.startswith("https://") or self.rpm_path.startswith("http://"):
-            return
-        if os.path.exists(self.rpm_cache_dir):
-            if (self.cmd.run(['umount', self.rpm_cache_dir]) != 0 or
-                    self.cmd.run(['rm', '-rf', self.rpm_cache_dir]) != 0):
-                self.logger.error("Fail to unbind cache rpms")
 
     def _get_partuuid(self, path):
         partuuid = subprocess.check_output(['blkid', '-s', 'PARTUUID', '-o', 'value', path],
@@ -706,7 +682,6 @@ class Installer(object):
         """
         if self.install_config['ui']:
             self.progress_bar.update_message('Initializing system...')
-        self._bind_repo_dir()
 
         # Initialize rpm DB
         self.cmd.run(['mkdir', '-p', os.path.join(self.photon_root, "var/lib/rpm")])
@@ -734,11 +709,7 @@ class Installer(object):
                                                     self.working_directory)
         retval = self.cmd.run(tdnf_cmd)
         if retval != 0:
-            retval = self.cmd.run(["docker", "run", "--ulimit",  "nofile=1024:1024", "--rm",
-                                   "-v", f"{self.rpm_cache_dir}:{self.rpm_cache_dir}",
-                                   "-v", f"{self.working_directory}:{self.working_directory}",
-                                   self.install_config["photon_docker_image"],
-                                   "/bin/sh", "-c", tdnf_cmd])
+            retval = self._run_tdnf_in_docker(tdnf_cmd)
             if retval != 0:
                 self.logger.error("Failed to install filesystem rpm")
                 self.exit_gracefully()
@@ -800,11 +771,10 @@ class Installer(object):
         self.cmd.run_in_chroot(self.photon_root, "rpm --import /etc/pki/rpm-gpg/*")
 
     def _cleanup_install_repo(self):
-        self._unbind_repo_dir()
-        # remove the tdnf cache directory.
-        retval = self.cmd.run(['rm', '-rf', os.path.join(self.photon_root, "cache")])
-        if retval != 0:
-            self.logger.error("Fail to remove the cache")
+        # remove the tdnf cache directory
+        cache_dir = os.path.join(self.photon_root, 'var/cache/tdnf')
+        if (os.path.isdir(cache_dir)):
+            shutil.rmtree(cache_dir)
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
         if os.path.exists(self.tdnf_repo_path):
@@ -926,15 +896,15 @@ class Installer(object):
         """
         Setup the tdnf repo for installation
         """
-        keepcache = False
         with open(self.tdnf_repo_path, "w") as repo_file:
             repo_file.write("[photon-local]\n")
             repo_file.write("name=VMware Photon OS Installer\n")
-            if self.rpm_path.startswith("https://") or self.rpm_path.startswith("http://"):
-                repo_file.write("baseurl={}\n".format(self.rpm_path))
+
+            if self.rpm_path.startswith('/'):
+                repo_file.write("baseurl=file://{}\n".format(self.rpm_path))
             else:
-                repo_file.write("baseurl=file://{}\n".format(self.rpm_cache_dir))
-                keepcache = True
+                repo_file.write("baseurl={}\n".format(self.rpm_path))
+
             repo_file.write("gpgcheck=0\nenabled=1\n")
             if self.insecure_installation:
                 repo_file.write("sslverify=0\n")
@@ -943,11 +913,8 @@ class Installer(object):
                 "[main]\n",
                 "gpgcheck=0\n",
                 "installonly_limit=3\n",
-                "clean_requirements_on_remove=true\n"])
-            # baseurl and cachedir are bindmounted to rpm_path, we do not
-            # want input RPMS to be removed after installation.
-            if keepcache:
-                conf_file.write("keepcache=1\n")
+                "clean_requirements_on_remove=true\n",
+                "keepcache=0\n"])
 
     def _install_additional_rpms(self):
         rpms_path = self.install_config.get('additional_rpms_path', None)
@@ -958,6 +925,21 @@ class Installer(object):
         if self.cmd.run(['rpm', '--root', self.photon_root, '-U', rpms_path + '/*.rpm']) != 0:
             self.logger.info('Failed to install additional_rpms from ' + rpms_path)
             self.exit_gracefully()
+
+
+    def _run_tdnf_in_docker(self, tdnf_cmd):
+        docker_args = ['docker', 'run', '--rm', '--ulimit',  'nofile=1024:1024']
+        docker_args.extend(['-v', f'{self.working_directory}:{self.working_directory}'])
+
+        rpm_path = self.rpm_path
+        if rpm_path.startswith('file://'):
+            rpm_path = rpm_path[7:]
+        if rpm_path.startswith('/'):
+            docker_args.extend(['-v', f'{rpm_path}:{rpm_path}'])
+        docker_args.extend([self.install_config["photon_docker_image"], "/bin/sh", "-c", tdnf_cmd])
+        self.logger.info(' '.join(docker_args))
+        return self.cmd.run(docker_args)
+
 
     def _install_packages(self):
         """
@@ -1029,11 +1011,7 @@ class Installer(object):
                 self.logger.error(stderr.decode())
                 stderr = None
                 self.logger.info("Retry 'tdnf install' using docker image")
-                retval = self.cmd.run(["docker", "run", "--ulimit",  "nofile=1024:1024", "--rm",
-                                       "-v", f"{self.rpm_cache_dir}:{self.rpm_cache_dir}",
-                                       "-v", f"{self.working_directory}:{self.working_directory}",
-                                       self.install_config["photon_docker_image"],
-                                       "/bin/sh", "-c", tdnf_cmd])
+                retval = self._run_tdnf_in_docker(tdnf_cmd)
 
         # 0 : succeed; 137 : package already installed; 65 : package not found in repo.
         if retval != 0 and retval != 137:
