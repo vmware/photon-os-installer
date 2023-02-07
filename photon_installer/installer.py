@@ -165,6 +165,7 @@ class Installer(object):
         else:
             self._install()
 
+
     def _fill_dynamic_conf(self, install_config):
         if isinstance(install_config, abc.Mapping) or isinstance(install_config, list):
             for key, value in install_config.items():
@@ -183,12 +184,13 @@ class Installer(object):
                                             \n Please export dynamic values in preinstall script in ks file as below: \
                                             \n export {}=\"<my-val>\"".format(value,key,value[1:]))
 
+
     def _load_preinstall(self, install_config):
-        if 'preinstall' in install_config or 'preinstallscripts' in install_config:
-            self.install_config = install_config
-            self._execute_modules(modules.commons.PRE_INSTALL)
-            for fill_values in self._fill_dynamic_conf(install_config):
-                print(fill_values)
+        self.install_config = install_config
+        self._execute_modules(modules.commons.PRE_INSTALL)
+        for fill_values in self._fill_dynamic_conf(install_config):
+            print(fill_values)
+
 
     def _add_defaults(self, install_config):
         """
@@ -231,10 +233,11 @@ class Installer(object):
         else:
             install_config['packages'] = packages
 
-        # live means online system. When you create an image for
-        # target system, live should be set to false.
+        # live means online system, and it's True be default. When you create an image for
+        # target system, live should be set to False.
         if 'live' not in install_config:
-            install_config['live'] = 'loop' not in install_config['disk']
+            if 'loop' in install_config['disk']:
+                install_config['live'] = False
 
         # default partition
         if 'partitions' not in install_config:
@@ -422,7 +425,7 @@ class Installer(object):
             if self.interactive:
                 self.window.content_window().getch()
 
-        if self.install_config['live']:
+        if self.install_config.get('live', True):
             self._eject_cdrom()
 
     def _unsafe_install(self):
@@ -471,24 +474,22 @@ class Installer(object):
             self._unmount_all()
         raise Exception("Installer failed")
 
+
     def _setup_network(self):
         if 'network' not in self.install_config:
             return
+
         # setup network config files in chroot
-        nm = NetworkManager(self.install_config, self.photon_root)
+        nm = NetworkManager(self.install_config['network'], self.photon_root)
         if not nm.setup_network():
             self.logger.error("Failed to setup network!")
             self.exit_gracefully()
+        nm.set_perms()
 
-        # Configure network when in live mode (ISO) and when network is not
-        # already configured (typically in KS flow).
-        if ('live' in self.install_config and
-                'conf_files' not in self.install_config['network']):
-            nm = NetworkManager(self.install_config)
-            if not nm.setup_network():
-                self.logger.error("Failed to setup network in ISO system")
-                self.exit_gracefully()
+        # Configure network when in live mode (ISO)
+        if (self.install_config.get('live', True)):
             nm.restart_networkd()
+
 
     def _unmount_all(self):
         """
@@ -811,7 +812,7 @@ class Installer(object):
                 grub_cfg.write("set prefix=($root){}grub2\n".format(self.install_config['partitions_data']['bootdirectory']))
                 grub_cfg.write("configfile {}grub2/grub.cfg\n".format(self.install_config['partitions_data']['bootdirectory']))
 
-            if self.install_config['live']:
+            if self.install_config.get('live', True):
                 arch = self.install_config['arch']
                 # 'x86_64' -> 'bootx64.efi', 'aarch64' -> 'bootaa64.efi'
                 exe_name = 'boot'+arch[:-5]+arch[-2:]+'.efi'

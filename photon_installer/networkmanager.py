@@ -1,202 +1,435 @@
 #/*
-# * Copyright © 2020 VMware, Inc.
+# * Copyright © 2020-2023 VMware, Inc.
 # * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 # */
-#
-#
-#     Date: Fri Aug 30 11:28:18 IST 2019
-#   Author: Siddharth Chandrasekaran <csiddharth@vmware.com>
 
+import getopt
+import json
 import os
+import re
 import subprocess
 import shutil
+import sys
 
-class NetworkManager():
 
-    TEMPLATE_NET_DHCP = (
-        '[Match]\n'
-        'Name=e*\n'
-        '\n'
-        '[Network]\n'
-        'DHCP=yes\n'
-        'IPv6AcceptRA=no\n'
-    )
+SYSTEMD_NETWORK_DIR = "etc/systemd/network"
+HOSTS_FILE = "etc/hosts"
+HOSTNAME_FILE = "etc/hostname"
 
-    TEMPLATE_NET_STATIC = (
-        "[Match]\n"
-        "Name=eth0\n"
-        "\n"
-        "[Network]\n"
-        "Address=@IP_ADDR@\n"
-        "Gateway=@GATEWAY@\n"
-        "DNS=@DNS@\n"
-    )
 
-    TEMPLATE_NET_DHCP_HOSTNAME = (
-        "\n"
-        "[DHCP]\n"
-        "SendHostname=True\n"
-        "Hostname=@HOSTNAME@\n"
-    )
+"""
+Useful links:
+Netplan: https://netplan.io/reference
+systemd-networkd: https://www.freedesktop.org/software/systemd/man/systemd-networkd.service.html
+"""
 
-    TEMPLATE_NET_VLAN_NETDEV = (
-        '[NetDev]\n'
-        'Name=eth0.@VLAN_NO@\n'
-        'Kind=vlan\n'
-        '\n'
-        '[VLAN]\n'
-        'Id=@VLAN_NO@\n'
-    )
+"""
+Example config:
 
-    TEMPLATE_NET_VLAN_NETWORK = (
-        '[Match]\n'
-        'Name=eth0.@VLAN_NO@\n'
-        '\n'
-        '[Network]\n'
-        'DHCP=yes\n'
-        'IPv6AcceptRA=no\n'
-    )
+    "network":{
+        "version": "2",
+        "hostname" : "photon-machine",
+        "ethernets": {
+            "id0":{
+                "match":{
+                    "name" : "eth0"
+                },
+                "dhcp4" : false,
+                "addresses":[
+                    "192.168.2.58/24"
+                ],
+                "gateway": "192.168.2.254",
+                "nameservers":{
+                    "addresses" : ["8.8.8.8", "8.8.4.4"],
+                    "search" : ["vmware.com", "eng.vmware.com"]
+                }
+            }
+        },
+        "vlans": {
+            "vlan0": {
+                "id": 100,
+                "link": "id0",
+                "addresses":[
+                    "192.168.100.58/24"
+                ]
+            }
+        }
+    }
+"""
 
-    def __init__(self, install_config, photon_root='/'):
-        self.photon_root = photon_root
-        self.install_config = install_config
-        self.conf_dir = os.path.join(self.photon_root, 'etc/systemd/network')
 
-        # Get contents of default dhcp config.
-        filename = '/etc/systemd/network/99-dhcp-en.network'
-        if os.path.exists(filename):
-            with open(filename, 'r') as f:
-                self.TEMPLATE_NET_DHCP = f.read()
-                self.TEMPLATE_NET_DHCP += '\n\n'
+"""
+Writes systemd-networkd config file
 
-        # Remove existing configs (if any)
-        for filename in os.listdir(self.conf_dir):
-            self.rm_f(os.path.join(self.conf_dir, filename))
+Input (config) is a simple two level dict:
+first level is the section name,
+second level is the options.
+If an option occurs more than once it's represented as an list with the
+individual values, otherwise it's a string or int.
 
-    def rm_f(self, filename):
-        if os.path.isfile(filename):
-            os.remove(filename)
+Example:
+[Network]
+DHCP = yes
+DNS = 8.8.8.8
+DNS = 8.8.4.4
 
-    def clean_conf_files(self):
-        if 'conf_files' not in self.install_config['network']:
-            return
-        for filename in self.install_config['network']['conf_files']:
-            self.rm_f(filename)
-        self.install_config['network']['conf_files'] = []
+is represented as:
 
-    def netmask_to_cidr(self, netmask):
-        # param: netmask ip addr (eg: 255.255.255.0)
-        # return: equivalent cidr number to given netmask ip (eg: 24)
-        return sum([bin(int(x)).count('1') for x in netmask.split('.')])
+{'Network' : {'DNS':["8.8.8.8", "8.8.4.4"], 'DHCP':'yes'}}
+"""
+def write_systemd_config(fout, config):
+    for sname, section in config.items():
+        fout.write(f"[{sname}]\n")
+        for option in section:
+            if type(section[option]) in [str, int]:
+                fout.write(f"{option}={section[option]}\n")
+            elif type(section[option]) == list:
+                for val in section[option]:
+                    fout.write(f"{option}={val}\n")
+        fout.write("\n")
 
-    def exec_cmd(self, cmd):
-        process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, shell=True)
-        retval = process.wait()
-        if retval != 0:
-            return False
-        return True
 
-    def restart_networkd(self):
-        if not self.exec_cmd('systemctl restart systemd-networkd'):
-            raise Exception('Failed to restart networkd')
-
-    def setup_network(self):
-        if 'type' not in self.install_config['network']:
-            return False
-        if self.install_config['network']['type'] == 'dhcp':
-            return self.setup_network_dhcp()
-        elif self.install_config['network']['type'] == 'static':
-            return self.setup_network_static()
-        elif self.install_config['network']['type'] == 'vlan':
-            return self.setup_network_vlan()
+# should we allow '_' ?
+def is_valid_hostname(hostname):
+    if len(hostname) > 255:
         return False
+    allowed = re.compile("(?!-)[A-Z\d_-]{1,63}(?<!-)$", re.IGNORECASE)
+    return allowed.match(hostname)
 
-    def setup_network_dhcp(self):
-        self.install_config['network']['type'] = 'dhcp'
-        self.install_config['network']['conf_files'] = []
-        hostname = self.install_config['network'].get('hostname', None)
 
-        filename = os.path.join(self.conf_dir, '99-dhcp-en.network')
-        with open(filename, 'w') as f:
-            f.write(self.TEMPLATE_NET_DHCP)
-            if hostname is not None:
-                f.write(self.TEMPLATE_NET_DHCP_HOSTNAME.replace('@HOSTNAME@', hostname))
-        self.install_config['network']['conf_files'].append(filename)
+def netmask_to_cidr(netmask):
+    # param: netmask ip addr (eg: 255.255.255.0)
+    # return: equivalent cidr number to given netmask ip (eg: 24)
+    return sum([bin(int(x)).count('1') for x in netmask.split('.')])
 
-        # Add a hosts entry
-        if hostname is not None:
-            hosts_file = os.path.join(self.photon_root, '/etc/hosts')
-            with open(hosts_file, 'a') as f:
-                f.write('\n127.0.0.1 {}\n'.format(hostname))
 
+class NetworkManager:
+
+    IFACE_TYPE_ETHERNET = 0
+    IFACE_TYPE_VLAN = 1
+
+    SYSTEMD_NETWORKD_PREFIX = "50-"
+
+    # hard coded values in Photon
+    SYSTEMD_NETWORK_UID = 76
+    SYSTEMD_NETWORK_GID = 76
+
+    # world has no perms
+    SYSTEMD_NETWORK_MODE = 0o660
+
+    def __init__(self, config, root_dir):
+        self.root_dir = root_dir
+        self.systemd_network_dir = os.path.join(self.root_dir, SYSTEMD_NETWORK_DIR)
+
+        """
+        Use new config by default, and if explicitely forced with version
+        set to '2'.
+        Fall back to legacy if either there is a 'type' field or version
+        is forced to '1'.
+        """
+        if config.get('version') != '2':
+            if 'type' in config or config.get('version') == '1':
+                config = self._convert_legacy_config(config)
+
+        self.config = config
+
+
+    # convert legacy config to new one
+    def _convert_legacy_config(self, old_config):
+        if not 'type' in old_config:
+            raise Exception (f"property 'type' must be set for legacy network configuration, or use 'version':'2'")
+
+        config = {'version' : '2'}
+
+        if 'hostname' in old_config:
+            config['hostname'] = old_config['hostname']
+
+        type = old_config['type']
+        if type == 'dhcp':
+            config['ethernets'] = {'dhcp-en' :
+                {'match' : {'name' : 'e*'}, 'dhcp4' : True }
+            }
+        elif type == 'static':
+            config['ethernets'] = {'static-en':
+                {'match' : {'name' : 'eth0'}}
+            }
+
+            if not 'ip_addr' in old_config:
+                raise Exception("need 'ip_addr' property for static network configuration")
+            address = old_config['ip_addr']
+
+            if 'netmask' in old_config:
+                cidr = netmask_to_cidr(old_config['netmask'])
+                address = f'{address}/{cidr}'
+
+            if_cfg = config['ethernets']['static-en']
+
+            if_cfg['addresses'] = [address]
+
+            if 'gateway' in old_config:
+                if_cfg['gateway'] = old_config['gateway']
+            if 'nameserver' in old_config:
+                nameserver = old_config['nameserver']
+                if_cfg['nameservers'] = {'addresses' : [nameserver]}
+
+        elif type == 'vlan':
+            # phys iface same as for type 'dhcp', but 'eth0' instead of 'e*'
+            config['ethernets'] = {'dhcp-en' :
+                {'match' : {'name' : 'eth0'}, 'dhcp4' : True }
+            }
+
+            # '99-dhcp-en.vlan_' + vlan + '.network'
+            if not 'vlan_id' in old_config:
+                raise Exception("need 'vlan_id' property for VLAN configuration")
+            vlan_id = old_config['vlan_id']
+            if_id = f'dhcp-en.vlan_{vlan_id}'
+            if_name = f'eth0.{vlan_id}'
+            config['vlans'] = {if_id :
+                {
+                    'match' : {'name' : if_name},
+                    'dhcp4' : True,
+                    'link' : 'dhcp-en',
+                    'id' : int(vlan_id)
+                }
+            }
+        else:
+            raise Exception (f"unknown network type '{type}")
+
+        return config
+
+
+    def prepare_filesystem(self):
+        os.makedirs(os.path.join(self.root_dir, SYSTEMD_NETWORK_DIR), exist_ok=True)
+
+
+    # find if if_id is in any VLAN, return list of ids that match
+    def _find_vlan_configs(self, if_id):
+        vif_ids = []
+        if 'vlans' in self.config:
+            for vif_id, vif_cfg in self.config['vlans'].items():
+                if 'link' in vif_cfg and vif_cfg['link'] == if_id:
+                    vif_ids.append(vif_id)
+
+        return vif_ids
+
+
+    # construct name for VLAN interface from physical iface name and id
+    def _get_vlan_iface_name(self, vif_id):
+        vif_cfg = self.config['vlans'][vif_id]
+        if 'link' in vif_cfg:
+            link = vif_cfg['link']
+            pif_cfg = self.config['ethernets'][link]
+            if not 'name' in pif_cfg['match']:
+                raise Exception("physical interface configuration needs a name to set for VLAN")
+            if 'id' in vif_cfg:
+                name = f"{pif_cfg['match']['name']}.{vif_cfg['id']}"
+            else:
+                raise Exception("need 'id' property for vlan configuration")
+        else:
+            raise Exception("need 'link' property for vlan configuration")
+
+        return name
+
+
+    # type is "network" or "netdev" (maybe "link" in the future)
+    def _get_iface_filename(self, if_id, type):
+        return os.path.join(self.root_dir,
+                            SYSTEMD_NETWORK_DIR,
+                            f"{self.SYSTEMD_NETWORKD_PREFIX}{if_id}.{type}")
+
+
+    # write the "*.network" file for the interface
+    def write_network_file(self, if_id, iface_config, type=IFACE_TYPE_ETHERNET):
+        sysdict = {}
+        name = None
+
+        if type == self.IFACE_TYPE_VLAN:
+            name = self._get_vlan_iface_name(if_id)
+            sysdict['Match'] = {}
+            sysdict['Match']['Name'] = name
+
+        elif type == self.IFACE_TYPE_ETHERNET:
+            if 'match' in iface_config:
+                sysdict['Match'] = {}
+                if 'macaddress' in iface_config['match']:
+                    sysdict['Match']['MACAddress'] = iface_config['match']['macaddress']
+                if 'name' in iface_config['match']:
+                    name = iface_config['match']['name']
+                    sysdict['Match']['Name'] = name
+
+        else:
+            raise Exception(f"unknown interface type {type}")
+
+        sysdict['Network'] = {}
+
+        if 'dhcp4' in iface_config or 'dhcp6' in iface_config:
+            if iface_config.get('dhcp4', False):
+                if iface_config.get('dhcp6', False):
+                    sysdict['Network']['DHCP'] = 'yes'
+                else:
+                    sysdict['Network']['DHCP'] = 'ipv4'
+            else:
+                if iface_config.get('dhcp6', False):
+                    sysdict['Network']['DHCP'] = 'ipv6'
+                else:
+                    sysdict['Network']['DHCP'] = 'no'
+
+        sysdict['Network']['IPv6AcceptRA'] = \
+            'yes' if iface_config.get('accept-ra', False) else 'no'
+
+        if 'addresses' in iface_config:
+            sysdict['Network']['Address'] = []
+            for addr in iface_config['addresses']:
+                sysdict['Network']['Address'].append(addr)
+
+        if 'nameservers' in iface_config:
+            sysdict['Network']['DNS'] = []
+            nss = iface_config['nameservers']
+            for entry in nss:
+                if entry == 'addresses':
+                    for addr in nss['addresses']:
+                        sysdict['Network']['DNS'].append(addr)
+                elif entry == 'search':
+                    domains = ' '.join(nss['search'])
+                    sysdict['Network']['Domains'] = domains
+
+        if 'gateway' in iface_config:
+            sysdict['Network']['Gateway'] = iface_config['gateway']
+
+        if type == self.IFACE_TYPE_ETHERNET:
+            # see if we can find iface id in VLANs
+            for vif_id in self._find_vlan_configs(if_id):
+                vname = self._get_vlan_iface_name(vif_id)
+                sysdict['Network']['VLAN'] = vname
+
+        with open(self._get_iface_filename(if_id, "network"), "w") as f:
+            write_systemd_config(f, sysdict)
+
+
+    # write the "*.netdev" file for the interface
+    def write_netdev_file(self, if_id, iface_config, type):
+        sysdict = {}
+
+        if type == self.IFACE_TYPE_VLAN:
+            name = self._get_vlan_iface_name(if_id)
+
+            sysdict['NetDev'] = {'Name': name, 'Kind':'vlan'}
+
+            if not 'id' in iface_config:
+                raise Exception("need 'id' property for vlan configuration")
+            id = iface_config['id']
+            if not 1 <= id <= 4094:
+                raise Exception("'id' must be in range 1..4094")
+            sysdict['VLAN'] = {'Id': id}
+
+        with open(self._get_iface_filename(if_id, "netdev"), "w") as f:
+            write_systemd_config(f, sysdict)
+
+
+    # write all network config files
+    def write_interfaces(self):
+        ethernets = self.config['ethernets']
+        for if_id, if_cfg in self.config['ethernets'].items():
+            self.write_network_file(if_id, if_cfg)
+
+        if 'vlans' in self.config:
+            for if_id, if_cfg in self.config['vlans'].items():
+                if if_cfg['link'] not in self.config['ethernets']:
+                    raise Exception("'link' property in VLAN config must be one of the ids set in 'ethernets'")
+
+                self.write_network_file(if_id, if_cfg, type=self.IFACE_TYPE_VLAN)
+                self.write_netdev_file(if_id, if_cfg, type=self.IFACE_TYPE_VLAN)
+
+
+    # set the hostname in /etc/hostname and add it to /etc/hosts
+    def set_hostname(self):
+        if 'hostname' in self.config:
+            hostname = self.config['hostname']
+
+            if not is_valid_hostname(hostname):
+                raise Exception(f"hostname '{hostname}' is invalid")
+
+            hosts_file = os.path.join(self.root_dir, HOSTS_FILE)
+            found = False
+
+            # check if hostname already there:
+            if os.path.exists(hosts_file):
+                with open(hosts_file, 'r') as fin:
+                    for line in fin.readlines():
+                        if line.startswith('#'):
+                            continue
+                        if line.startswith('127.0.0.1') and len(line.split()) > 1:
+                            if line.split()[1] == hostname:
+                                found = True
+                                break
+
+            # append to file:
+            if not found:
+                with open(hosts_file, 'a') as fout:
+                    fout.write('\n127.0.0.1 {}\n'.format(hostname))
+
+            hostname_file = os.path.join(self.root_dir, HOSTNAME_FILE)
+            with open(hostname_file, 'w') as fout:
+                fout.write(hostname)
+
+
+    def setup_network(self, do_clean=True):
+        if do_clean and os.path.isdir(self.systemd_network_dir):
+            for filename in os.listdir(self.systemd_network_dir):
+                filepath = os.path.join(self.systemd_network_dir, filename)
+                if os.path.isfile(filepath):
+                    os.remove(filepath)
+
+        self.prepare_filesystem()
+        self.write_interfaces()
+        self.set_hostname()
+
+        # we'd have thrown an exception on error:
         return True
 
-    def setup_network_static(self):
-        if ('ip_addr' not in self.install_config['network'] or
-                'netmask' not in self.install_config['network'] or
-                'gateway' not in self.install_config['network'] or
-                'nameserver' not in self.install_config['network']):
-            return False
 
-        self.install_config['network']['type'] = 'static'
-        self.install_config['network']['conf_files'] = []
+    def set_perms(self, uid=SYSTEMD_NETWORK_UID, gid=SYSTEMD_NETWORK_UID, mode=SYSTEMD_NETWORK_MODE):
+        for filename in os.listdir(self.systemd_network_dir):
+            filepath = os.path.join(self.systemd_network_dir, filename)
+            if os.path.isfile(filepath):
+                os.chmod(filepath, mode)
+                os.chown(filepath, uid, gid)
 
-        if ('/' not in self.install_config['network']['ip_addr'] and
-                'netmask' in self.install_config['network']):
-            cidr = self.netmask_to_cidr(self.install_config['network']['netmask'])
-            self.install_config['network']['ip_addr'] += '/' + str(cidr)
-            self.install_config['network'].pop('netmask')
 
-        s = self.TEMPLATE_NET_STATIC
-        s = s.replace('@IP_ADDR@', self.install_config['network']['ip_addr'])
-        s = s.replace('@GATEWAY@', self.install_config['network']['gateway'])
-        s = s.replace('@DNS@', self.install_config['network']['nameserver'])
+def main():
+    config_file = None
+    dest_dir = "/"
+    do_perms = False
 
-        filename = os.path.join(self.conf_dir, '99-static-en.network')
-        with open(filename, 'w') as f:
-            f.write(s)
-        self.install_config['network']['conf_files'].append(filename)
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'D:f:p')
+    except:
+        print ("invalid option")
+        sys.exit(2)
 
-        return True
+    for o, a in opts:
+        if o == '-D':
+            dest_dir = a
+        elif o == '-f':
+            config_file = a
+        elif o == '-p':
+            do_perms = True
+        else:
+            assert False, "unhandled option 'o'"
 
-    def setup_network_vlan(self):
-        if 'vlan_id' not in self.install_config['network']:
-            return False
-        self.install_config['network']['type'] = 'vlan'
-        self.install_config['network']['conf_files'] = []
-        vlan = self.install_config['network']['vlan_id']
+    if config_file != None:
+        f = open(config_file, 'r')
+    else:
+        f = sys.stdin
 
-        filename = os.path.join(self.conf_dir, '99-dhcp-en.network')
-        with open(filename, 'w') as f:
-            f.write(self.TEMPLATE_NET_DHCP)
-            f.write('VLAN=eth0.{}\n'.format(str(vlan)))
-        self.install_config['network']['conf_files'].append(filename)
+    config = json.load(f)
+    f.close()
 
-        filename = '99-dhcp-en.vlan_' + vlan + '.netdev'
-        filename = os.path.join(self.conf_dir, filename)
-        with open(filename, 'w') as f:
-            f.write(self.TEMPLATE_NET_VLAN_NETDEV.replace('@VLAN_NO@', str(vlan)))
-        self.install_config['network']['conf_files'].append(filename)
+    nm = NetworkManager(config, dest_dir)
+    nm.setup_network()
+    if do_perms:
+        nm.set_perms()
 
-        filename = '99-dhcp-en.vlan_' + vlan + '.network'
-        filename = os.path.join(self.conf_dir, filename)
-        with open(filename, 'w') as f:
-            f.write(self.TEMPLATE_NET_VLAN_NETWORK.replace('@VLAN_NO@', str(vlan)))
-        self.install_config['network']['conf_files'].append(filename)
 
-        return True
-
-    def teardown_network_config(self):
-        self.clean_conf_files()
-        self.install_config['network'].pop('type', None)
-
-        # clean the hosts file entry
-        if 'hostname' in self.install_config['network']:
-            hosts_file = os.path.join(self.photon_root, '/etc/hosts')
-            with open(hosts_file, 'r') as f:
-                lines = f.readlines()
-            with open(hosts_file, 'w') as f:
-                for line in lines:
-                    if self.install_config['network']['hostname'] not in line:
-                        f.write(line)
-            self.install_config['network'].pop('hostname', None)
+if __name__ == "__main__":
+    main()

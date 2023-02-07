@@ -238,7 +238,79 @@ Kickstart config file is a json format with following possible parameters:
 			}
 
 "network" (optional)
-	Used to configure network in live/installed system.
+    Used to configure network in live/installed system.
+
+    Set  "version": "2" or the legacy config will be used, see below.
+    
+    The syntax roughly follows the cloud-init or netplan configuration,
+    but not all options are supported.
+    
+    "hostname": set the host name.
+
+    "ethernets": Settings for ethernet interfaces. Each interface has an 'id',
+    which can be any name which may be refrenced for examplev for VLANs. Can
+    be the interface name.
+    
+    Within any 'id':
+    
+    "match" : set a way to match this interface. Can be 'name' or 'macaddress'.
+
+    "dhcp4" : boolean, set to true or false
+    
+    "dhcp6" : boolean, set to true or false
+
+    "accept-ra" : boolean, set to true or false. Whether to accept
+    Router Advertisement for IPv6.
+
+    "addresses" : a list of ip addresses (IPv4 or IPv6) with cidr netmask.
+    
+    "gateway" : the default gateway.
+    
+    "nameservers" : a dictionary with "addresses" containing a list of name servers,
+    and "search" with a list of search domains.
+
+    "vlans": Settings for VLAN interfaces. Similar to "ethernets" above,
+    but with these additional required settings:
+    
+    "id" : the VLAN id (integer in the range 1..4094)
+
+    "link" : the id of the ethernet interface to use, from the "ethernets"
+    configured.
+
+    Example:
+
+    "network":{
+        "version": "2",
+        "hostname" : "photon-machine",
+        "ethernets": {
+            "id0":{
+                "match":{
+                    "name" : "eth0"
+                },
+                "dhcp4" : false,
+                "addresses":[
+                    "192.168.2.58/24"
+                ],
+                "gateway": "192.168.2.254",
+                "nameservers":{
+                    "addresses" : ["8.8.8.8", "8.8.4.4"],
+                    "search" : ["vmware.com", "eng.vmware.com"]
+                }
+            }
+        },
+        "vlans": {
+            "vlan0": {
+                "id": 100,
+                "link": "id0",
+                "addresses":[
+                    "192.168.100.58/24"
+                ]
+            }
+        }
+    }
+
+    Legacy network configuration:
+
 	"type" (required)
 		String; must be one of dhcp/static/vlan. Indicates how the network
 		is being configured.
