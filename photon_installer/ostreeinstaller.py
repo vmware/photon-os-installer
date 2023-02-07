@@ -20,10 +20,9 @@ class OstreeInstaller(object):
     def __init__(self, installer):
         self.repo_config = {}
         self.installer_path = installer.installer_path
-        self.repo_read_conf()
-
         # simulate inheritance
         self.install_config = installer.install_config
+        self.repo_read_conf()
         self.logger = installer.logger
         if self.install_config['ui']:
             self.progress_bar = installer.progress_bar
@@ -45,7 +44,7 @@ class OstreeInstaller(object):
         with open(conf_path) as repo_conf:
             for line in repo_conf:
                 name, value = line.partition("=")[::2]
-                self.repo_config[name] = value.strip(' \n\t\r')
+                self.repo_config[name] = str(value.strip(' \n\t\r')).format(self.install_config['photon_release_version'], self.install_config['arch'])
 
     def pull_repo(self, repo_url, repo_ref):
         self.run([['ostree', 'remote', 'add', '--repo={}/ostree/repo'.format(self.photon_root), '--set=gpg-verify=false', 'photon', '{}'
