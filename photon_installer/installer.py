@@ -595,7 +595,7 @@ class Installer(object):
 
                 # Add supported options according to partition filesystem
                 if partition.get('mountpoint', '') == '/' and partition.get('filesystem','') != 'xfs':
-                    options = options + ',barrier,noatime,noacl'
+                    options = options + ',barrier,noatime'
                     if partition.get('filesystem','') != 'btrfs':
                         options += ',data=ordered'
                     fsck = 1
