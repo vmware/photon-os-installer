@@ -41,7 +41,7 @@ EOF
 rpmdb_init_cmd="rpm --root ${INITRD} --initdb --dbpath /var/lib/rpm"
 echo "${rpmdb_init_cmd}"
 if [ "$(rpm -E %{_db_backend})" != "sqlite" ]; then
-  rpmdb_init_cmd="docker run --ulimit nofile=1024:1024 --rm -v ${INITRD}:${INITRD} photon:$PHOTON_RELEASE_VER /bin/bash -c \"tdnf install -y rpm && ${rpmdb_init_cmd}\""
+  rpmdb_init_cmd="docker run --privileged --ulimit nofile=1024:1024 --rm -v ${INITRD}:${INITRD} photon:$PHOTON_RELEASE_VER /bin/bash -c \"tdnf install -y rpm && ${rpmdb_init_cmd}\""
 fi
 
 if ! eval "${rpmdb_init_cmd}"; then
@@ -58,7 +58,7 @@ TDNF_CMD="tdnf install -qy \
 
 echo $TDNF_CMD
 
-$TDNF_CMD || docker run --ulimit nofile=1024:1024 --rm -v $RPMS_PATH:$RPMS_PATH -v $WORKINGDIR:$WORKINGDIR photon:$PHOTON_RELEASE_VER /bin/bash -c "$TDNF_CMD"
+$TDNF_CMD || docker run --privileged --ulimit nofile=1024:1024 --rm -v $RPMS_PATH:$RPMS_PATH -v $WORKINGDIR:$WORKINGDIR photon:$PHOTON_RELEASE_VER /bin/bash -c "$TDNF_CMD"
 
 #mkdir -p $WORKINGDIR/isolinux
 #cp -r ${INITRD}/usr/share/photon-isolinux/* $WORKINGDIR/isolinux/
