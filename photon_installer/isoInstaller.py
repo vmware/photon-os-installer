@@ -169,7 +169,7 @@ class IsoInstaller(object):
             time.sleep(5)
         print("Failed to mount the device, exiting the installer")
         print("check the logs for more details")
-        raise Exception("Can not mount the device")
+        raise Exception(f"Cannot mount the device {str(photon_media)}")
 
 
 if __name__ == '__main__':
