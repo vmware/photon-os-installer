@@ -685,10 +685,14 @@ class Installer(object):
         if self.install_config['ui']:
             self.progress_bar.update_message('Initializing system...')
 
+        rpm_db_path = subprocess.check_output(['rpm', '-E', '%_dbpath'], universal_newlines=True).rstrip('\n')
+        if not rpm_db_path:
+            self.logger.error("Rpm db path empty...")
+            self.exit_gracefully()
         # Initialize rpm DB
-        self.cmd.run(['mkdir', '-p', os.path.join(self.photon_root, "var/lib/rpm")])
+        self.cmd.run(['mkdir', '-p', os.path.join(self.photon_root, rpm_db_path[1:])])
 
-        rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath /var/lib/rpm"
+        rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath {rpm_db_path}"
         if self.cmd.checkIfHostRpmNotUsable():
             rpm_db_init_cmd = f"tdnf install -y rpm && {rpm_db_init_cmd}"
             retval = self.cmd.run(['docker', 'run', '--ulimit',  'nofile=1024:1024', '--rm',
