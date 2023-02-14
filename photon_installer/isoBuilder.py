@@ -135,7 +135,7 @@ class IsoBuilder(object):
         # Using --alldeps option to include all dependencies even though package might be installed on system.
         tdnf_download_cmd = (f"tdnf --releasever {self.photon_release_version} --alldeps --downloadonly -y "
                              f"--downloaddir={self.working_dir}/RPMS install {pkg_list}")
-        download_cmd = (f"docker run --rm {additionalRepo} -v {self.rpms_path}:{self.rpms_path} "
+        download_cmd = (f"docker run --privileged --rm {additionalRepo} -v {self.rpms_path}:{self.rpms_path} "
                         f"-v {self.working_dir}:{self.working_dir} photon:{self.photon_release_version} "
                         f"/bin/bash -c \"tdnf clean all && tdnf update tdnf -y && {tdnf_download_cmd}\"")
         self.logger.info("Starting to download packages...")
@@ -204,7 +204,7 @@ class IsoBuilder(object):
         self.logger.debug(tdnf_install_cmd)
         # When using tdnf --installroot or rpm --root on chroot folder without /proc mounted, we must limit number of open files
         # to avoid librpm hang scanning all possible FDs.
-        self.runCmd((f'docker run --ulimit nofile=1024:1024 --rm -v {self.working_dir}:{self.working_dir}'
+        self.runCmd((f'docker run --privileged --ulimit nofile=1024:1024 --rm -v {self.working_dir}:{self.working_dir}'
                     f' photon:{self.photon_release_version} /bin/bash -c "{tdnf_install_cmd}"'))
 
         self.logger.debug("Succesfully installed photon-iso-config syslinux...")
@@ -263,25 +263,17 @@ class IsoBuilder(object):
         build_iso_cmd += "popd"
         self.runCmd(build_iso_cmd)
 
-
-if __name__ == '__main__':
+def main():
     usage = "Usage: %prog [options]"
     parser = ArgumentParser(usage)
     parser.add_argument("-l", "--log-level", dest="log_level", default="info")
-    parser.add_argument("-f", "--function", dest="function",
-                        default="build-iso", help="Building Options", choices=['build-iso', 'build-initrd'])
-    parser.add_argument("-v", "--photon-release-version",
-                        dest="photon_release_version", required=True)
-    parser.add_argument("-c", "--custom-initrd-pkgs", dest="custom_initrd_pkgs", default=None,
-                        help="optional parameter to provide cutom initrd pkg list file.")
-    parser.add_argument('-r', '--additional_repos', nargs='*', default=None,
-                        help='<Optional> Pass repo file as input to download rpms from external repo')
-    parser.add_argument("-p", "--custom-packages-json",
-                        dest="custom_packages_json", default="")
-    parser.add_argument("-k", "--kickstart-path",
-                        dest="kickstart_path", default=f'{os.path.dirname(__file__)}/sample_ks.cfg')
-    parser.add_argument("-b", "--boot-cmdline-param",
-                        dest="boot_cmdline_param", default="")
+    parser.add_argument("-f", "--function", dest="function", default="build-iso", help="Building Options", choices=["build-iso", "build-initrd"])
+    parser.add_argument("-v", "--photon-release-version", dest="photon_release_version", required=True)
+    parser.add_argument("-c", "--custom-initrd-pkgs", dest="custom_initrd_pkgs", default=None, help="optional parameter to provide cutom initrd pkg list file.")
+    parser.add_argument("-r", "--additional_repos", action="append", default=None, help="<Optional> Pass repo file as input to download rpms from external repo")
+    parser.add_argument("-p", "--custom-packages-json", dest="custom_packages_json", default="")
+    parser.add_argument("-k", "--kickstart-path", dest="kickstart_path", default=f"{os.path.dirname(__file__)}/sample_ks.cfg")
+    parser.add_argument("-b", "--boot-cmdline-param", dest="boot_cmdline_param", default="")
 
     options = parser.parse_args()
 
@@ -304,3 +296,6 @@ if __name__ == '__main__':
         raise Exception(f"{options.function} not supported...")
 
     isoBuilder.cleanUp()
+
+if __name__ == '__main__':
+    main()

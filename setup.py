@@ -21,7 +21,8 @@ setup(
     zip_safe=False,
     entry_points={
         'console_scripts': [
-            'photon-installer = photon_installer.main:main'
+            'photon-installer = photon_installer.main:main',
+            'photon-iso-builder = photon_installer.isoBuilder:main'
         ]
     },
     version='2.0+'+get_installer_version(),
