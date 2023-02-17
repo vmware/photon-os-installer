@@ -10,6 +10,7 @@ import collections
 from logger import Logger
 from argparse import ArgumentParser
 from commandutils import CommandUtils
+from tdnf import Tdnf
 
 
 class IsoBuilder(object):
@@ -26,6 +27,13 @@ class IsoBuilder(object):
         self.cmdUtil = CommandUtils(self.logger)
         self.architecture = platform.machine()
         self.additional_files = []
+        self.repos_dir = os.path.join(self.working_dir, "yum.repos.d")
+
+        self.tdnf = Tdnf(logger=self.logger,
+                         releasever=self.photon_release_version,
+                         reposdir=self.repos_dir,
+                         docker_image=self.photon_docker_image)
+
 
     def runCmd(self, cmd):
         retval = self.cmdUtil.run(cmd)
@@ -78,6 +86,21 @@ class IsoBuilder(object):
         with open(f"{self.working_dir}/build_install_options_custom.json", "w") as json_file:
             json_file.write(json.dumps(install_option_data))
 
+
+    def setupReposDir(self):
+        os.makedirs(self.repos_dir, exist_ok=True)
+
+        # copy repo files from host
+        if os.path.isdir("/etc/yum.repos.d"):
+            for repo_file in glob.glob("/etc/yum.repos.d/*.repo"):
+                shutil.copy(repo_file, self.repos_dir)
+
+        # additional repos
+        if self.additional_repos:
+            for repo_file in self.additional_repos:
+                shutil.copy(repo_file, self.repos_dir)
+
+
     def generateInitrd(self):
         """
         Generate custom initrd
@@ -103,6 +126,7 @@ class IsoBuilder(object):
         # Skip downloading packages if ostree iso.
         ostree_iso = False
         if self.function != "build-rpm-ostree-iso":
+            self.setupReposDir()
             self.downloadPkgs()
         else:
             ostree_iso = True
@@ -162,7 +186,7 @@ class IsoBuilder(object):
     def downloadPkgs(self):
         if not os.path.exists(self.rpms_path):
             self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
-            os.makedirs(self.rpms_path)
+            os.makedirs(self.rpms_path, exist_ok=True)
 
         # Add installer initrd and custom packages to package list..
         self.addPkgsToList(self.initrd_pkg_list_file)
@@ -180,25 +204,17 @@ class IsoBuilder(object):
 
         pkg_list = " ".join(self.pkg_list)
         self.logger.info(f"List of packages to download: {self.pkg_list}")
-        additionalRepo = ""
-        if self.additional_repos:
-            self.logger.info(f"List of additional repos given to download packages from: {self.additional_repos}")
-            for repo in self.additional_repos:
-                abs_repo_path = os.path.abspath(repo)
-                additionalRepo += f"--mount  type=bind,source={abs_repo_path},target=/etc/yum.repos.d/{os.path.basename(repo)} "
 
-        # TDNF cmd to download packages in the list from packages.vmware.com/photon.
-        # Using --alldeps option to include all dependencies even though package might be installed on system.
-        tdnf_download_cmd = (f"tdnf --releasever {self.photon_release_version} --alldeps --downloadonly -y "
-                             f"--downloaddir={self.working_dir}/RPMS install {pkg_list}")
-        download_cmd = (f"docker run --privileged --rm {additionalRepo} -v {self.rpms_path}:{self.rpms_path} "
-                        f"-v {self.working_dir}:{self.working_dir} photon:{self.photon_release_version} "
-                        f"/bin/bash -c \"tdnf clean all && tdnf update tdnf -y && {tdnf_download_cmd}\"")
-        self.logger.info("Starting to download packages...")
-        self.logger.debug(f"Starting to download packages:\n{download_cmd}")
-        self.runCmd(download_cmd)
+        # skip downloading if repo already exists
+        if not os.path.isdir(os.path.join(self.rpms_path, 'repodata')):
+            self.logger.info("downloading packages...")
+            retval, tdnf_out = self.tdnf.run(['--alldeps', '--downloadonly', '--downloaddir', self.rpms_path, 'install'] + self.pkg_list, \
+                                             directories=[self.rpms_path])
+            if retval != 0:
+                raise Exception(f"tdnf failed: {tdnf_out}")
+            self.logger.info("...done.")
 
-        # Seperate out packages downloaded into arch specific directories.
+        # Separate out packages downloaded into arch specific directories.
         # Run createrepo on the rpm download path once downloaded.
         if not os.path.exists(f"{self.rpms_path}/x86_64"):
             os.mkdir(f"{self.rpms_path}/x86_64")
@@ -260,15 +276,13 @@ class IsoBuilder(object):
         pkg_list=["photon-iso-config"]
         if self.architecture == "x86_64":
             pkg_list.extend(["syslinux"])
-        pkg_list = " ".join(pkg_list)
-        tdnf_install_cmd = (f"tdnf install -qy --releasever {self.photon_release_version} --installroot {self.working_dir}/isolinux-temp "
-                            f"--rpmverbosity 10 {pkg_list}")
 
-        self.logger.debug(tdnf_install_cmd)
-        # When using tdnf --installroot or rpm --root on chroot folder without /proc mounted, we must limit number of open files
-        # to avoid librpm hang scanning all possible FDs.
-        self.runCmd((f'docker run --privileged --ulimit nofile=1024:1024 --rm -v {self.working_dir}:{self.working_dir}'
-                    f' photon:{self.photon_release_version} /bin/bash -c "{tdnf_install_cmd}"'))
+        self.logger.info("installing packages for isolinux...")
+        isolinux_dir = os.path.join(self.working_dir, "isolinux-temp")
+        retval, tdnf_out = self.tdnf.run(['install', '--installroot', isolinux_dir] + pkg_list, directories=[isolinux_dir])
+        if retval != 0:
+            raise Exception(f"tdnf failed: {tdnf_out}")
+        self.logger.info("...done.")
 
         self.logger.debug("Succesfully installed photon-iso-config syslinux...")
         for file in os.listdir(f"{self.working_dir}/isolinux-temp/usr/share/photon-iso-config"):
@@ -324,12 +338,11 @@ class IsoBuilder(object):
         self.addGrubConfig()
 
         self.logger.info(f"Generating Iso: {self.iso_name}")
-        build_iso_cmd = f"pushd {self.working_dir} && "
+        build_iso_cmd = f"cd {self.working_dir} && "
         build_iso_cmd += "mkisofs -R -l -L -D -b isolinux/isolinux.bin -c isolinux/boot.cat "
         build_iso_cmd += "-no-emul-boot -boot-load-size 4 -boot-info-table "
         build_iso_cmd += f"-eltorito-alt-boot -e {self.efi_img} -no-emul-boot "
-        build_iso_cmd += f"-V \"PHOTON_$(date +%Y%m%d)\" {self.working_dir} > {self.iso_name} && "
-        build_iso_cmd += "popd"
+        build_iso_cmd += f"-V \"PHOTON_$(date +%Y%m%d)\" {self.working_dir} > {self.iso_name}"
         self.runCmd(build_iso_cmd)
 
 

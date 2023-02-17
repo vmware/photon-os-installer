@@ -30,6 +30,7 @@ from window import Window
 from networkmanager import NetworkManager
 from enum import Enum
 from collections import abc
+from tdnf import Tdnf
 
 BIOSSIZE = 4
 ESPSIZE = 10
@@ -114,8 +115,8 @@ class Installer(object):
 
         self.installer_path = os.path.dirname(os.path.abspath(__file__))
 
-        self.photon_root = self.working_directory + "/photon-chroot"
-        self.tdnf_conf_path = self.working_directory + "/tdnf.conf"
+        self.photon_root = os.path.join(self.working_directory, "photon-chroot")
+        self.tdnf_conf_path = os.path.join(self.working_directory, "tdnf.conf")
 
         self.setup_grub_command = os.path.join(os.path.dirname(__file__), "mk-setup-grub.sh")
 
@@ -154,6 +155,13 @@ class Installer(object):
 
         self._add_defaults(install_config)
 
+        self.tdnf = Tdnf(logger=self.logger,
+                         config_file=self.tdnf_conf_path,
+                         reposdir=self.working_directory,
+                         releasever=self.photon_release_version,
+                         installroot=self.photon_root,
+                         docker_image=install_config.get('photon_docker_image', None))
+
         issue = self._check_install_config(install_config)
         if issue:
             self.logger.error(issue)
@@ -177,7 +185,7 @@ class Installer(object):
             retval, size = CommandUtils.get_disk_size_bytes(disk)
             if retval != 0:
                 self.logger.info("Error code: {}".format(retval))
-                raise Exception(f"Failed to get disk {disk} size")
+                raise Exception(f"Failed to get disk '{disk}' size")
             disk_sizes[disk] = int(size)
         self.disk_sizes = disk_sizes
 
@@ -848,19 +856,10 @@ class Installer(object):
             self.logger.error("Failed to initialize rpm DB")
             self.exit_gracefully()
 
-        # Install filesystem rpm
-        tdnf_cmd = ("tdnf install -y filesystem --releasever {0} "
-                    "--installroot {1} -c {2} "
-                    "--setopt=reposdir={3}").format(self.photon_release_version,
-                                                    self.photon_root,
-                                                    self.tdnf_conf_path,
-                                                    self.working_directory)
-        retval = self.cmd.run(tdnf_cmd)
+        retval, tdnf_out = self.tdnf.run(['install', 'filesystem'])
         if retval != 0:
-            retval = self._run_tdnf_in_docker(tdnf_cmd)
-            if retval != 0:
-                self.logger.error("Failed to install filesystem rpm")
-                self.exit_gracefully()
+            self.logger.error("Failed to install filesystem rpm")
+            self.exit_gracefully()
 
         # Create special devices. We need it when devtpmfs is not mounted yet.
         devices = {
@@ -1057,6 +1056,7 @@ class Installer(object):
                 "clean_requirements_on_remove=true\n",
                 "keepcache=0\n"])
 
+
     def _install_additional_rpms(self):
         rpms_path = self.install_config.get('additional_rpms_path', None)
 
@@ -1066,20 +1066,6 @@ class Installer(object):
         if self.cmd.run(['rpm', '--root', self.photon_root, '-U', rpms_path + '/*.rpm']) != 0:
             self.logger.info('Failed to install additional_rpms from ' + rpms_path)
             self.exit_gracefully()
-
-
-    def _run_tdnf_in_docker(self, tdnf_cmd):
-        docker_args = ['docker', 'run', '--rm', '--privileged', '--ulimit',  'nofile=1024:1024']
-        docker_args.extend(['-v', f'{self.working_directory}:{self.working_directory}'])
-
-        repos = self.install_config["repos"]
-        for repo in repos:
-            if repos[repo]["baseurl"].startswith('file://'):
-                 rpm_path = repos[repo]["baseurl"][7:]
-                 docker_args.extend(['-v', f'{rpm_path}:{rpm_path}'])
-        docker_args.extend([self.install_config["photon_docker_image"], "/bin/sh", "-c", tdnf_cmd])
-        self.logger.info(' '.join(docker_args))
-        return self.cmd.run(docker_args)
 
 
     def _install_packages(self):
@@ -1092,19 +1078,19 @@ class Installer(object):
         packages_to_install = {}
         total_size = 0
         stderr = None
-        tdnf_cmd = ("tdnf install -y --releasever {0} --installroot {1} "
-                    "-c {2} --setopt=reposdir={3} "
-                    "{4}").format(self.photon_release_version,
-                                  self.photon_root,
-                                  self.tdnf_conf_path,
-                                  self.working_directory,
-                                  " ".join(selected_packages))
-        self.logger.debug(tdnf_cmd)
-
-        # run in shell to do not throw exception if tdnf not found
-        process = subprocess.Popen(tdnf_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if self.install_config['ui']:
+            tdnf_cmd = ("tdnf install -y --releasever {0} --installroot {1} "
+                        "-c {2} --setopt=reposdir={3} "
+                        "{4}").format(self.photon_release_version,
+                                      self.photon_root,
+                                      self.tdnf_conf_path,
+                                      self.working_directory,
+                                      " ".join(selected_packages))
+
+            # run in shell to do not throw exception if tdnf not found
+            process = subprocess.Popen(tdnf_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
             while True:
                 output = process.stdout.readline().decode()
                 if output == '':
@@ -1143,16 +1129,7 @@ class Installer(object):
 
                     self.progress_bar.update_message(output)
         else:
-            stdout, stderr = process.communicate()
-            self.logger.info(stdout.decode())
-            retval = process.returncode
-            # image creation. host's tdnf might not be available or can be outdated (Photon 1.0)
-            # retry with docker container
-            if retval != 0 and retval != 137:
-                self.logger.error(stderr.decode())
-                stderr = None
-                self.logger.info("Retry 'tdnf install' using docker image")
-                retval = self._run_tdnf_in_docker(tdnf_cmd)
+            retval, tdnf_out = self.tdnf.run(['install'] + selected_packages)
 
         # 0 : succeed; 137 : package already installed; 65 : package not found in repo.
         if retval != 0 and retval != 137:
