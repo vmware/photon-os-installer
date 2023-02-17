@@ -154,7 +154,12 @@ class Installer(object):
 
         self.install_config = install_config
 
+        self.ab_present = self._is_ab_present()
+
+        self._insert_boot_partitions()
+
         self._add_shadow_partitions()
+
 
     def execute(self):
         if 'setup_grub_script' in self.install_config:
@@ -333,6 +338,8 @@ class Installer(object):
                 mountpoints.append(mntpoint)
             if mntpoint == '/boot' and 'lvm' in partition:
                 return "/boot on LVM is not supported"
+            elif mntpoint == '/boot/efi' and partition['filesystem'] != 'vfat':
+                return "/boot/efi filesystem must be vfat"
             elif mntpoint == '/':
                 has_root = True
         if not has_root:
@@ -360,23 +367,31 @@ class Installer(object):
         return None
 
 
+    def _is_ab_present(self):
+        partitions = self.install_config['partitions']
+        for partition in partitions:
+            if 'lvm' not in partition and partition.get('ab', False):
+                return True
+
+
     def _add_shadow_partitions(self):
         """
         Add shadow partitions (copy those with 'ab' = true) to list of partitions
         Both will have 'ab' = True
         Shadow will have 'shadow'==True, the active one will have 'shadow'==False
         """
-        shadow_parts = []
-        partitions = self.install_config['partitions']
-        for partition in partitions:
-            if 'lvm' not in partition and partition.get('ab', False):
-                shadow_part = copy.deepcopy(partition)
-                shadow_part['shadow'] = True
-                partition['shadow'] = False
-                shadow_parts.append(shadow_part)
-                self.ab_present = True
+        if self.ab_present:
+            shadow_parts = []
+            partitions = self.install_config['partitions']
+            for partition in partitions:
+                if 'lvm' not in partition and partition.get('ab', False):
+                    shadow_part = copy.deepcopy(partition)
+                    shadow_part['shadow'] = True
+                    partition['shadow'] = False
+                    shadow_parts.append(shadow_part)
+                    self.ab_present = True
 
-        partitions.extend(shadow_parts)
+            partitions.extend(shadow_parts)
 
 
     def _install(self, stdscreen=None):
@@ -451,6 +466,7 @@ class Installer(object):
             self._cleanup_install_repo()
             self._setup_grub()
             self._create_fstab()
+            self._update_abupdate()
         self._execute_modules(modules.commons.POST_INSTALL)
         self._deactivate_network_in_chroot()
         self._unmount_all()
@@ -587,8 +603,8 @@ class Installer(object):
                 ptype = self._get_partition_type(partition)
                 if ptype == PartitionType.BIOS:
                     continue
-#                if partition.get('shadow', False):
-#                    continue
+                if partition.get('shadow', False):
+                    continue
 
                 options = 'defaults'
                 dump = 1
@@ -623,9 +639,6 @@ class Installer(object):
                 if not mnt_src:
                     raise RuntimeError("Cannot get PARTUUID/UUID of: {}".format(path))
 
-                if partition.get('shadow', False):
-                    mnt_src = "# " + mnt_src
-
                 fstab_file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
                     mnt_src,
                     mountpoint,
@@ -640,6 +653,55 @@ class Installer(object):
 
             # Add the cdrom entry
             fstab_file.write("/dev/cdrom\t/mnt/cdrom\tiso9660\tro,noauto\t0\t0\n")
+
+
+    def _update_abupdate(self):
+        if not self.ab_present:
+            return
+
+        abupdate_conf = os.path.join(self.photon_root, "etc/abupdate.conf")
+
+        boot_map = {'efi':'EFI', 'bios':'BIOS', 'dualboot':'BOTH'}
+        bootmode = self.install_config['bootmode']
+        if not bootmode in boot_map:
+            raise Exception(f"invalid boot mode '{bootmode}'")
+
+        ab_map = {}
+        for partition in self.install_config['partitions']:
+            ptype = self._get_partition_type(partition)
+            if ptype == PartitionType.BIOS:
+                continue
+            if partition.get('ab', False):
+                mntpoint = partition['mountpoint']
+                partuuid = self._get_partuuid(partition['path'])
+
+                if mntpoint == '/boot/efi':
+                    name = 'EFI'
+                elif mntpoint == '/':
+                    name = '_ROOT'
+                else:
+                    name = mntpoint[1:].upper().replace('/', '_')
+
+                # we go through this twice - active and shadow
+                # only add entry once
+                if not name in ab_map:
+                    ab_map[name] = {'mntpoint' : mntpoint}
+
+                if partition.get('shadow', False):
+                    ab_map[name]['shadow'] = partuuid
+                else:
+                    ab_map[name]['active'] = partuuid
+
+        # assuming a virgin file with no settings, or no file
+        with open(abupdate_conf, 'a') as f:
+            f.write(f"BOOT_TYPE={boot_map[bootmode]}\n")
+
+            for name, ab in ab_map.items():
+                f.write(f"{name}=({ab['active']} {ab['shadow']} {ab['mntpoint']})\n")
+
+            sets = " ".join(ab_map.keys())
+            f.write(f"SETS=({sets})\n")
+
 
     def _generate_partitions_param(self, reverse=False):
         """
@@ -1265,34 +1327,42 @@ class Installer(object):
 
         return ptv
 
+
     def _insert_boot_partitions(self):
         bios_found = False
         esp_found = False
-        for partition in self.install_config['partitions']:
+        partitions = self.install_config['partitions']
+
+        for partition in partitions:
             ptype = self._get_partition_type(partition)
             if ptype == PartitionType.BIOS:
                 bios_found = True
             if ptype == PartitionType.ESP:
                 esp_found = True
+                efi_partition = partition
 
         # Adding boot partition required for ostree if already not present in partitions table
         if 'ostree' in self.install_config:
-            mount_points = [partition['mountpoint'] for partition in self.install_config['partitions'] if 'mountpoint' in partition]
+            mount_points = [partition['mountpoint'] for partition in partitions if 'mountpoint' in partition]
             if '/boot' not in mount_points:
                 boot_partition = {'size': 300, 'filesystem': 'ext4', 'mountpoint': '/boot'}
-                self.install_config['partitions'].insert(0, boot_partition)
+                partitions.insert(0, boot_partition)
 
         bootmode = self.install_config.get('bootmode', 'bios')
 
-        # Insert efi special partition
-        if not esp_found and (bootmode == 'dualboot' or bootmode == 'efi'):
-            efi_partition = {'size': ESPSIZE, 'filesystem': 'vfat', 'mountpoint': '/boot/efi'}
-            self.install_config['partitions'].insert(0, efi_partition)
+        if bootmode == 'dualboot' or bootmode == 'efi':
+            # Insert efi special partition
+            if not esp_found:
+                efi_partition = {'size': ESPSIZE, 'filesystem': 'vfat', 'mountpoint': '/boot/efi'}
+                partitions.insert(0, efi_partition)
+
+            if self.ab_present:
+                efi_partition['ab'] = True
 
         # Insert bios partition last to be very first
         if not bios_found and (bootmode == 'dualboot' or bootmode == 'bios'):
             bios_partition = {'size': BIOSSIZE, 'filesystem': 'bios'}
-            self.install_config['partitions'].insert(0, bios_partition)
+            partitions.insert(0, bios_partition)
 
 
     def __set_ab_partition_size(self, l2entries, used_size, total_disk_size):
@@ -1333,7 +1403,6 @@ class Installer(object):
         if self.install_config['ui']:
             self.progress_bar.update_message('Partitioning...')
 
-        self._insert_boot_partitions()
         ptv = self._get_partition_tree_view()
 
         self.__ptv_update_partition_sizes(ptv)
