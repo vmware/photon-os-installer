@@ -20,22 +20,37 @@ class CommandUtils(object):
         self.logger = logger
         self.hostRpmIsNotUsable = -1
 
-    def run(self, cmd, update_env = False):
-        self.logger.debug(cmd)
-        use_shell = not isinstance(cmd, list)
-        process = subprocess.Popen(cmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out,err = process.communicate()
-        retval = process.returncode
-        if out != b'':
-            self.logger.info(out.decode())
-            if update_env:
-                os.environ.clear()
-                os.environ.update(dict(line.partition('=')[::2] for line in out.decode('utf8').split('\0') if line))
-        if retval != 0:
-            self.logger.info("Command failed: {}".format(cmd))
-            self.logger.info("Error code: {}".format(retval))
-            self.logger.error(err.decode())
-        return retval
+    def run(self, cmd, update_env=False):
+        """if FileNotFoundError raised by subprocess,
+        error code 127 report up on the stack"""
+        retval = 127
+        try:
+            use_shell = not isinstance(cmd, list)
+            process = subprocess.Popen(
+                cmd, shell=use_shell,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            out, err = process.communicate()
+            retval = process.returncode
+            if out != b'':
+                self.logger.info(out.decode())
+                if update_env:
+                    os.environ.clear()
+                    os.environ.update(
+                        dict(line.partition('=')[::2]
+                             for line in out.decode('utf8').split('\0')
+                             if line)
+                    )
+            if retval != 0:
+                self.logger.info("Command failed: {}".format(cmd))
+                self.logger.info("Error code: {}".format(retval))
+                self.logger.error(err.decode())
+        except FileNotFoundError as _:
+            self.logger.info(f"Command {cmd} not found")
+
+        finally:
+            return retval
 
     def run_in_chroot(self, chroot_path, cmd, update_env = False):
         # Use short command here. Initial version was:
