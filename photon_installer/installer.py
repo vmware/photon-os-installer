@@ -926,10 +926,28 @@ class Installer(object):
     def _install_additional_rpms(self):
         rpms_path = self.install_config.get('additional_rpms_path', None)
 
-        if not rpms_path or not os.path.exists(rpms_path):
+        rpm_dir = []
+        if not rpms_path or len(rpm_dir) == 0:
             return
 
-        if self.cmd.run(['rpm', '--root', self.photon_root, '-U', rpms_path + '/*.rpm']) != 0:
+        if isinstance(rpms_path, list):
+            rpm_dir = [d for d in rpm_dir if len(d) > 0
+                       and os.path.exists(d)]
+        else:
+            if os.path.exists(rpms_path):
+                rpm_dir.append(rpm_dir)
+            else:
+                return
+        
+        cmd_err = 0
+        for rdir in rpm_dir:
+            try:
+                # best effort for each dir in list
+                cmd_err = self.cmd.run(['rpm', '--root', self.photon_root, '-U', rdir + '/*.rpm'])
+            except FileNotFoundError as _:
+                pass
+
+        if cmd_err > 0:
             self.logger.info('Failed to install additional_rpms from ' + rpms_path)
             self.exit_gracefully()
 
