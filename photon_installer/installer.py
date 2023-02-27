@@ -241,6 +241,7 @@ class Installer(object):
         # live means online system, and it's True be default. When you create an image for
         # target system, live should be set to False.
         if 'live' not in install_config:
+            install_config['live'] = True
             if 'loop' in install_config['disk']:
                 install_config['live'] = False
 
