@@ -496,7 +496,7 @@ class Installer(object):
             return
 
         # setup network config files in chroot
-        nm = NetworkManager(self.install_config['network'], self.photon_root)
+        nm = NetworkManager(self.install_config['network'], root_dir=self.photon_root)
         if not nm.setup_network():
             self.logger.error("Failed to setup network!")
             self.exit_gracefully()

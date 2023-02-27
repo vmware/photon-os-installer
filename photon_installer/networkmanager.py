@@ -117,7 +117,8 @@ class NetworkManager:
     # world has no perms
     SYSTEMD_NETWORK_MODE = 0o660
 
-    def __init__(self, config, root_dir):
+    def __init__(self, config, root_dir="/"):
+
         self.root_dir = root_dir
         self.systemd_network_dir = os.path.join(self.root_dir, SYSTEMD_NETWORK_DIR)
 
@@ -373,6 +374,21 @@ class NetworkManager:
                 fout.write(hostname)
 
 
+    def exec_cmd(self, cmd):
+        process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, shell=True)
+        retval = process.wait()
+        if retval != 0:
+            return False
+        return True
+
+
+    def restart_networkd(self):
+        if self.root_dir != "/":
+            return
+        if not self.exec_cmd('systemctl restart systemd-networkd'):
+            raise Exception('Failed to restart networkd')
+
+
     def setup_network(self, do_clean=True):
         if do_clean and os.path.isdir(self.systemd_network_dir):
             for filename in os.listdir(self.systemd_network_dir):
@@ -389,11 +405,15 @@ class NetworkManager:
 
 
     def set_perms(self, uid=SYSTEMD_NETWORK_UID, gid=SYSTEMD_NETWORK_UID, mode=SYSTEMD_NETWORK_MODE):
-        for filename in os.listdir(self.systemd_network_dir):
-            filepath = os.path.join(self.systemd_network_dir, filename)
-            if os.path.isfile(filepath):
-                os.chmod(filepath, mode)
-                os.chown(filepath, uid, gid)
+        try:
+            for filename in os.listdir(self.systemd_network_dir):
+                filepath = os.path.join(self.systemd_network_dir, filename)
+                if os.path.isfile(filepath):
+                    os.chmod(filepath, mode)
+                    os.chown(filepath, uid, gid)
+        except PermissionError:
+            # pass if we are debugging as unprivileged user
+            pass
 
 
 def main():
@@ -423,7 +443,8 @@ def main():
         f = sys.stdin
 
     config = json.load(f)
-    f.close()
+    if f != sys.stdin:
+        f.close()
 
     nm = NetworkManager(config, dest_dir)
     nm.setup_network()

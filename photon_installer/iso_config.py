@@ -9,6 +9,8 @@ import secrets
 import requests
 import cracklib
 import curses
+import getopt
+import json
 from logger import Logger
 from custompartition import CustomPartition
 from packageselector import PackageSelector
@@ -26,7 +28,7 @@ from netconfig import NetworkConfigure
 class IsoConfig(object):
     g_ostree_repo_url = None
     """This class handles iso installer configuration."""
-    def __init__(self):
+    def __init__(self, root_dir="/"):
         self.alpha_chars = list(range(65, 91))
         self.alpha_chars.extend(range(97, 123))
         self.hostname_accepted_chars = self.alpha_chars
@@ -37,6 +39,7 @@ class IsoConfig(object):
         self.random_id = '%12x' % secrets.randbelow(16**12)
         self.random_hostname = "photon-" + self.random_id.strip()
         self.logger = Logger.get_logger()
+        self.root_dir = root_dir
 
     @staticmethod
     def validate_hostname(hostname):
@@ -160,7 +163,7 @@ class IsoConfig(object):
         # UI screens showing
         while True:
             ar = items[index][0]()
-            # Skip inactive window and continue previos direction.
+            # Skip inactive window and continue previous direction.
             if ar.result and ar.result.get('inactive_screen', False):
                 ar.success = go_next
             go_next = ar.success
@@ -256,7 +259,7 @@ class IsoConfig(object):
             title = ui_config['download_screen'].get('title', None)
             intro = ui_config['download_screen'].get('intro', None)
             dest  = ui_config['download_screen'].get('destination', None)
-            fd = FileDownloader(maxy, maxx, install_config, title, intro, dest, True)
+            fd = FileDownloader(maxy, maxx, install_config, title, intro, dest, True, root_dir=self.root_dir)
             items.append((fd.display, True))
 
         linux_selector = LinuxSelector(maxy, maxx, install_config)
@@ -270,4 +273,45 @@ class IsoConfig(object):
         items.append((confirm_window.do_action, True))
 
         return items
+
+
+# for debugging
+def main():
+    config_file = None
+    root_dir = "/"
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'D:f:')
+    except:
+        print ("invalid option")
+        sys.exit(2)
+
+    for o, a in opts:
+        if o == '-D':
+            root_dir = a
+        elif o == '-f':
+            config_file = a
+        else:
+            assert False, "unhandled option 'o'"
+
+    if config_file != None:
+        f = open(config_file, 'r')
+    else:
+        f = sys.stdin
+
+    ui_config = json.load(f)
+    if f != sys.stdin:
+        f.close()
+
+    # EVIL hack
+    ui_config['options_file'] = "input.json"
+
+    ui = IsoConfig(root_dir=root_dir)
+    config = curses.wrapper(ui.configure, ui_config)
+
+    print(json.dumps(config, indent=4))
+
+
+if __name__ == "__main__":
+    main()
 

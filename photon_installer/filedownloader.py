@@ -18,7 +18,7 @@ from confirmwindow import ConfirmWindow
 
 class FileDownloader(object):
 
-    def __init__(self, maxy, maxx, install_config, title, intro, dest, setup_network=False):
+    def __init__(self, maxy, maxx, install_config, title, intro, dest, setup_network=False, root_dir="/"):
         self.install_config = install_config
         self.maxy = maxy
         self.maxx = maxx
@@ -27,8 +27,8 @@ class FileDownloader(object):
         self.netmgr = None
         self.dest = dest
         self.setup_network = setup_network
-        if self.setup_network:
-            self.netmgr = NetworkManager(install_config)
+        self.root_dir = root_dir
+
 
     def ask_proceed_unsafe_download(self, fingerprint):
         msg = ('This server could not prove its authenticity. Its '
@@ -44,7 +44,8 @@ class FileDownloader(object):
         return True
 
     def do_setup_network(self):
-        if not self.netmgr.setup_network():
+        netmgr = NetworkManager(self.install_config['network'], self.root_dir)
+        if not netmgr.setup_network():
             msg = 'Failed to setup network configuration!'
             conf_message_height = 12
             conf_message_width = 80
@@ -52,7 +53,9 @@ class FileDownloader(object):
             ConfirmWindow(conf_message_height, conf_message_width, self.maxy, self.maxx,
                           conf_message_button_y, msg, True).do_action()
             return False
-        self.netmgr.restart_networkd()
+        netmgr.set_perms()
+        if self.root_dir == "/":
+            netmgr.restart_networkd()
         return True
 
     def display(self):
