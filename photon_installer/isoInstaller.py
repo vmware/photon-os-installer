@@ -87,8 +87,8 @@ class IsoInstaller(object):
 
             installer.configure(install_config, ui_config)
             installer.execute()
-        except Exception:
-            pass
+        except Exception as err:
+            raise Exception(f"Failed with error: {err}")
 
     def _load_ks_config(self, path):
         """kick start configuration"""
