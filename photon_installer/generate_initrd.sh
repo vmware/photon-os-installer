@@ -66,7 +66,7 @@ rm -rf ${INITRD}/var/cache/tdnf
 mv ${INITRD}/boot ${WORKINGDIR}/
 
 mkdir -p $INITRD/installer
-cp $SCRIPT_PATH/sample_ui.cfg ${INITRD}/installer
+cp $SCRIPT_PATH/../sample_ks/sample_ui.cfg ${INITRD}/installer
 mv ${WORKINGDIR}/EULA.txt ${INITRD}/installer
 
 # TODO: change minimal to custom.json

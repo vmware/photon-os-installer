@@ -272,7 +272,7 @@ def main():
     parser.add_argument("-c", "--custom-initrd-pkgs", dest="custom_initrd_pkgs", default=None, help="optional parameter to provide cutom initrd pkg list file.")
     parser.add_argument("-r", "--additional_repos", action="append", default=None, help="<Optional> Pass repo file as input to download rpms from external repo")
     parser.add_argument("-p", "--custom-packages-json", dest="custom_packages_json", default="")
-    parser.add_argument("-k", "--kickstart-path", dest="kickstart_path", default=f"{os.path.dirname(__file__)}/sample_ks.cfg")
+    parser.add_argument("-k", "--kickstart-path", dest="kickstart_path", default=f"{os.path.dirname(__file__)}/../sample_ks/sample_ks.cfg")
     parser.add_argument("-b", "--boot-cmdline-param", dest="boot_cmdline_param", default="")
 
     options = parser.parse_args()
