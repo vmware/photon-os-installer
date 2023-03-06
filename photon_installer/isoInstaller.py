@@ -24,12 +24,12 @@ class IsoInstaller(object):
         self.media_mount_path = None
         photon_media = None
         ks_path = options.install_config_file
-        # Path to RPMS repository: local media or remote URL
-        # If --repo-path= provided - use it,
-        # if not provided - use kernel repo= parameter,
+        # Comma separated paths to RPMS repository: local media or remote URL
+        # If --repo-paths= provided - use it,
+        # if not provided - use kernel repos= parameter,
         # if not provided - use /RPMS path from photon_media,
         # exit otherwise.
-        repo_path = options.repo_path
+        repo_paths = options.repo_paths
         self.insecure_installation = False
         # On Baremetal, time to emulate /dev/cdrom on different
         # servers varies. So, adding a commandline parameter
@@ -43,9 +43,9 @@ class IsoInstaller(object):
             if arg.startswith("ks="):
                 if not ks_path:
                     ks_path = arg[len("ks="):]
-            elif arg.startswith("repo="):
-                if not repo_path:
-                    repo_path = arg[len("repo="):]
+            elif arg.startswith("repos="):
+                if not repo_paths:
+                    repo_paths = arg[len("repos="):]
             elif arg.startswith("photon.media="):
                 photon_media = arg[len("photon.media="):]
             elif arg.startswith("insecure_installation="):
@@ -56,9 +56,9 @@ class IsoInstaller(object):
         if photon_media:
             self.media_mount_path = self.mount_media(photon_media)
 
-        if not repo_path:
+        if not repo_paths:
             if self.media_mount_path:
-                repo_path = self.media_mount_path + "/RPMS"
+                repo_paths = self.media_mount_path + "/RPMS"
             else:
                 print("Please specify RPM repo path.")
                 return
@@ -78,10 +78,9 @@ class IsoInstaller(object):
         #initializing license display text
         ui_config['license_display_title'] = options.license_display_title
 
-
         try:
             # Run installer
-            installer = Installer(rpm_path=repo_path, log_path="/var/log",
+            installer = Installer(repo_paths=repo_paths, log_path="/var/log",
                                 insecure_installation=self.insecure_installation,
                                 photon_release_version=options.photon_release_version)
 
@@ -178,7 +177,8 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--config", dest="install_config_file")
     parser.add_argument("-u", "--ui-config", dest="ui_config_file")
     parser.add_argument("-j", "--json-file", dest="options_file", default="input.json")
-    parser.add_argument("-r", "--repo-path", dest="repo_path")
+    # Comma separated paths to RPMS
+    parser.add_argument("-r", "--repo-paths", dest="repo_paths")
     options = parser.parse_args()
 
     IsoInstaller(options)

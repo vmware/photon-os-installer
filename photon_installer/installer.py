@@ -76,6 +76,7 @@ class Installer(object):
         'preinstallscripts',
         'public_key',
         'photon_docker_image',
+        'repos',
         'search_path',
         'setup_grub_script',
         'shadow_password',
@@ -88,12 +89,12 @@ class Installer(object):
     linux_dependencies = ["devel", "drivers", "docs", "oprofile", "dtb"]
 
     def __init__(self, working_directory="/mnt/photon-root",
-                 rpm_path=os.path.dirname(__file__)+"/../stage/RPMS", log_path=os.path.dirname(__file__)+"/../stage/LOGS",
+                 repo_paths="/mnt/media/RPMS", log_path=os.path.dirname(__file__)+"/../stage/LOGS",
                  insecure_installation=False, photon_release_version='4.0'):
         self.exiting = False
         self.interactive = False
         self.install_config = None
-        self.rpm_path = rpm_path
+        self.repo_paths = repo_paths
         self.log_path = log_path
         self.logger = None
         self.cmd = None
@@ -111,7 +112,6 @@ class Installer(object):
 
         self.photon_root = self.working_directory + "/photon-chroot"
         self.tdnf_conf_path = self.working_directory + "/tdnf.conf"
-        self.tdnf_repo_path = self.working_directory + "/photon-local.repo"
 
         self.setup_grub_command = os.path.join(os.path.dirname(__file__), "mk-setup-grub.sh")
 
@@ -296,6 +296,19 @@ class Installer(object):
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
             install_config['photon_docker_image'] = "photon:latest"
+
+        # if "repos" key not present in install_config or "repos=" provided by user through cmdline prioritize cmdline
+        if "repos" not in install_config or self.repo_paths != "/mnt/media/RPMS" :
+            # override "repos" provided via ks_config
+            install_config["repos"] = []
+            repo_pathslist = self.repo_paths.split(",")
+            for idx,url in enumerate(repo_pathslist):
+                if url.startswith('/'):
+                    url = f"file://{url}"
+                install_config["repos"].append({"name": f"VMware Photon OS Installer-{idx}",
+                                                "baseurl": url,
+                                                "gpgcheck": 0,
+                                                "enabled": 1})
 
     def _check_install_config(self, install_config):
         """
@@ -847,8 +860,8 @@ class Installer(object):
             shutil.rmtree(cache_dir)
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
-        if os.path.exists(self.tdnf_repo_path):
-            os.remove(self.tdnf_repo_path)
+        for repo in glob.glob(self.working_directory + '/photon-local*.repo'):
+            os.remove(repo)
 
     def _setup_grub(self):
         bootmode = self.install_config['bootmode']
@@ -966,18 +979,15 @@ class Installer(object):
         """
         Setup the tdnf repo for installation
         """
-        with open(self.tdnf_repo_path, "w") as repo_file:
-            repo_file.write("[photon-local]\n")
-            repo_file.write("name=VMware Photon OS Installer\n")
-
-            if self.rpm_path.startswith('/'):
-                repo_file.write("baseurl=file://{}\n".format(self.rpm_path))
-            else:
-                repo_file.write("baseurl={}\n".format(self.rpm_path))
-
-            repo_file.write("gpgcheck=0\nenabled=1\n")
+        repos = self.install_config["repos"]
+        for idx,repo in enumerate(repos):
             if self.insecure_installation:
-                repo_file.write("sslverify=0\n")
+                repo["sslverify"] = 0
+            with open(f'{self.working_directory}/photon-local{idx}.repo', "w") as repo_file:
+                repo_file.write(f"[photon-local{idx}]\n")
+                for key in repo.keys():
+                    repo_file.write(f"{key}={repo[key]}\n")
+
         with open(self.tdnf_conf_path, "w") as conf_file:
             conf_file.writelines([
                 "[main]\n",
@@ -1001,11 +1011,10 @@ class Installer(object):
         docker_args = ['docker', 'run', '--rm', '--ulimit',  'nofile=1024:1024']
         docker_args.extend(['-v', f'{self.working_directory}:{self.working_directory}'])
 
-        rpm_path = self.rpm_path
-        if rpm_path.startswith('file://'):
-            rpm_path = rpm_path[7:]
-        if rpm_path.startswith('/'):
-            docker_args.extend(['-v', f'{rpm_path}:{rpm_path}'])
+        for repo in self.install_config["repos"]:
+            if repo["baseurl"].startswith('file://'):
+                 rpm_path = repo["baseurl"][7:]
+                 docker_args.extend(['-v', f'{rpm_path}:{rpm_path}'])
         docker_args.extend([self.install_config["photon_docker_image"], "/bin/sh", "-c", tdnf_cmd])
         self.logger.info(' '.join(docker_args))
         return self.cmd.run(docker_args)
