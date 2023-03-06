@@ -679,4 +679,24 @@ Used to configure the network.
   }
   ```
 
+### _"repos":_ (optional)
+- Specify one or more RPM repos to install the rpms.
+ Documentation link specifying repo file configuration
+ https://vmware.github.io/photon/assets/files/html/3.0/photon_admin/adding-a-new-repository.html
+
+  Example:
+  ```json
+  {
+    "repos": {
+              "release": { "name": "photon release",
+                            "baseurl": "https://packages.vmware.com/photon/4.0/photon_release_4.0_x86_64/",
+                            "gpgcheck": 0,
+                            "enabled": 1 },
+               "updates": { "name": "photon updates",
+                            "baseurl": "https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/",
+                            "gpgcheck": 0,
+                            "enabled": 1 }
+             }
+  }
+
 For reference, look at [sample_ks.cfg](../sample_ks/sample_ks.cfg) file
