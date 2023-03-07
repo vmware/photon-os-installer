@@ -1,6 +1,6 @@
 # Kickstart Features
 
-Kickstart config file is a json format with following possible parameters:
+The kickstart config file is a json format file with the following possible parameters:
 
 
 ### _"additional_files":_ (optional)
@@ -208,10 +208,34 @@ Loop device is also supported.
       - _"/dev/hdX"_ : IDE drives based devices
   - _"mountpoint":_ (required for non "swap" partitions)
     - Mount point for the partition.
-  - _"size":_ (required)
+  - _"size":_
+    - Exactly one of "size" or "sizepercent" (see below) is required.
     - Size of the partition in MB. If 0 then partition is considered
   as expansible to fill rest of the disk. Only one expansible
   partition is allowed.
+  - _"sizepercent":_
+    - Size of the partition in percent of the total disk space.
+    - Only one of "size" and "sizepercent" can be set per partition.
+
+    Example - `/boot` has a fixed size of 128 MB, swap has 5 percent of
+    the total disk size and the root fs gets the remaining space:
+    ```json
+    "partitions": [
+    {
+      "mountpoint": "/",
+      "size": 0,
+      "filesystem": "ext4"
+    },
+    {
+      "mountpoint": "/boot",
+      "size": 128,
+      "filesystem": "ext4"
+    },
+    {
+      "sizepercent": 5,
+      "filesystem": "swap"
+    }
+    ```
   - _"mkfs_options":_ (optional)
     - Additional parameters for the mkfs command as a string
   - _"fs_options":_ (optional)
@@ -340,8 +364,9 @@ Loop device is also supported.
   AB System Upgrade mechanism.
     - **Acceptable values:** _true_, _false_
     - **Default value:** _false_
-
-    Example: In given the partition table below, the "/" partition will have
+    - Note that the space set is per individual partition. So if the size is
+      for example set to 128 MB, a total of 256 MB will be used.
+    - Example: If given the partition table below, the "/" partition will have
   a shadow partition but the "/sda" partition will not have a shadow partition:
     ```json
     {
@@ -374,7 +399,7 @@ Loop device is also supported.
  - _"hostname":_ set the host name.
 
  - _"ethernets":_ Settings for ethernet interfaces. Each interface has an 'id',
-    which can be any name which may be refrenced for examplev for VLANs. Can
+    which can be any name which may be referenced for example for VLANs. Can
     be the interface name.
 
     - Within any _'id'_:

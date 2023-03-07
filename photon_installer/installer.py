@@ -155,10 +155,48 @@ class Installer(object):
         self.install_config = install_config
 
         self.ab_present = self._is_ab_present()
-
+        self._get_disk_sizes()
+        self._calc_size_percentages()
         self._insert_boot_partitions()
-
         self._add_shadow_partitions()
+        self._check_disk_space()
+
+
+    def _get_disk_sizes(self):
+        partitions = self.install_config['partitions']
+        disk_sizes = {}
+        all_disks = set([p.get('disk', self.install_config['disk']) for p in partitions])
+        for disk in all_disks:
+            retval, size = CommandUtils.get_disk_size_bytes(disk)
+            if retval != 0:
+                self.logger.info("Error code: {}".format(retval))
+                raise Exception(f"Failed to get disk {disk} size")
+            disk_sizes[disk] = int(size)
+        self.disk_sizes = disk_sizes
+
+
+    def _calc_size_percentages(self):
+        partitions = self.install_config['partitions']
+        for partition in partitions:
+            if not 'sizepercent' in partition:
+                continue
+            size_percent = partition['sizepercent']
+            disk = partition.get('disk', self.install_config['disk'])
+            partition['size'] = int(self.disk_sizes[disk] * size_percent / (100 * 1024**2))
+
+
+    def _check_disk_space(self):
+        partitions = self.install_config['partitions']
+        disk_totals = {}
+        for partition in partitions:
+            disk = partition.get('disk', self.install_config['disk'])
+            if disk not in disk_totals:
+                disk_totals[disk] = 0
+            disk_totals[disk] += partition['size']
+        for disk, size in disk_totals.items():
+            disk_size = self.disk_sizes[disk] / 1024**2
+            if size > disk_size:
+                raise Exception(f"Total space requested for {disk} ({size} MB) exceeds disk size ({disk_size} MB)")
 
 
     def execute(self):
@@ -327,14 +365,33 @@ class Installer(object):
         for partition in install_config['partitions']:
             disk = partition.get('disk', default_disk)
             mntpoint = partition.get('mountpoint', '')
+
             if disk not in has_extensible:
                 has_extensible[disk] = False
-            size = partition['size']
-            if size == 0:
-                if has_extensible[disk]:
-                    return "Disk {} has more than one extensible partition".format(disk)
-                else:
-                    has_extensible[disk] = True
+
+            if 'size' not in partition and 'sizepercent' not in partition:
+                return "Need to specify 'size' or 'sizepercent'"
+
+            if 'size' in partition:
+                if type(partition['size']) != int:
+                    return "'size' must be an integer"
+                if 'sizepercent' in partition:
+                    return "Only one of 'size' or 'sizepercent' can be specified"
+                size = partition['size']
+                if size == 0:
+                    if has_extensible[disk]:
+                        return "Disk {} has more than one extensible partition".format(disk)
+                    else:
+                        has_extensible[disk] = True
+
+            if 'sizepercent' in partition:
+                if type(partition['sizepercent']) != int:
+                    return "'sizepercent' must be an integer"
+                if partition['sizepercent'] <= 0:
+                    return "'sizepercent' must be greater than 0"
+                elif partition['sizepercent'] > 100:
+                    return "'sizepercent' must not be greater than 100"
+
             if mntpoint != '':
                 mountpoints.append(mntpoint)
             if mntpoint == '/boot' and 'lvm' in partition:
@@ -1378,11 +1435,7 @@ class Installer(object):
         # same.
         if self.ab_present:
             for disk, l2entries in ptv.items():
-                retval, total_disk_size = CommandUtils.get_disk_size_bytes(disk)
-                if retval != 0:
-                    self.logger.info("Error code: {}".format(retval))
-                    raise Exception("Failed to get disk {0} size".format(disk))
-                total_disk_size = int(total_disk_size)
+                total_disk_size = self.disk_sizes[disk]
                 is_last_partition_ab = False
                 used_size = 1 # first usable sector is 2048, 512 * 2048 = 1MB
                 for l2 in l2entries:
