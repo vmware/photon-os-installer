@@ -364,12 +364,11 @@ Loop device is also supported.
     ```
 
 ### _"network":_ (optional)
-- Used to configure network in live/installed system.
+Used to configure the network.
 
-- Set  _"version":_ _"2"_ or the legacy config will be used, see below.
+- The syntax roughly follows the cloud-init or netplan configuration, but not all options are supported.
 
-- The syntax roughly follows the cloud-init or netplan configuration,
-    but not all options are supported.
+ - _"version":_ Set to "2". If set to "1" the legacy config will be used, see below.
 
  - _"hostname":_ set the host name.
 
@@ -401,40 +400,94 @@ Loop device is also supported.
    - _"id"_ : the VLAN id (integer in the range 1..4094)
 
    - _"link"_ : the id of the ethernet interface to use, from the "ethernets"
-    configured.
+    configured. Note that the interface needs a "name" (wuthout wildcards) in it's "match".
+    For example `"match":"eth0"` is allowed, but `"match":"e*"` is not, or just a macaddress is not allowed.
 
-  Example:
-  ```json
-  {
-    "network":{
-                "version": "2",
-                "hostname" : "photon-machine",
-                "ethernets": {
-                                "id0": {
-                                          "match": {
-                                                    "name" : "eth0"
-                                                   },
-                                          "dhcp4" : false,
-                                          "addresses": ["192.168.2.58/24"],
-                                          "gateway": "192.168.2.254",
-                                          "nameservers": {
-                                                            "addresses" : ["8.8.8.8", "8.8.4.4"],
-                                                            "search" : ["vmware.com", "eng.vmware.com"]
-                                                          }
-                                       }
-                             },
-                "vlans": {
-                            "vlan0": {
-                                        "id": 100,
-                                        "link": "id0",
-                                        "addresses":["192.168.100.58/24"]
-                                     }
-                         }
-              }
-  }
-  ```
+  Example with a static IP address 192.168.2.58 on interface eth0:
+```json
+"network":{
+    "version": "2",
+    "hostname" : "photon-machine",
+    "ethernets": {
+        "id0": {
+            "match": {
+                "name" : "eth0"
+            },
+            "dhcp4" : false,
+            "addresses": ["192.168.2.58/24"],
+            "gateway": "192.168.2.254",
+            "nameservers": {
+                "addresses" : ["8.8.8.8", "8.8.4.4"],
+                "search" : ["vmware.com", "eng.vmware.com"]
+            }
+        }
+    }
+}
+```
+  Example using DHCP on any physical interface with a name starting with "e" (for example "eth0" or "ens33"):
 
- - Legacy network configuration:
+```json
+"network":{
+    "version": "2",
+    "hostname" : "photon-machine",
+    "ethernets": {
+        "id0": {
+            "match": {
+                "name" : "e*"
+            },
+            "dhcp4" : true,
+        },
+    },
+}
+```
+
+  Example with the first physical interfaces identified by their MAC address,
+  the second by its name
+  and a VLAN interface using the second physical interface:
+
+```json
+"network":{
+    "version": "2",
+    "hostname" : "photon-machine",
+    "ethernets": {
+        "id0": {
+            "match": {
+                "macaddress" : "11:22:33:44:55:66"
+            },
+            "addresses" : ["192.168.2.58/24"],
+            "gateway": "192.168.2.254",
+            "nameservers": {
+                "addresses" : ["8.8.8.8", "8.8.4.4"],
+                "search" : ["vmware.com", "eng.vmware.com"]
+            }
+        },
+        "id1": {
+            "match": {
+                "name" : "eth1"
+            },
+            "addresses" : ["192.168.4.58/24"],
+            "nameservers": {
+                "addresses" : ["8.8.8.8", "8.8.4.4"],
+                "search" : ["vmware.com", "eng.vmware.com"]
+            }
+        }
+    },
+    "vlans": {
+        "vlan0": {
+            "id": 100,
+            "link": "id1",
+            "addresses" : ["192.168.100.58/24"],
+            "gateway": "192.168.100.254",
+            "nameservers": {
+                "addresses" : ["8.8.8.8", "8.8.4.4"],
+                "search" : ["vmware.com", "eng.vmware.com"]
+            }
+        }
+    }
+}
+```
+
+ - Legacy network configuration. The configuration will be interpreted as legacy if either "type" is set or "version" is set to "1".
   - _"type"_ (required)
     - String: must be one of _dhcp_/_static_/_vlan_. Indicates how the network
   is being configured.
