@@ -12,6 +12,7 @@ import shutil
 import ssl
 import requests
 import copy
+import json
 from urllib.parse import urlparse
 from OpenSSL.crypto import load_certificate, FILETYPE_PEM
 
@@ -131,6 +132,12 @@ class CommandUtils(object):
             self.hostRpmIsNotUsable = 0
 
         return self.hostRpmIsNotUsable
+
+    @staticmethod
+    def jsonread(filename):
+        with open(filename) as f:
+            data = json.load(f)
+            return data
 
     def convertToBytes(self, size):
         if not isinstance(size, str):

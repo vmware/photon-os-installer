@@ -8,8 +8,8 @@ PACKAGES=$2
 RPMS_PATH=$3
 PHOTON_RELEASE_VER=$4
 CUSTOM_PKG_LIST_FILE=$5
-PACKAGE_LIST_FILE_BASE_NAME="build_install_options_custom.json"
-CUSTOM_PKG_LIST_FILE_BASE_NAME=$(basename "${CUSTOM_PKG_LIST_FILE}")
+PACKAGE_LIST_FILE_BASE_NAME=$6
+OSTREE_ISO=$7
 INITRD=$WORKINGDIR/photon-chroot
 LICENSE_TEXT="VMWARE $PHOTON_RELEASE_VER"
 
@@ -21,15 +21,6 @@ fi
 
 LICENSE_TEXT+=" LICENSE AGREEMENT"
 
-cat > ${WORKINGDIR}/photon-local.repo <<EOF
-[photon-local]
-name=VMware Photon Linux
-baseurl=file://${RPMS_PATH}
-gpgcheck=0
-enabled=1
-skip_if_unavailable=True
-EOF
-
 cat > ${WORKINGDIR}/tdnf.conf <<EOF
 [main]
 gpgcheck=0
@@ -38,19 +29,36 @@ clean_requirements_on_remove=true
 repodir=${WORKINGDIR}
 EOF
 
-TDNF_CMD="tdnf install -qy \
+TDNF_CMD="tdnf install -y \
           --releasever $PHOTON_RELEASE_VER \
           --installroot $INITRD \
-          --rpmverbosity 10 \
-          -c ${WORKINGDIR}/tdnf.conf \
-          ${PACKAGES}"
+          --rpmverbosity 10"
+
+BIND_MOUNT_DIR=("$WORKINGDIR:$WORKINGDIR")
+
+if [ $OSTREE_ISO != "True" ]; then
+  cat > ${WORKINGDIR}/photon-local.repo <<EOF
+  [photon-local]
+  name=VMware Photon Linux
+  baseurl=file://${RPMS_PATH}
+  gpgcheck=0
+  enabled=1
+  skip_if_unavailable=True
+EOF
+  # Generate list of volumes to mount in container.
+  # Don't mount RPMS_PATH if ostree iso as we don't need RPMS dir to install.
+  BIND_MOUNT_DIR+=("$RPMS_PATH:$RPMS_PATH")
+  TDNF_CMD+=" -c ${WORKINGDIR}/tdnf.conf"
+fi
+
+# Prepend "-v" to each element in array BIND_MOUNT_DIR.
+BIND_MOUNT_DIR=( "${BIND_MOUNT_DIR[@]/#/-v }" )
+
+TDNF_CMD+=" ${PACKAGES}"
 
 echo $TDNF_CMD
 
-$TDNF_CMD || docker run --privileged --ulimit nofile=1024:1024 --rm -v $RPMS_PATH:$RPMS_PATH -v $WORKINGDIR:$WORKINGDIR photon:$PHOTON_RELEASE_VER /bin/bash -c "$TDNF_CMD"
-
-#mkdir -p $WORKINGDIR/isolinux
-#cp -r ${INITRD}/usr/share/photon-isolinux/* $WORKINGDIR/isolinux/
+$TDNF_CMD || docker run --privileged --ulimit nofile=1024:1024 --rm ${BIND_MOUNT_DIR[*]} photon:$PHOTON_RELEASE_VER /bin/bash -c "$TDNF_CMD"
 
 chroot ${INITRD} /usr/sbin/pwconv
 chroot ${INITRD} /usr/sbin/grpconv
@@ -62,29 +70,15 @@ echo "photon-installer" > $INITRD/etc/hostname
 
 rm -rf ${INITRD}/var/cache/tdnf
 
+
 # Move entire /boot from initrd to ISO
 mv ${INITRD}/boot ${WORKINGDIR}/
 
 mkdir -p $INITRD/installer
-cp $SCRIPT_PATH/../sample_ks/sample_ui.cfg ${INITRD}/installer
+mv ${WORKINGDIR}/sample_ui.cfg ${INITRD}/installer
 mv ${WORKINGDIR}/EULA.txt ${INITRD}/installer
-
-# TODO: change minimal to custom.json
-cat > ${INITRD}/installer/build_install_options_custom.json << EOF
-{
-    "custom" : {
-        "title" : "Photon Custom",
-        "packagelist_file" : "${CUSTOM_PKG_LIST_FILE_BASE_NAME}",
-        "visible" : false
-    }
-}
-EOF
-
-
-if [ -f "$CUSTOM_PKG_LIST_FILE" ]; then
-  cp ${CUSTOM_PKG_LIST_FILE} ${INITRD}/installer/packages_minimal.json
-  cp ${CUSTOM_PKG_LIST_FILE} ${INITRD}/installer
-fi
+mv ${WORKINGDIR}/$PACKAGE_LIST_FILE_BASE_NAME ${INITRD}/installer
+cp ${CUSTOM_PKG_LIST_FILE} ${INITRD}/installer
 
 mkfifo ${INITRD}/dev/initctl
 mknod ${INITRD}/dev/ram0 b 1 0
