@@ -22,24 +22,26 @@ def main():
 
     options = parser.parse_args()
 
-    if options.image_type == 'iso':
-        from isoInstaller import IsoInstaller
-        IsoInstaller(options)
-
-    else:
-        from installer import Installer
-        import json
-        install_config = None
-        if options.install_config_file:
-            with open(options.install_config_file) as f:
-                install_config = json.load(f)
+    try:
+        if options.image_type == 'iso':
+            from isoInstaller import IsoInstaller
+            IsoInstaller(options)
         else:
-            raise Exception('install config file not provided')
+            from installer import Installer
+            import json
+            install_config = None
+            if options.install_config_file:
+                with open(options.install_config_file) as f:
+                    install_config = json.load(f)
+            else:
+                raise Exception('install config file not provided')
 
-        installer = Installer(working_directory=options.working_directory, rpm_path=options.rpm_path,
-                            log_path=options.log_path, photon_release_version=options.photon_release_version)
-        installer.configure(install_config)
-        installer.execute()
+            installer = Installer(working_directory=options.working_directory, rpm_path=options.rpm_path,
+                                log_path=options.log_path, photon_release_version=options.photon_release_version)
+            installer.configure(install_config)
+            installer.execute()
+    except Exception as err:
+        raise Exception(f"Installer failed with error: {err}")
 
 if __name__ == '__main__':
     main()

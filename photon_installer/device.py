@@ -30,6 +30,14 @@ class Device(object):
         return Device.wrap_devices_from_list(devices_list)
 
     @staticmethod
+    def check_cdrom():
+        process = subprocess.Popen(["blockdev", "/dev/cdrom"])
+        retval = process.wait()
+        if retval:
+            return False
+        return True
+
+    @staticmethod
     def wrap_devices_from_list(list):
         devices = []
         deviceslines = list.splitlines()
