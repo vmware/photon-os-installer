@@ -39,7 +39,7 @@ def execute(installer):
 
     for script in scripts:
         if not os.access(os.path.join(tempdir, script), os.X_OK):
-            installer.logger.warning("Post install script {} is not executable. Skipping execution of script.".format(script))
+            installer.logger.warning("Pre install script {} is not executable. Skipping execution of script.".format(script))
             continue
         installer.logger.info("Running script {}".format(script))
         cmd = ["/bin/bash"]

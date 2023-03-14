@@ -221,18 +221,20 @@ class Installer(object):
                     if isinstance(value, str) and (value.startswith('$') and not value.startswith('$$')):
                         if value[1:] in os.environ:
                             install_config[key] = os.environ[value[1:]]
+                            self.logger.info(f"Parsed dynamic value for '{key}': '{install_config[key]}'")
                         else:
-                            raise Exception("Install configuration has dynamic value=\"{}\" for key=\"{}\" \
-                                            \n which is not exported in preinstall script. \
-                                            \n Please export dynamic values in preinstall script in ks file as below: \
-                                            \n export {}=\"<my-val>\"".format(value,key,value[1:]))
+                            self.logger.warning(f"\nInstall configuration may have dynamic value=\'{value}\' for key=\'{key}\',"
+                                             f"check if it need to be exported."
+                                             f"If so then please export dynamic values under preinstall script in ks file as below:"
+                                             f"\nexport {value[1:]}=\'<my-val>\'"
+                                             f"\nPlease refer https://github.com/vmware/photon-os-installer/blob/master/docs/ks_config.md#preinstall-optional")
 
 
     def _load_preinstall(self, install_config):
         self.install_config = install_config
         self._execute_modules(modules.commons.PRE_INSTALL)
         for fill_values in self._fill_dynamic_conf(install_config):
-            print(fill_values)
+            self.logger.info(f"{fill_values}")
 
 
     def _add_defaults(self, install_config):
