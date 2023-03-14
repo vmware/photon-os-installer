@@ -669,10 +669,17 @@ class Installer(object):
                 fsck = 2
 
                 # Add supported options according to partition filesystem
-                if partition.get('mountpoint', '') == '/' and partition.get('filesystem','') != 'xfs':
-                    options = options + ',barrier,noatime'
-                    if partition.get('filesystem','') != 'btrfs':
-                        options += ',data=ordered'
+                if partition.get('mountpoint', '') == '/':
+                    part_fstype = partition.get('filesystem','')
+                    if part_fstype in ['ext4', 'ext3', 'swap', 'vfat']:
+                        options += ',barrier,noatime,data=ordered'
+                    elif part_fstype == 'btrfs':
+                        options += ',barrier,noatime'
+                    elif part_fstype == 'xfs':
+                        pass
+                    else:
+                        self.logger.error(f"Filesystem type not supported: {part_fstype}")
+                        self.exit_gracefully()
                     fsck = 1
 
                 if ptype == PartitionType.SWAP:
@@ -1542,11 +1549,6 @@ class Installer(object):
                 elif partition['mountpoint'] == '/boot':
                     partitions_data['boot'] = partition['path']
                     partitions_data['bootdirectory'] = '/'
-            if 'filesystem' in partition and not partition.get('shadow', False):
-                if partition['filesystem'] == "xfs":
-                    self._add_packages_to_install('xfsprogs')
-                elif partition['filesystem'] == "btrfs":
-                    self._add_packages_to_install('btrfs-progs')
 
         # If no separate boot partition, then use /boot folder from root partition
         if 'boot' not in partitions_data:
