@@ -12,6 +12,7 @@ import shlex
 import requests
 import time
 import json
+from device import Device
 from argparse import ArgumentParser
 from installer import Installer
 from commandutils import CommandUtils
@@ -77,7 +78,6 @@ class IsoInstaller(object):
 
         #initializing license display text
         ui_config['license_display_title'] = options.license_display_title
-
 
         try:
             # Run installer
@@ -151,6 +151,11 @@ class IsoInstaller(object):
         elif photon_media.startswith("LABEL="):
             cmdline.extend(['-L', photon_media[len("LABEL="):] ])
         elif photon_media == "cdrom":
+            # Check if cdrom is listed in block devices.
+            if not Device.check_cdrom():
+                raise Exception("Cannot proceed with the installation because the installation medium "
+                                "is not readable. Ensure that you select a medium connected to a SATA "
+                                "interface and try again.")
             cmdline.append('/dev/cdrom')
         else:
             #User specified mount path
