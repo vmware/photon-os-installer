@@ -25,6 +25,6 @@ setup(
             'photon-iso-builder = photon_installer.isoBuilder:main'
         ]
     },
-    version='2.1+'+get_installer_version(),
+    version='2.2+'+get_installer_version(),
     author_email='gpiyush@vmware.com'
 )
