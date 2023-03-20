@@ -48,6 +48,7 @@ class IsoBuilder(object):
             conf_file.writelines([
                 "set default=0\n",
                 "set timeout=3\n",
+                "loadfont ascii\n",
                 'set gfxmode="1024x768"\n',
                 "gfxpayload=keep\n",
                 "set theme=/boot/grub2/themes/photon/theme.txt\n",
@@ -55,7 +56,7 @@ class IsoBuilder(object):
                 "probe -s photondisk -u ($root)\n\n",
                 'menuentry "Install" {\n',
                 f"linux /isolinux/vmlinuz root=/dev/ram0 loglevel=3 photon.media=UUID=$photondisk {self.boot_cmdline_param}\n",
-                "initrd /isolinux/initrd.img}"])
+                "initrd /isolinux/initrd.img\n}"])
 
 
     def createInstallOptionJson(self):
