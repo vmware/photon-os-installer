@@ -845,7 +845,7 @@ class Installer(object):
         rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath {rpm_db_path}"
         if self.cmd.checkIfHostRpmNotUsable():
             rpm_db_init_cmd = f"tdnf install -y rpm && {rpm_db_init_cmd}"
-            retval = self.cmd.run(['docker', 'run', '--ulimit',  'nofile=1024:1024', '--rm',
+            retval = self.cmd.run(['docker', 'run', '--privileged', '--ulimit',  'nofile=1024:1024', '--rm',
                                   '-v', f"{self.photon_root}:{self.photon_root}",
                                    self.install_config['photon_docker_image'],
                                    '/bin/sh', '-c', rpm_db_init_cmd])
@@ -1081,7 +1081,7 @@ class Installer(object):
 
 
     def _run_tdnf_in_docker(self, tdnf_cmd):
-        docker_args = ['docker', 'run', '--rm', '--ulimit',  'nofile=1024:1024']
+        docker_args = ['docker', 'run', '--rm', '--privileged', '--ulimit',  'nofile=1024:1024']
         docker_args.extend(['-v', f'{self.working_directory}:{self.working_directory}'])
 
         repos = self.install_config["repos"]
