@@ -3,6 +3,7 @@
 import os
 import glob
 import json
+import tempfile
 import shutil
 import platform
 import collections
@@ -16,7 +17,7 @@ class IsoBuilder(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.pkg_list = []
-        self.working_dir = os.path.join(self.artifact_path, "photon_iso")
+        self.working_dir = tempfile.mkdtemp(prefix="photon-", dir=self.artifact_path)
         self.iso_name = os.path.join(self.artifact_path, f"photon-{self.photon_release_version}.iso")
         self.rpms_path = os.path.join(self.working_dir, "RPMS")
         self.initrd_path = os.path.join(self.working_dir, "photon-chroot")
@@ -33,10 +34,11 @@ class IsoBuilder(object):
 
 
     def addPkgsToList(self, pkg_list_file):
-        pkg_data = CommandUtils.jsonread(pkg_list_file)
-        self.pkg_list.extend(pkg_data["packages"])
-        if f"packages_{self.architecture}" in pkg_data:
-            self.pkg_list.extend(pkg_data[f"packages_{self.architecture}"])
+        if os.path.exists(pkg_list_file):
+            pkg_data = CommandUtils.jsonread(pkg_list_file)
+            self.pkg_list.extend(pkg_data["packages"])
+            if f"packages_{self.architecture}" in pkg_data:
+                self.pkg_list.extend(pkg_data[f"packages_{self.architecture}"])
 
 
     def addGrubConfig(self):
@@ -114,6 +116,47 @@ class IsoBuilder(object):
         self.runCmd([initrd_script, self.working_dir, initrd_pkgs,
                      self.rpms_path, self.photon_release_version,
                      self.custom_packages_json, "build_install_options_custom.json", str(ostree_iso)])
+
+
+    def downloadRequiredFiles(self):
+        """
+        Download required files to generate specific image in working directory.
+
+        ISO's: [open_source_license.tar.gz, sample_ks.cfg, sample_ui.cfg, NOTICE-Apachev2, NOTICE-GPL2.0, EULA.txt]
+        initrd: [sample_ks.cfg, sample_ui.cfg, EULA.txt]
+        """
+
+        if not os.path.exists(self.working_dir):
+            self.logger.info(f"Creating working directory: {self.working_dir}")
+            os.makedirs(self.working_dir)
+
+        # Download required files for given branch and extract it in working dir.
+        files_to_download = [f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/support/image-builder/iso/sample_ks.cfg",
+                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/support/image-builder/iso/sample_ui.cfg",
+                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/EULA.txt"]
+
+        if "iso" in self.function:
+            files_to_download.extend([
+                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-Apachev2",
+                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-GPL2.0",
+                             f"https://github.com/vmware/photon/raw/{self.photon_release_version}/support/image-builder/iso/open_source_license.tar.gz"])
+
+        # Download ostree tar to working directory if url is provided.
+        if self.function == "build-rpm-ostree-iso" and self.ostree_tar_path.startswith("http"):
+            files_to_download.append(self.ostree_tar_path)
+            self.ostree_tar_path = f"{self.working_dir}/{os.path.basename(self.ostree_tar_path)}"
+
+        for file in files_to_download:
+            self.logger.info(f"Downloading file: {file}")
+            secure_download = True
+            output_file = os.path.basename(file)
+            if file.startswith("http:"):
+                secure_download = False
+            if self.ostree_tar_path and os.path.basename(file) == os.path.basename(self.ostree_tar_path):
+                output_file = "ostree-repo.tar.gz"
+            retval, msg = self.cmdUtil.wget(file, f'{self.working_dir}/{output_file}', enforce_https=secure_download)
+            if not retval:
+                raise Exception(msg)
 
 
     def downloadPkgs(self):
@@ -247,43 +290,23 @@ class IsoBuilder(object):
 
     def copyAdditionalFiles(self):
         for file in self.additional_files:
-            shutil.copy(file, self.working_dir)
+            output_file = f"{self.working_dir}/{os.path.basename(file)}"
             # Rename ostree tar to ostree-repo.tar.gz in iso.
-            if file == self.ostree_tar_path and os.path.basename(self.ostree_tar_path) != "ostree-repo.tar.gz":
-                shutil.move(f"{self.working_dir}/{os.path.basename(self.ostree_tar_path)}", f"{self.working_dir}/ostree-repo.tar.gz")
+            if (self.ostree_tar_path and
+                os.path.basename(file) == os.path.basename(self.ostree_tar_path) and
+                os.path.basename(self.ostree_tar_path) != "ostree-repo.tar.gz"):
+                output_file = f"{self.working_dir}/ostree-repo.tar.gz"
+            if not os.path.exists(output_file):
+                shutil.copy(file, output_file)
 
 
     def build(self):
         """
         Create Custom Iso
         """
-        # Clean up
-        self.logger.info(f"Cleaning up working directory: {self.working_dir}")
-        self.cleanUp()
-
         if not os.path.exists(self.working_dir):
             self.logger.info(f"Creating working directory: {self.working_dir}")
             os.makedirs(self.working_dir)
-
-        # Download open source license for given branch and extract it in working dir.
-        files_to_download = [f"https://github.com/vmware/photon/raw/{self.photon_release_version}/support/image-builder/iso/open_source_license.tar.gz",
-                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/support/image-builder/iso/sample_ks.cfg",
-                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/support/image-builder/iso/sample_ui.cfg",
-                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-Apachev2",
-                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-GPL2.0",
-                             f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/EULA.txt"]
-
-        # Download ostree tar to working directory if url is provided.
-        if self.ostree_tar_path.startswith("http"):
-            files_to_download.append(self.ostree_tar_path)
-            self.ostree_tar_path = f"{self.working_dir}/{os.path.basename(self.ostree_tar_path)}"
-
-        for file in files_to_download:
-            self.logger.info(f"Downloading file: {file}")
-            self.cmdUtil.wget(file, f'{self.working_dir}/{os.path.basename(file)}')
-
-        # Generating Initrd img.
-        self.generateInitrd()
 
         # Create isolinux dir inside iso.
         self.createIsolinux()
@@ -326,25 +349,29 @@ def main():
 
     options = parser.parse_args()
 
-    if options.function == "build-iso" and not options.custom_packages_json:
-        raise Exception("Custom packages json not provided...")
-    elif options.function == "build-rpm-ostree-iso":
+    if options.function == "build-rpm-ostree-iso":
         if not options.ostree_tar_path:
             raise Exception("Ostree tar path not provided...")
+        elif not options.ostree_tar_path.startswith("http"):
+            options.ostree_tar_path = os.path.abspath(options.ostree_tar_path)
         if not options.custom_packages_json:
             options.custom_packages_json = f"{os.path.dirname(__file__)}/packages_ostree_host.json"
+    elif not os.path.exists(options.custom_packages_json):
+        raise Exception("Custom packages json doesn't exist...")
 
     isoBuilder = IsoBuilder(function=options.function, custom_packages_json=options.custom_packages_json,
                             kickstart_path=options.kickstart_path, photon_release_version=options.photon_release_version,
                             log_level=options.log_level, initrd_pkg_list_file=options.custom_initrd_pkgs, ostree_tar_path=options.ostree_tar_path,
                             additional_repos=options.additional_repos, boot_cmdline_param=options.boot_cmdline_param, artifact_path=options.artifact_path)
+
+    isoBuilder.logger.info(f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img...")
+    isoBuilder.downloadRequiredFiles()
+    isoBuilder.generateInitrd()
+
     if options.function in ["build-iso", "build-rpm-ostree-iso"]:
         isoBuilder.logger.info(f"Starting to generate photon {isoBuilder.photon_release_version} iso...")
         isoBuilder.build()
     elif options.function == "build-initrd":
-        isoBuilder.logger.info(f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img...")
-        isoBuilder.generateInitrd()
-        # Move initrd image to current directory before cleaning up.
         isoBuilder.logger.debug(f"Moving {isoBuilder.working_dir}/initrd.img to {options.artifact_path}")
         shutil.move(f"{isoBuilder.working_dir}/initrd.img", options.artifact_path)
     else:
