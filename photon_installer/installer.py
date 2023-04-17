@@ -1474,6 +1474,18 @@ class Installer(object):
                 if is_last_partition_ab:
                     self.__set_ab_partition_size(l2entries, used_size, total_disk_size)
 
+    def _clear_vgs(self):
+        retval,vg_list=self.cmd.get_vgnames()
+        if retval==0:
+            for vg_name in vg_list:
+                retval = self.cmd.run(['vgremove', '-ff', vg_name])
+                if retval == 0:
+                    self.logger.info(f"Cleared volume group {vg_name} & its associted lv's")
+                else:
+                    self.logger.error(f"Error: Failed to remove existing VG: {vg_name} before clearing the disk")
+                    self.exit_gracefully()
+        else:
+            self.logger.warning("Error: There are no VG's/Failed to get VG names ")
 
     def _partition_disks(self):
         """
@@ -1495,6 +1507,9 @@ class Installer(object):
 
         # Partitioning disks
         for disk, l2entries in ptv.items():
+
+            #clear VolumeGroups and associated LVM's if exist any before clearing the disk
+            self._clear_vgs()
 
             # Clear the disk first
             retval = self.cmd.run(['sgdisk', '-o', '-g', disk])

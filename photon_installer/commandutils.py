@@ -155,3 +155,21 @@ class CommandUtils(object):
         out,err = process.communicate()
         retval = process.returncode
         return retval, copy.copy(out.decode())
+
+    def get_vgnames(self):
+        vg_list=[]
+        try:
+            cmd = ['vgdisplay', '-c']
+            process = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out,err = process.communicate()
+            retval = process.returncode
+            if retval==0:
+                vgdisplay_output=out.decode().split("\n")
+                for vg in vgdisplay_output:
+                    if vg=="":
+                        break
+                    vg_list.append(vg.split(":")[0].strip())
+        except Exception as e:
+            retval=e.args[0]
+        self.logger.info(f"VG's list {vg_list}")
+        return retval, vg_list
