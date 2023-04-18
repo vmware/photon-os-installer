@@ -7,6 +7,10 @@
 
 __all__ = ('get_installer_version')
 
+# Default Tag represents tag value in case git is not available on system.
+# This need not be updated with every tag release.
+defaultTag = "2.2"
+
 import os
 from subprocess import Popen, PIPE
 from subprocess import call, STDOUT
@@ -21,6 +25,15 @@ def get_version():
     except:
         raise ValueError('Cannot get the version number!')
 
+def get_latest_tag():
+    try:
+        p = Popen(['git', 'describe', '--tags', '--abbrev=0'],
+                  stdout=PIPE, stderr=PIPE)
+        p.stderr.close()
+        line = p.stdout.readlines()[0].decode().strip()
+        return line[1:]
+    except:
+        raise ValueError('Cannot get the latest tag!')
 
 def is_dirty():
     try:
@@ -34,15 +47,15 @@ def is_dirty():
 
 
 def get_installer_version():
-    # if not a git repo, return empty string
+    # if not a git repo, return default tag.
     try:
         if call(['git', 'branch'], stderr=STDOUT, stdout=open(os.devnull, 'w')):
-            return ''
+            return defaultTag
     except FileNotFoundError:
-        # also return empty when we do not have git
-        return ''
+        # also return default tag when we do not have git.
+        return defaultTag
 
-    version = get_version()
+    version = f"{get_latest_tag()}+{get_version()}"
     if not version:
         raise ValueError("Cannot get the version number!")
 
