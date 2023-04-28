@@ -21,11 +21,12 @@ from device import Device
 from defaults import Defaults
 
 class IsoInstaller(object):
-    def __init__(self, options):
-        install_config=None
+    def __init__(self, options, params={}):
+        install_config = None
         self.media_mount_path = None
         photon_media = None
         ks_path = options.install_config_file
+        self.params = params
         # Comma separated paths to RPMS repository: local media or remote URL
         # If --repo-paths= provided - use it,
         # if not provided - use kernel repos= parameter,
@@ -104,29 +105,29 @@ class IsoInstaller(object):
 
         if path.startswith("https://") or path.startswith("http://"):
             # Do 5 trials to get the kick start
-            # TODO: make sure the installer run after network is up
-            ks_file_error = "Failed to get the kickstart file at {0}".format(path)
+            # TODO: make sure the installer runs after network is up
             wait = 1
-            for _ in range(0, 5):
-                err_msg = ""
+            retries = 5
+            while True:
                 try:
-                    if self.insecure_installation:
-                        response = requests.get(path, timeout=3, verify=False)
-                    else:
-                        response = requests.get(path, timeout=3, verify=True)
+                    response = requests.get(path, timeout=3, verify=not self.insecure_installation)
+                    response.raise_for_status()
+                    break
                 except Exception as e:
-                    err_msg = e
-                else:
-                    return json.loads(response.text)
+                    if retries > 0:
+                        print(f"error msg: {e} Retry after {wait} seconds")
+                        time.sleep(wait)
+                        wait *= 2
+                        retries -= 1
+                    else:
+                        print(f"Failed to get the kickstart file at {path}")
+                        raise
 
-                print("error msg: {0}  Retry after {1} seconds".format(err_msg, wait))
-                time.sleep(wait)
-                wait = wait * 2
+            return CommandUtils.readConfig(response.text, params=self.params)
 
-            # Something went wrong
-            print(ks_file_error)
-            raise Exception(err_msg)
         else:
+            mnt_path = None
+
             if path.startswith("cdrom:/"):
                 if self.media_mount_path is None:
                     raise Exception("cannot read ks config from cdrom, no cdrom specified")
@@ -134,14 +135,21 @@ class IsoInstaller(object):
             elif not path.startswith("/"):
                 path = os.path.join(os.getcwd(), path)
             elif len(path.split(':')) == 2:
-                ks_path_split = path.split(':')
-                ks_mounted_path = self.mount_media(ks_path_split[0], mount_path='/mnt/ks')
-                if ks_path_split[1].startswith("/"):
-                    ks_path_split[1] = ks_path_split[1][1:]
-                path = os.path.join(ks_mounted_path, ks_path_split[1])
+                device, rel_path = path.split(':')
+                rel_path = rel_path.strip("/")
+                mnt_path = self.mount_media(device, mount_path="/mnt/ks")
+                path = os.path.join(mnt_path, rel_path)
             else:
-                raise Exception("Kickstart file provided is not in correct format.")
-            return (JsonWrapper(path)).read()
+                raise Exception("Kickstart file path provided is not in correct format.")
+
+            with open(path, "rt") as f:
+                config = CommandUtils.readConfig(f, params=self.params)
+
+            if mnt_path is not None:
+                subprocess.check_call(['umount', mnt_path])
+
+            return config
+
 
     def mount_media(self, photon_media, mount_path=Defaults.MOUNT_PATH):
         """Mount the external media"""

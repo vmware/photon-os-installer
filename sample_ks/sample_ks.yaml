@@ -1,0 +1,52 @@
+password:
+    crypted: false
+    text: changeme
+
+disk: !param device=/dev/sda
+
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /root
+      sizepercent: 5
+      filesystem: ext4
+    - sizepercent: 5
+      filesystem: swap
+
+packagelist_file: packages_minimal.json
+
+additional_packages:
+    - vim
+
+postinstall:
+    - '#!/bin/sh'
+    - echo "Hello World" > /etc/postinstall
+
+public_key: <ssh-key-here>
+
+linux_flavor: linux
+
+photon_docker_image: photon:5.0
+
+eject_cdrom: false
+
+network:
+    version: "2"
+    nameservers:
+        addresses:
+            - 1.1.1.1
+    ethernets:
+        id0:
+            match:
+                name: eth0
+            dhcp4: "yes"
+    vlans:
+        vlan0:
+            id: 100
+            link: id0
+            addresses:
+                - 192.168.100.58/24
