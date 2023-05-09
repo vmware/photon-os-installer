@@ -61,10 +61,10 @@ settings without extra actions in the OS.
   }
   ```
 
-### _"disk":_ (required)
+### _"disk":_
 
 - Target"s disk device file path to install into, such as "/dev/sda".
-Loop device is also supported.
+Loop device is also supported. This will be deprecated in the future.
 
   Example:
   ```json
@@ -80,6 +80,68 @@ Loop device is also supported.
     "disk": "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:1:0"
   }
   ```
+
+### _"disks":_
+
+- Target disks to install into. Contains a map of disk ids,
+one of them has to be "default". These can contain either devices
+such as `/dev/sda`, or filenames with sizes. The disk ids can
+be refered to in the "partitions" section, or the "default" will be used.
+
+Note that for a live installation, you need to set a `device`'. Using
+`filename` is only useful when creating images (for example to create
+OVA images).
+
+Example:
+```json
+{
+    "default":{
+        "disks" : {
+            "device" : "/dev/sda"
+        }
+    }
+}
+```
+
+With a device path:
+```json
+{
+    "default":{
+        "disks" : {
+            "device" : "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:1:0"
+        }
+    }
+}
+```
+
+Using a disk image:
+```json
+{
+    "disks" : {
+        "default":{
+            "filename" : "rootdisk.img",
+            "size" : 2048
+        }
+    }
+}
+```
+
+Multiple disks:
+```json
+{
+    "disks" : {
+        "default":{
+            "filename" : "rootdisk.img",
+            "size" : 2048
+        },
+        "bigdisk":{
+            "filename" : "bigdisk.img",
+            "size" : 100000
+        }
+    }
+}
+```
+
 ### _"eject_cdrom":_ (optional)
 - Eject or not cdrom after installation completed.
   - **Boolean:** _true_ or _false_
@@ -153,11 +215,11 @@ Loop device is also supported.
    Example:
    ```json
    {
-     "ostree": {
-                 "default_repo": false,
-                 "repo_url": "http://<ip>:<port>/repo",
-                 "repo_ref": "photon/4.0/x86_64/minimal"
-               }
+       "ostree": {
+           "default_repo": false,
+           "repo_url": "http://<ip>:<port>/repo",
+           "repo_ref": "photon/4.0/x86_64/minimal"
+       }
    }
    ```
 
@@ -195,17 +257,12 @@ Loop device is also supported.
 ### _"partitions":_ (optional)
 - Contains list of partitions to create.
 - Each partition is a dictionary of the following items:
- - _"filesystem":_ (required)
+ - _"filesystem":_ (optional)
   - Filesystem type.
       - **Supported values:** _"swap"_, _"ext4"_, _"vfat"_, _"xfs"_, _"btrfs"_.
-
-  - _"disk":_ (_optional_ if single disk device is available,
-             _required_ if multiple disk devices are available)
-    - Target disk device will have the defined partition
-    - **Supported values:**
-      - _"/dev/loop":_ loop devices
-      - _"/dev/sdX"_ : scsi drives based devices
-      - _"/dev/hdX"_ : IDE drives based devices
+    If not set `ext4` will be used.
+  - _"disk_id_":_ (_optional_)
+    If not set, the "default" from "disks" (see above) will be used.
   - _"mountpoint":_ (required for non "swap" partitions)
     - Mount point for the partition.
   - _"size":_
@@ -221,20 +278,21 @@ Loop device is also supported.
     the total disk size and the root fs gets the remaining space:
     ```json
     "partitions": [
-    {
-      "mountpoint": "/",
-      "size": 0,
-      "filesystem": "ext4"
-    },
-    {
-      "mountpoint": "/boot",
-      "size": 128,
-      "filesystem": "ext4"
-    },
-    {
-      "sizepercent": 5,
-      "filesystem": "swap"
-    }
+        {
+          "mountpoint": "/",
+          "size": 0,
+          "filesystem": "ext4"
+        },
+        {
+          "mountpoint": "/boot",
+          "size": 128,
+          "filesystem": "ext4"
+        },
+        {
+          "sizepercent": 5,
+          "filesystem": "swap"
+        }
+    ]
     ```
   - _"mkfs_options":_ (optional)
     - Additional parameters for the mkfs command as a string
@@ -256,45 +314,45 @@ Loop device is also supported.
     Example:
     ```json
     {
-      "disk": "/dev/sda",
-      "partitions": [
-                      {
-                        "mountpoint": "/",
-                        "size": 0,
-                        "filesystem": "btrfs"
-                      }
-                    ]
+        "disk_id": "default",
+        "partitions": [
+            {
+                "mountpoint": "/",
+                "size": 0,
+                "filesystem": "btrfs"
+            }
+        ]
     }
     ```
     Example to create subvols:
     ```json
     {
-      "partitions" : [
+        "partitions" : [
+            {
+                "mountpoint": "/",
+                "size": 2048,
+                "filesystem": "btrfs",
+                "btrfs" : {
+                    "label" : "main",
+                    "subvols" : [
                         {
-                          "mountpoint": "/",
-                          "size": 2048,
-                          "filesystem": "btrfs",
-                          "btrfs" : {
-                                      "label" : "main",
-                                      "subvols" : [
-                                                    {
-                                                      "name": "rootfs",
-                                                      "mountpoint": "/root"
-                                                    },
-                                                    {
-                                                      "name": "home",
-                                                      "mountpoint": "/home",
-                                                      "subvols": [
-                                                                   {
-                                                                      "name": "dir1",
-                                                                      "mountpoint": "/dir1"
-                                                                   }
-                                                                 ]
-                                                    }
-                                                  ]
-                                     }
+                            "name": "rootfs",
+                            "mountpoint": "/root"
+                        },
+                        {
+                            "name": "home",
+                            "mountpoint": "/home",
+                            "subvols": [
+                                {
+                                    "name": "dir1",
+                                    "mountpoint": "/dir1"
+                                }
+                            ]
                         }
                     ]
+                }
+            }
+        ]
     }
     ```
   - _"lvm":_ (optional)
@@ -309,52 +367,52 @@ Loop device is also supported.
     Example:
     ```json
     {
-      "partitions" : [
-                             {
-                               "mountpoint": "/",
-                               "size": 0,
-                               "filesystem": "ext4",
-                               "lvm": {
-                                        "vg_name": "VirtualGroup1",
-                                        "lv_name": "root"
-                                      }
-                             },
-                             {
-                               "mountpoint": "/boot/efi",
-                               "size": 12,
-                               "filesystem": "vfat",
-                               "fs_options": "-n EFI"
-                             },
-                             {
-                               "size": 128,
-                               "filesystem": "swap"
-                             }
-                     ]
+        "partitions" : [
+            {
+                "mountpoint": "/",
+                "size": 0,
+                "filesystem": "ext4",
+                "lvm": {
+                    "vg_name": "VirtualGroup1",
+                    "lv_name": "root"
+                }
+            },
+            {
+                "mountpoint": "/boot/efi",
+                "size": 12,
+                "filesystem": "vfat",
+                "fs_options": "-n EFI"
+            },
+            {
+                "size": 128,
+                "filesystem": "swap"
+            }
+        ]
     }
     ```
     Example: Multiple Disk device partition table
     ```json
     {
-      "partitions": [
-       {
-         "disk": "/dev/sda",
-         "mountpoint": "/",
-         "size": 0,
-         "filesystem": "ext4"
-       },
-       {
-         "disk": "/dev/sdb",
-         "mountpoint": "/sdb",
-         "size": 0,
-         "filesystem": "ext4"
-       },
-       {
-         "disk": "/dev/sdc",
-         "mountpoint": "/sdc",
-         "size": 0,
-         "filesystem": "ext4"
-       },
-     ]
+        "partitions": [
+            {
+                "disk": "default",
+                "mountpoint": "/",
+                "size": 0,
+                "filesystem": "ext4"
+            },
+            {
+                "disk_id": "disk2",
+                "mountpoint": "/sdb",
+                "size": 0,
+                "filesystem": "ext4"
+            },
+            {
+                "disk_id": "disk3",
+                "mountpoint": "/sdc",
+                "size": 0,
+                "filesystem": "ext4"
+            }
+        ]
     }
     ```
   - _"ab":_ (optional)
@@ -370,21 +428,19 @@ Loop device is also supported.
   a shadow partition but the "/sda" partition will not have a shadow partition:
     ```json
     {
-      "partitions": [
-                      {
-                        "disk": "/dev/sda",
-                        "mountpoint": "/",
-                        "size": 0,
-                        "filesystem": "ext4",
-                        "ab": true
-                      },
-                      {
-                        "disk": "/dev/sda",
-                        "mountpoint": "/sda",
-                        "size": 100,
-                        "filesystem": "ext4"
-                      }
-                    ]
+        "partitions": [
+            {
+                "mountpoint": "/",
+                "size": 0,
+                "filesystem": "ext4",
+                "ab": true
+            },
+            {
+                "mountpoint": "/sda",
+                "size": 100,
+                "filesystem": "ext4"
+            }
+        ]
     }
     ```
 

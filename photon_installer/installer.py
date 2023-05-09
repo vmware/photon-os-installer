@@ -59,6 +59,7 @@ class Installer(object):
         'autopartition',
         'bootmode',
         'disk',
+        'disks',
         'eject_cdrom',
         'hostname',
         'install_linux_esx',
@@ -153,8 +154,6 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
-        self._add_defaults(install_config)
-
         self.tdnf = Tdnf(logger=self.logger,
                          config_file=self.tdnf_conf_path,
                          reposdir=self.working_directory,
@@ -167,9 +166,12 @@ class Installer(object):
             self.logger.error(issue)
             raise Exception(issue)
 
+        self._add_defaults(install_config)
+
         self.install_config = install_config
 
         self.ab_present = self._is_ab_present()
+        self._prepare_devices()
         self._get_disk_sizes()
         self._calc_size_percentages()
         self._insert_boot_partitions()
@@ -177,16 +179,37 @@ class Installer(object):
         self._check_disk_space()
 
 
+    def _prepare_devices(self):
+        disks = self.install_config['disks']
+        for id, disk in disks.items():
+            if not 'device' in disk:
+                filename = disk['filename']
+                size = disk['size']
+                retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}"])
+                if retval != 0:
+                    raise Exception(f"failed to create disk image '{filename}'")
+                device = subprocess.check_output(["losetup", "--show", "-f", filename], text=True).strip()
+                disk['device'] = device
+
+            # handle symlinks like /dev/disk/by-path/pci-* -> ../../dev/sd*
+            # Example: 'device' : '/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0'
+            disk['device'] = os.path.realpath(disk['device'])
+
+        for p in self.install_config['partitions']:
+            disk_id = p['disk_id']
+            p['device'] = disks[disk_id]['device']
+
+
     def _get_disk_sizes(self):
         partitions = self.install_config['partitions']
         disk_sizes = {}
-        all_disks = set([p.get('disk', self.install_config['disk']) for p in partitions])
-        for disk in all_disks:
-            retval, size = CommandUtils.get_disk_size_bytes(disk)
+        all_devices = set([p['device'] for p in partitions])
+        for device in all_devices:
+            retval, size = CommandUtils.get_disk_size_bytes(device)
             if retval != 0:
                 self.logger.info("Error code: {}".format(retval))
-                raise Exception(f"Failed to get disk '{disk}' size")
-            disk_sizes[disk] = int(size)
+                raise Exception(f"Failed to get disk '{device}' size")
+            disk_sizes[device] = int(size)
         self.disk_sizes = disk_sizes
 
 
@@ -196,22 +219,22 @@ class Installer(object):
             if not 'sizepercent' in partition:
                 continue
             size_percent = partition['sizepercent']
-            disk = partition.get('disk', self.install_config['disk'])
-            partition['size'] = int(self.disk_sizes[disk] * size_percent / (100 * 1024**2))
+            device = partition['device']
+            partition['size'] = int(self.disk_sizes[device] * size_percent / (100 * 1024**2))
 
 
     def _check_disk_space(self):
         partitions = self.install_config['partitions']
         disk_totals = {}
         for partition in partitions:
-            disk = partition.get('disk', self.install_config['disk'])
-            if disk not in disk_totals:
-                disk_totals[disk] = 0
-            disk_totals[disk] += partition['size']
-        for disk, size in disk_totals.items():
-            disk_size = self.disk_sizes[disk] / 1024**2
+            device = partition['device']
+            if device not in disk_totals:
+                disk_totals[device] = 0
+            disk_totals[device] += partition['size']
+        for device, size in disk_totals.items():
+            disk_size = self.disk_sizes[device] / 1024**2
             if size > disk_size:
-                raise Exception(f"Total space requested for {disk} ({size} MB) exceeds disk size ({disk_size} MB)")
+                raise Exception(f"Total space requested for {device} ({size} MB) exceeds disk size ({disk_size} MB)")
 
 
     def execute(self):
@@ -239,10 +262,10 @@ class Installer(object):
                             self.logger.info(f"Parsed dynamic value for '{key}': '{install_config[key]}'")
                         else:
                             self.logger.warning(f"\nInstall configuration may have dynamic value=\'{value}\' for key=\'{key}\',"
-                                             f"check if it need to be exported."
-                                             f"If so then please export dynamic values under preinstall script in ks file as below:"
-                                             f"\nexport {value[1:]}=\'<my-val>\'"
-                                             f"\nPlease refer https://github.com/vmware/photon-os-installer/blob/master/docs/ks_config.md#preinstall-optional")
+                                                f"check if it need to be exported."
+                                                f"If so then please export dynamic values under preinstall script in ks file as below:"
+                                                f"\nexport {value[1:]}=\'<my-val>\'"
+                                                f"\nPlease refer https://github.com/vmware/photon-os-installer/blob/master/docs/ks_config.md#preinstall-optional")
 
 
     def _load_preinstall(self, install_config):
@@ -256,8 +279,9 @@ class Installer(object):
         """
         Add default install_config settings if not specified
         """
-        # set arch to host's one if not defined
         arch = subprocess.check_output(['uname', '-m'], universal_newlines=True).rstrip('\n')
+
+        # set arch to host's one if not defined
         if 'arch' not in install_config:
             install_config['arch'] = arch
 
@@ -297,12 +321,40 @@ class Installer(object):
         # target system, live should be set to False.
         if 'live' not in install_config:
             install_config['live'] = True
-            if 'loop' in install_config['disk']:
+            if 'loop' in install_config.get('disk', ""):
                 install_config['live'] = False
+
+        # we can remove this when we have deprecated 'disk'
+        if 'disk' in install_config:
+            if 'disks' not in install_config:
+                install_config['disks'] = {}
+            disks = install_config['disks']
+            if not 'default' in disks:
+                disks['default'] = {'device' : install_config['disk']}
+
+            # for backwards compatibility - handle 'disk' in 'partitions'
+            for p in install_config.get('partitions', []):
+                if 'disk' in p:
+                    # find matching disk:
+                    for disk_id, disk in disks:
+                        if disk['device'] == p['disk']:
+                            p['disk_id'] = disk_id
+                            break
+                    # none found, create entry:
+                    if 'disk_id' not in p:
+                        disk_id = p['disk'].replace("/", "_")
+                        disks[disk_id] = {'device' : p['disk']}
+                        p['disk_id'] = disk_id
 
         # default partition
         if 'partitions' not in install_config:
             install_config['partitions'] = Installer.default_partitions
+
+        for p in install_config['partitions']:
+            if not 'disk_id' in p:
+                p['disk_id'] = 'default'
+            if not 'filesystem' in p:
+                p['filesystem'] = 'ext4'
 
         # define 'hostname' as 'photon-<RANDOM STRING>'
         if "hostname" not in install_config or install_config['hostname'] == "":
@@ -366,6 +418,7 @@ class Installer(object):
                                                 "gpgcheck": 0,
                                                 "enabled": 1 }
 
+
     def _check_install_config(self, install_config):
         """
         Sanity check of install_config before its execution.
@@ -376,82 +429,102 @@ class Installer(object):
         if len(unknown_keys) > 0:
             return "Unknown install_config keys: " + ", ".join(unknown_keys)
 
-        if 'disk' not in install_config:
+        if 'disk' not in install_config and 'disks' not in install_config:
             return "No disk configured"
+
+        if 'disk' in install_config:
+            self.logger.warning("'disk' will be deprecated, use 'disks' instead")
+
+        if 'disks' in install_config:
+            if 'disk' in install_config:
+                return "only one of 'disk' or 'disks' can be set"
+            if 'default' not in install_config['disks']:
+                return "a 'default' disk needs to be set in for 'disks'"
+            for disk_id, disk in install_config['disks'].items():
+                if 'device' not in disk:
+                    if 'filename' not in disk:
+                        return f"a filename or a device needs to be set for disk '{disk_id}'"
+                    if 'size' not in disk:
+                        return f"a size needs to be set for disk image '{disk_id}'"
 
         # For Ostree install_config['packages'] will be empty list, because ostree
         # uses preinstalled tree ostree-repo.tar.gz for installation
         if 'ostree' not in install_config and 'linux_flavor' not in install_config:
             return "Attempting to install more than one linux flavor"
 
-        # Perform following checks here:
-        # 1) Only one extensible partition is allowed per disk
-        # 2) /boot can not be LVM
-        # 3) / must present
-        # 4) Duplicate mountpoints should not be present
-        has_extensible = {}
-        has_root = False
-        mountpoints = []
-        default_disk = install_config['disk']
-        for partition in install_config['partitions']:
-            disk = partition.get('disk', default_disk)
-            mntpoint = partition.get('mountpoint', '')
+        # if not we'll use Installer.default_partitions in _add_defaults()
+        if 'partitions' in install_config:
+            # Perform following checks here:
+            # 1) Only one extensible partition is allowed per disk
+            # 2) /boot can not be LVM
+            # 3) / must present
+            # 4) Duplicate mountpoints should not be present
+            has_extensible = {}
+            has_root = False
+            mountpoints = []
+            for partition in install_config['partitions']:
+                if 'disk' in partition and 'disks' in install_config:
+                    return "cannot use 'disk' for partitions, use 'disk_id' from 'disks'"
 
-            if disk not in has_extensible:
-                has_extensible[disk] = False
+                disk_id = partition.get('disk_id', 'default')
+                mntpoint = partition.get('mountpoint', '')
 
-            if 'size' not in partition and 'sizepercent' not in partition:
-                return "Need to specify 'size' or 'sizepercent'"
+                if disk_id not in has_extensible:
+                    has_extensible[disk_id] = False
 
-            if 'size' in partition:
-                if type(partition['size']) != int:
-                    return "'size' must be an integer"
+                if 'size' not in partition and 'sizepercent' not in partition:
+                    return "Need to specify 'size' or 'sizepercent'"
+
+                if 'size' in partition:
+                    if type(partition['size']) != int:
+                        return "'size' must be an integer"
+                    if 'sizepercent' in partition:
+                        return "only one of 'size' or 'sizepercent' can be specified"
+                    size = partition['size']
+                    if size == 0:
+                        if has_extensible[disk_id]:
+                            return f"disk '{disk_id}' has more than one extensible partition"
+                        else:
+                            has_extensible[disk_id] = True
+
                 if 'sizepercent' in partition:
-                    return "Only one of 'size' or 'sizepercent' can be specified"
-                size = partition['size']
-                if size == 0:
-                    if has_extensible[disk]:
-                        return "Disk {} has more than one extensible partition".format(disk)
-                    else:
-                        has_extensible[disk] = True
+                    if type(partition['sizepercent']) != int:
+                        return "'sizepercent' must be an integer"
+                    if partition['sizepercent'] <= 0:
+                        return "'sizepercent' must be greater than 0"
+                    elif partition['sizepercent'] > 100:
+                        return "'sizepercent' must not be greater than 100"
 
-            if 'sizepercent' in partition:
-                if type(partition['sizepercent']) != int:
-                    return "'sizepercent' must be an integer"
-                if partition['sizepercent'] <= 0:
-                    return "'sizepercent' must be greater than 0"
-                elif partition['sizepercent'] > 100:
-                    return "'sizepercent' must not be greater than 100"
+                if mntpoint != '':
+                    mountpoints.append(mntpoint)
+                if mntpoint == '/boot' and 'lvm' in partition:
+                    return "/boot on LVM is not supported"
+                elif mntpoint == '/boot/efi' and partition['filesystem'] != 'vfat':
+                    return "/boot/efi filesystem must be vfat"
+                elif mntpoint == '/':
+                    has_root = True
+            if not has_root:
+                return "There is no partition assigned to root '/'"
 
-            if mntpoint != '':
-                mountpoints.append(mntpoint)
-            if mntpoint == '/boot' and 'lvm' in partition:
-                return "/boot on LVM is not supported"
-            elif mntpoint == '/boot/efi' and partition['filesystem'] != 'vfat':
-                return "/boot/efi filesystem must be vfat"
-            elif mntpoint == '/':
-                has_root = True
-        if not has_root:
-            return "There is no partition assigned to root '/'"
+            if len(mountpoints) != len(set(mountpoints)):
+                return "Duplicate mountpoints exist in partition table!!"
 
-        if len(mountpoints) != len(set(mountpoints)):
-            return "Duplicate mountpoints exist in partition table!!"
+            for partition in install_config['partitions']:
+                if partition.get('ab', False):
+                    if partition.get('lvm', None):
+                        return "ab partition cannot be LVM"
 
-        if install_config['arch'] not in ["aarch64", 'x86_64']:
-            return "Unsupported target architecture {}".format(install_config['arch'])
+        if 'arch' in install_config:
+            if install_config['arch'] not in ["aarch64", "x86_64"]:
+                return "Unsupported target architecture {}".format(install_config['arch'])
 
-        # No BIOS for aarch64
-        if install_config['arch'] == 'aarch64' and install_config['bootmode'] in ['dualboot', 'bios']:
-            return "Aarch64 targets do not support BIOS boot. Set 'bootmode' to 'efi'."
+            # No BIOS for aarch64
+            if install_config['arch'] == 'aarch64' and install_config['bootmode'] in ['dualboot', 'bios']:
+                return "aarch64 targets do not support BIOS boot. Set 'bootmode' to 'efi'."
 
         if 'age' in install_config.get('password', {}):
             if install_config['password']['age'] < -1:
                 return "Password age should be -1, 0 or positive"
-
-        for partition in install_config['partitions']:
-            if partition.get('ab', False):
-                if partition.get('lvm', None):
-                    return "ab partition cannot be LVM"
 
         return None
 
@@ -633,14 +706,23 @@ class Installer(object):
                 self.logger.error("Failed to detach LVM physical volume: {}".format(pv))
 
         # Get the disks from partition table
-        disks = set(partition.get('disk', self.install_config['disk']) for partition in self.install_config['partitions'])
-        for disk in disks:
-            if 'loop' in disk:
+        disk_ids = set(partition['disk_id'] for partition in self.install_config['partitions'])
+        for disk_id in disk_ids:
+            device = self.install_config['disks'][disk_id]['device']
+            if 'loop' in device:
                 # Uninitialize device paritions mapping
-                retval = self.cmd.run(['kpartx', '-d', disk])
+                retval = self.cmd.run(['kpartx', '-d', device])
                 if retval != 0:
-                    self.logger.error("Failed to unmap partitions of the disk image {}". format(disk))
-                    return None
+                    # don't raise an exception so we can continue with remaining devices
+                    self.logger.error("failed to unmap partitions of device '{device}'")
+
+                # If we have a filename then we set it up ourselves.
+                # If not, it was already set up and it's not our responsibility to clean up.
+                if 'filename' in self.install_config['disks'][disk_id]:
+                    retval = self.cmd.run(['losetup', '-d', device])
+                    if retval != 0:
+                        # don't raise an exception so we can continue with remaining devices
+                        self.logger.error("failed to detach loop device '{device}'")
 
 
     def _get_partuuid(self, path):
@@ -913,6 +995,7 @@ class Installer(object):
         # Importing the pubkey
         self.cmd.run_in_chroot(self.photon_root, "rpm --import /etc/pki/rpm-gpg/*")
 
+
     def _cleanup_install_repo(self):
         # remove the tdnf cache directory
         cache_dir = os.path.join(self.photon_root, 'var/cache/tdnf')
@@ -921,18 +1004,24 @@ class Installer(object):
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
         for repo in self.install_config["repos"]:
-            os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
+            try:
+                os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
+            except FileNotFoundError:
+                pass
+
 
     def _setup_grub(self):
         bootmode = self.install_config['bootmode']
 
+        device = self.install_config['disks']['default']['device']
         # Setup bios grub
         if bootmode == 'dualboot' or bootmode == 'bios':
-            retval = self.cmd.run('grub2-install --target=i386-pc --force --boot-directory={} {}'.format(self.photon_root + "/boot", self.install_config['disk']))
+            path = os.path.join(self.photon_root, "boot")
+            retval = self.cmd.run(f"grub2-install --target=i386-pc --force --boot-directory={path} {device}")
             if retval != 0:
                 retval = self.cmd.run(['grub-install', '--target=i386-pc', '--force',
-                                      '--boot-directory={}'.format(self.photon_root + "/boot"),
-                                      self.install_config['disk']])
+                                       f"--boot-directory={path}",
+                                       device])
                 if retval != 0:
                     raise Exception("Unable to setup grub")
 
@@ -953,7 +1042,7 @@ class Installer(object):
                 # 'x86_64' -> 'bootx64.efi', 'aarch64' -> 'bootaa64.efi'
                 exe_name = 'boot'+arch[:-5]+arch[-2:]+'.efi'
                 # Some platforms do not support adding boot entry. Thus, ignore failures
-                self.cmd.run(['efibootmgr', '--create', '--remove-dups', '--disk', self.install_config['disk'],
+                self.cmd.run(['efibootmgr', '--create', '--remove-dups', '--disk', device,
                               '--part', esp_pn, '--loader', '/EFI/BOOT/' + exe_name, '--label', 'Photon'])
 
         # Create custom grub.cfg
@@ -1159,10 +1248,12 @@ class Installer(object):
         if os.path.exists(self.photon_root + '/etc/resolv.conf'):
             os.remove(self.photon_root + '/etc/resolv.conf')
 
+
     def partition_compare(self, p):
-        if 'mountpoint' in p:
+        if 'mountpoint' in p and p['mountpoint'] is not None:
             return (1, len(p['mountpoint']), p['mountpoint'])
         return (0, 0, "A")
+
 
     def _get_partition_path(self, disk, part_idx):
         prefix = ''
@@ -1268,6 +1359,7 @@ class Installer(object):
             if "subvols" in subvol:
                 self._create_btrfs_subvolumes(os.path.join(path, subvol["name"]), subvol, disk, os.path.join(parent_subvol, subvol["name"]))
 
+
     def _create_logical_volumes(self, physical_partition, vg_name, lv_partitions, extensible):
         """
         Create logical volumes
@@ -1304,7 +1396,7 @@ class Installer(object):
 
         # create logical volumes
         for partition in lv_partitions:
-            lv_cmd = ['lvcreate', '-y']
+            lv_cmd = ['lvcreate', '-y', '--zero', 'n']
             lv_name = partition['lvm']['lv_name']
             size = partition['size']
             if size == 0:
@@ -1316,14 +1408,17 @@ class Installer(object):
                 retval = self.cmd.run(lv_cmd)
                 if retval != 0:
                     raise Exception("Error: Failed to create logical volumes , command: {}".format(lv_cmd))
-            partition['path'] = '/dev/' + vg_name + '/' + lv_name
+            if not "loop" in  partition['device']:
+                partition['path'] = os.path.join("/dev", vg_name, lv_name)
+            else:
+                partition['path'] = os.path.join("/dev/mapper", f"{vg_name}-{lv_name}")
 
         # create extensible logical volume
         if not extensible_logical_volume:
             raise Exception("Can not fully partition VG: " + vg_name)
 
         lv_name = extensible_logical_volume['lvm']['lv_name']
-        lv_cmd = ['lvcreate', '-y']
+        lv_cmd = ['lvcreate', '-y', '--zero', 'n']
         lv_cmd.extend(['-l', '100%FREE', '-n', lv_name, vg_name])
 
         retval = self.cmd.run(lv_cmd)
@@ -1347,39 +1442,32 @@ class Installer(object):
         # 3) to create physical partition representation for VG
         vg_partitions = {}
 
-        # /dev/disk/by-path/pci-* -> ../../dev/sd* is symlink to device file
-        # To handle the case for ex:
-        # 'disk' : '/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0'
-        self.install_config['disk'] = os.path.realpath(self.install_config['disk'])
-
-        default_disk = self.install_config['disk']
         partitions = self.install_config['partitions']
+
         for partition in partitions:
-            if 'disk' in partition:
-                partition['disk'] = os.path.realpath(partition['disk'])
-            disk = partition.get('disk', default_disk)
-            if disk not in ptv:
-                ptv[disk] = []
-            if disk not in vg_partitions:
-                vg_partitions[disk] = {}
+            device = partition['device']
+            if device not in ptv:
+                ptv[device] = []
+            if device not in vg_partitions:
+                vg_partitions[device] = {}
 
             if partition.get('lvm', None):
                 vg_name = partition['lvm']['vg_name']
-                if vg_name not in vg_partitions[disk]:
-                    vg_partitions[disk][vg_name] = {
+                if vg_name not in vg_partitions[device]:
+                    vg_partitions[device][vg_name] = {
                         'size': 0,
                         'type': self._partition_type_to_string(PartitionType.LVM),
                         'extensible': False,
                         'lvs': [],
                         'vg_name': vg_name
                     }
-                vg_partitions[disk][vg_name]['lvs'].append(partition)
+                vg_partitions[device][vg_name]['lvs'].append(partition)
                 if partition['size'] == 0:
-                    vg_partitions[disk][vg_name]['extensible'] = True
-                    vg_partitions[disk][vg_name]['size'] = 0
+                    vg_partitions[device][vg_name]['extensible'] = True
+                    vg_partitions[device][vg_name]['size'] = 0
                 else:
-                    if not vg_partitions[disk][vg_name]['extensible']:
-                        vg_partitions[disk][vg_name]['size'] = vg_partitions[disk][vg_name]['size'] + partition['size']
+                    if not vg_partitions[device][vg_name]['extensible']:
+                        vg_partitions[device][vg_name]['size'] = vg_partitions[device][vg_name]['size'] + partition['size']
             else:
                 if 'type' in partition:
                     ptype_code = partition['type']
@@ -1391,16 +1479,25 @@ class Installer(object):
                     'type': ptype_code,
                     'partition': partition
                 }
-                ptv[disk].append(l2entry)
+                ptv[device].append(l2entry)
 
         # Add accumulated VG partitions
-        for disk, vg_list in vg_partitions.items():
-            ptv[disk].extend(vg_list.values())
+        for device, vg_list in vg_partitions.items():
+            ptv[device].extend(vg_list.values())
 
         return ptv
 
 
     def _insert_boot_partitions(self):
+
+        def create_partition(size, filesystem, mountpoint):
+            device = self.install_config['disks']['default']['device']
+            return {'size' : size,
+                    'filesystem' : filesystem,
+                    'mountpoint' : mountpoint,
+                    'disk_id' : 'default',
+                    'device' : device}
+
         bios_found = False
         esp_found = False
         partitions = self.install_config['partitions']
@@ -1417,7 +1514,7 @@ class Installer(object):
         if 'ostree' in self.install_config:
             mount_points = [partition['mountpoint'] for partition in partitions if 'mountpoint' in partition]
             if '/boot' not in mount_points:
-                boot_partition = {'size': 300, 'filesystem': 'ext4', 'mountpoint': '/boot'}
+                boot_partition = create_partition(300, "ext4", "/boot")
                 partitions.insert(0, boot_partition)
 
         bootmode = self.install_config.get('bootmode', 'bios')
@@ -1425,7 +1522,7 @@ class Installer(object):
         if bootmode == 'dualboot' or bootmode == 'efi':
             # Insert efi special partition
             if not esp_found:
-                efi_partition = {'size': ESPSIZE, 'filesystem': 'vfat', 'mountpoint': '/boot/efi'}
+                efi_partition = create_partition(ESPSIZE, "vfat", "/boot/efi")
                 partitions.insert(0, efi_partition)
 
             if self.ab_present:
@@ -1433,7 +1530,7 @@ class Installer(object):
 
         # Insert bios partition last to be very first
         if not bios_found and (bootmode == 'dualboot' or bootmode == 'bios'):
-            bios_partition = {'size': BIOSSIZE, 'filesystem': 'bios'}
+            bios_partition = create_partition(BIOSSIZE, "bios", None)
             partitions.insert(0, bios_partition)
 
 
@@ -1475,6 +1572,14 @@ class Installer(object):
         else:
             self.logger.warning("Error: There are no VG's/Failed to get VG names ")
 
+
+    def _check_device(self, device):
+        with open("/proc/mounts", "rt") as f:
+            for line in f:
+                if line.startswith(device):
+                    raise Exception("device '{device}' appears to be in use (mounted)")
+
+
     def _partition_disks(self):
         """
         Partition the disk
@@ -1494,15 +1599,16 @@ class Installer(object):
         lvm_present = False
 
         # Partitioning disks
-        for disk, l2entries in ptv.items():
+        for device, l2entries in ptv.items():
+            self._check_device(device)
 
             #clear VolumeGroups and associated LVM's if exist any before clearing the disk
             self._clear_vgs()
 
             # Clear the disk first
-            retval = self.cmd.run(['sgdisk', '-o', '-g', disk])
+            retval = self.cmd.run(['sgdisk', '-o', '-g', device])
             if retval != 0:
-                raise Exception("Failed clearing disk {0}".format(disk))
+                raise Exception(f"failed clearing disk '{device}'")
 
             # Build partition command and insert 'part' into 'partitions'
             part_idx = 1
@@ -1513,9 +1619,9 @@ class Installer(object):
             for l2 in l2entries:
                 if 'lvs' in l2:
                     # will be used for _create_logical_volumes() invocation
-                    l2['path'] = self._get_partition_path(disk, part_idx)
+                    l2['path'] = self._get_partition_path(device, part_idx)
                 else:
-                    l2['partition']['path'] = self._get_partition_path(disk, part_idx)
+                    l2['partition']['path'] = self._get_partition_path(device, part_idx)
 
                 if l2['size'] == 0:
                     last_partition = []
@@ -1529,12 +1635,12 @@ class Installer(object):
             # if extensible partition present, add it to the end of the disk
             if last_partition:
                 partition_cmd.extend(last_partition)
-            partition_cmd.extend(['-p', disk])
+            partition_cmd.extend(['-p', device])
 
             # Run the partitioning command (all physical partitions in one shot)
             retval = self.cmd.run(partition_cmd)
             if retval != 0:
-                raise Exception("Failed partition disk, command: {0}".format(partition_cmd))
+                raise Exception(f"failed partition disk, command: {partition_cmd}")
 
             # For RPi image we used 'parted' instead of 'sgdisk':
             # parted -s $IMAGE_NAME mklabel msdos mkpart primary fat32 1M 30M mkpart primary ext4 30M 100%
@@ -1542,15 +1648,15 @@ class Installer(object):
             if self.install_config.get('partition_type', 'gpt') == 'msdos':
                 # m - colon separated partitions list
                 m = ":".join([str(i) for i in range(1, part_idx)])
-                retval = self.cmd.run(['sgdisk', '-m', m, disk])
+                retval = self.cmd.run(['sgdisk', '-m', m, device])
                 if retval != 0:
                     raise Exception("Failed to setup efi partition")
 
             # Make loop disk partitions available
-            if 'loop' in disk:
-                retval = self.cmd.run(['kpartx', '-avs', disk])
+            if 'loop' in device:
+                retval = self.cmd.run(['kpartx', '-avs', device])
                 if retval != 0:
-                    raise Exception("Failed to rescan partitions of the disk image {}". format(disk))
+                    raise Exception(f"failed to rescan partitions of the disk image {device}")
 
             # Go through l2 entries again and create logical partitions
             for l2 in l2entries:
