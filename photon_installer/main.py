@@ -4,6 +4,9 @@
 # */
 from os.path import dirname, join
 from argparse import ArgumentParser
+import sys
+import traceback
+
 
 def main():
     usage = "Usage: %prog [options]"
@@ -45,7 +48,9 @@ def main():
             installer.configure(install_config)
             installer.execute()
     except Exception as err:
-        raise Exception(f"Installer failed with error: {err}")
+        traceback.print_exc()
+        sys.exit(1)
+
 
 if __name__ == '__main__':
     main()
