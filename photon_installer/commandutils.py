@@ -15,6 +15,8 @@ import copy
 import json
 from urllib.parse import urlparse
 from OpenSSL.crypto import load_certificate, FILETYPE_PEM
+import yaml
+
 
 class CommandUtils(object):
     def __init__(self, logger):
@@ -138,6 +140,37 @@ class CommandUtils(object):
         with open(filename) as f:
             data = json.load(f)
             return data
+
+
+    @staticmethod
+    def _yaml_param(loader, node):
+        params = loader.app_params
+        default = None
+        key = node.value
+
+        assert type(key) is str, f"param name must be a string"
+
+        if '=' in key:
+            key, default = [t.strip() for t in key.split('=')]
+            default = yaml.safe_load(default)
+        value = params.get(key, default)
+
+        assert value is not None, f"no param set for '{key}', and there is no default"
+
+        return value
+
+
+    @staticmethod
+    def readConfig(stream, params={}):
+        config = None
+
+        yaml_loader = yaml.SafeLoader
+        yaml_loader.app_params = params
+        yaml.add_constructor("!param", CommandUtils._yaml_param, Loader=yaml_loader)
+        config = yaml.load(stream, Loader=yaml_loader)
+
+        return config
+
 
     def convertToBytes(self, size):
         if not isinstance(size, str):
