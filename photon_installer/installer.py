@@ -336,7 +336,7 @@ class Installer(object):
             for p in install_config.get('partitions', []):
                 if 'disk' in p:
                     # find matching disk:
-                    for disk_id, disk in disks:
+                    for disk_id, disk in disks.items():
                         if disk['device'] == p['disk']:
                             p['disk_id'] = disk_id
                             break
