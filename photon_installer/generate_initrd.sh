@@ -205,7 +205,7 @@ rm -rf ${INITRD}/home/*         \
 
 find "${INITRD}/usr/sbin" -mindepth 1 -maxdepth 1 -name "grub2*" \
                         ! -name grub2-install -print0 | \
-                        xargs -0 -r -P$(nproc) -n32 rm -rvf
+                        xargs -0 -r -P$(nproc) -n32 rm -rf
 
 find "${INITRD}/usr/share" -mindepth 1 -maxdepth 1 \
                         ! -name terminfo \
@@ -213,7 +213,7 @@ find "${INITRD}/usr/share" -mindepth 1 -maxdepth 1 \
                         ! -name grub    \
                         ! -name factory \
                         ! -name dbus-1 -print0 |
-                        xargs -0 -r -P$(nproc) -n32 rm -rvf
+                        xargs -0 -r -P$(nproc) -n32 rm -rf
 
 # Set password max days to 99999 (disable aging)
 chroot ${INITRD} /bin/bash -c "chage -M 99999 root"
