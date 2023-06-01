@@ -677,7 +677,8 @@ class Installer(object):
         """
         while self.mounts:
             d = self.mounts.pop()
-            retval = self.cmd.run(['umount', '-l', d])
+            self.cmd.run(["fstrim", d])
+            retval = self.cmd.run(["umount", "-l", d])
             if retval != 0:
                 self.logger.error(f"Failed to unmount {d}")
 
