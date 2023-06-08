@@ -27,11 +27,11 @@ class IsoBuilder(object):
         self.cmdUtil = CommandUtils(self.logger)
         self.architecture = platform.machine()
         self.additional_files = []
-        self.repos_dir = os.path.join(self.working_dir, "yum.repos.d")
+        self.yum_repos_dir = os.path.join(self.working_dir, "yum.repos.d")
 
         self.tdnf = Tdnf(logger=self.logger,
                          releasever=self.photon_release_version,
-                         reposdir=self.repos_dir,
+                         reposdir=self.yum_repos_dir,
                          docker_image=self.photon_docker_image)
 
 
@@ -88,17 +88,29 @@ class IsoBuilder(object):
 
 
     def setupReposDir(self):
-        os.makedirs(self.repos_dir, exist_ok=True)
+        os.makedirs(self.yum_repos_dir, exist_ok=True)
 
         # copy repo files from host
-        if os.path.isdir("/etc/yum.repos.d"):
-            for repo_file in glob.glob("/etc/yum.repos.d/*.repo"):
-                shutil.copy(repo_file, self.repos_dir)
+        if not self.repo_paths:
+            if os.path.isdir("/etc/yum.repos.d"):
+                for repo_file in glob.glob("/etc/yum.repos.d/*.repo"):
+                    shutil.copy(repo_file, self.yum_repos_dir)
+        else:
+            for i, url in enumerate(self.repo_paths):
+                name = f"_repo{i}"
+                filepath = os.path.join(self.yum_repos_dir, f"{name}.repo")
+                with open(filepath, "wt") as f:
+                    f.write(f"[{name}]\n")
+                    if url.startswith("/"):
+                        url = f"file://{url}"
+                    f.write(f"baseurl={url}\n")
+                    f.write("enabled=1\n")
+                    f.write("gpgcheck=0\n")
 
         # additional repos
         if self.additional_repos:
             for repo_file in self.additional_repos:
-                shutil.copy(repo_file, self.repos_dir)
+                shutil.copy(repo_file, self.yum_repos_dir)
 
     def generateInitrd(self):
         """
@@ -297,7 +309,7 @@ class IsoBuilder(object):
             self.logger.info(f"Moving {self.kickstart_path} to {self.working_dir}/isolinux...")
             shutl.copyfile(f"{self.kickstart_path}", f"{self.working_dir}/isolinux")
         if self.boot_cmdline_param:
-            self.logger.info("Adding Boot command line paramters to isolinux menu...")
+            self.logger.info("Adding Boot command line parameters to isolinux menu...")
             self.runCmd(f"sed -i '/photon.media=cdrom/ s#$# {self.boot_cmdline_param}#' {self.working_dir}/isolinux/menu.cfg")
 
 
@@ -400,6 +412,7 @@ def main():
     parser.add_argument("-o", "--ostree-tar-path", dest="ostree_tar_path", default="", help="Path to custom ostree tar.")
     parser.add_argument("-c", "--initrd-pkgs-list-file", dest="initrd_pkgs_list_file", default=None, help="<Optional> parameter to provide cutom initrd pkg list file.")
     parser.add_argument("-i", "--initrd-pkgs", dest="initrd_pkgs", default=None, help="<Optional> parameter to provide cutom initrd pkg list")
+    parser.add_argument("-R", "--repo-paths", action="append", default=[], help="<Optional> Pass repo file as input to download rpms from external repo")
     parser.add_argument("-r", "--additional_repos", action="append", default=None, help="<Optional> Pass repo file as input to download rpms from external repo")
     parser.add_argument("-p", "--packageslist-file", dest="packageslist_file", default="", help="Custom package list file.")
     parser.add_argument("-q", "--packages", dest="packages_list", default="", help="Custom package list.")
@@ -428,10 +441,20 @@ def main():
         # Add config arguments to options
         options.__dict__.update(config)
 
-    isoBuilder = IsoBuilder(function=options.function, packageslist_file=options.packageslist_file,
-                            kickstart_path=options.kickstart_path, photon_release_version=options.photon_release_version,
-                            log_level=options.log_level, initrd_pkg_list_file=options.initrd_pkgs_list_file, initrd_pkgs = options.initrd_pkgs, ostree_tar_path=options.ostree_tar_path,
-                            additional_repos=options.additional_repos, boot_cmdline_param=options.boot_cmdline_param, artifact_path=options.artifact_path, packages_list=options.packages_list)
+    isoBuilder = IsoBuilder(
+        function=options.function,
+        packageslist_file=options.packageslist_file,
+        kickstart_path=options.kickstart_path,
+        photon_release_version=options.photon_release_version,
+        log_level=options.log_level,
+        initrd_pkg_list_file=options.initrd_pkgs_list_file,
+        initrd_pkgs = options.initrd_pkgs,
+        ostree_tar_path=options.ostree_tar_path,
+        additional_repos=options.additional_repos,
+        boot_cmdline_param=options.boot_cmdline_param,
+        artifact_path=options.artifact_path,
+        packages_list=options.packages_list,
+        repo_paths=options.repo_paths)
 
     IsoBuilder.validate_options(options, f"{isoBuilder.initrd_path}/installer", isoBuilder.logger)
     isoBuilder.logger.info(f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img...")
