@@ -62,7 +62,6 @@ class Installer(object):
         'disks',
         'eject_cdrom',
         'hostname',
-        'install_linux_esx',
         'linux_flavor',
         'live',
         'log_level',
@@ -398,17 +397,11 @@ class Installer(object):
                 install_config['search_path'].append(dirname)
 
         if 'linux_flavor' not in install_config:
-            if install_config.get('install_linux_esx', False):
-                install_config['linux_flavor'] = "linux-esx"
-            else:
-                available_flavors = []
-                for flavor in self.all_linux_flavors:
-                    if flavor in install_config['packages']:
-                        available_flavors.append(flavor)
-                if len(available_flavors) == 1:
-                    install_config['linux_flavor'] = available_flavors[0]
+            install_config['linux_flavor'] = 'linux'
 
-        install_config['install_linux_esx'] = False
+        flavor = install_config['linux_flavor']
+        if flavor not in install_config['packages']:
+            install_config['packages'].append(flavor)
 
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
@@ -465,11 +458,6 @@ class Installer(object):
                         return f"a filename or a device needs to be set for disk '{disk_id}'"
                     if 'size' not in disk:
                         return f"a size needs to be set for disk image '{disk_id}'"
-
-        # For Ostree install_config['packages'] will be empty list, because ostree
-        # uses preinstalled tree ostree-repo.tar.gz for installation
-        if 'ostree' not in install_config and 'linux_flavor' not in install_config:
-            return "Attempting to install more than one linux flavor"
 
         # if not we'll use Installer.default_partitions in _add_defaults()
         if 'partitions' in install_config:
@@ -544,6 +532,10 @@ class Installer(object):
         if 'age' in install_config.get('password', {}):
             if install_config['password']['age'] < -1:
                 return "Password age should be -1, 0 or positive"
+
+        if 'linux_flavor' in install_config:
+            if install_config['linux_flavor'] not in self.all_linux_flavors:
+                return "linux_flavor is not in allowed list"
 
         return None
 

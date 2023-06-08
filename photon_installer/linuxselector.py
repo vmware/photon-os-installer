@@ -11,6 +11,7 @@ from window import Window
 from actionresult import ActionResult
 from commandutils import CommandUtils
 
+
 class LinuxSelector(object):
     def __init__(self, maxy, maxx, install_config):
         self.install_config = install_config
@@ -24,13 +25,11 @@ class LinuxSelector(object):
 
         self.menu_starty = self.win_starty + 6
 
-    def set_linux_esx_installation(self, is_linux_esx):
-        self.install_config['install_linux_esx'] = is_linux_esx
-        return ActionResult(True, None)
 
     def set_linux_installation(self, selected_linux_package):
         self.install_config['linux_flavor'] = selected_linux_package
         return ActionResult(True, None)
+
 
     def create_available_linux_menu(self):
         linux_flavors = {"linux":"Generic", "linux-esx":"VMware hypervisor optimized", "linux-aws":"AWS optimized", "linux-secure":"Security hardened", "linux-rt":"Real Time"}
@@ -52,6 +51,7 @@ class LinuxSelector(object):
                              'Select Linux kernel to install', True, tab_enabled=False,
                              position=1, can_go_next=True)
         self.window.set_action_panel(self.host_menu)
+
 
     def display(self):
         if 'ostree' in self.install_config:
