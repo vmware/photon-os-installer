@@ -1,0 +1,72 @@
+#!/bin/bash
+
+create_ova()
+{
+    # TODO: tools version
+    vmdk-convert ${RAW_IMAGE} ${RAW_IMAGE}.vmdk
+    ova-compose -i ${OVA_CFG_FILE} -o ${OVA_NAME}.ova --param disk=${RAW_IMAGE}.vmdk
+    rm -f ${RAW_IMAGE}.vmdk
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [--installer-config <config-file>]"
+    echo "          [--raw-image <image-file>]"
+    echo "          [--ova-name <name>]"
+    echo "          [--ova-config <ova-config-file>] (required)"
+}
+
+OPTS=$(getopt -o h --long installer-config:,raw-image:,ova-config:,ova-name: -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    echo $1
+    case "$1" in
+        -h) usage ; exit 0;;
+        --installer-config) CFG_FILE=${2} ; shift 2 ;;
+        --raw-image) RAW_IMAGE=${2} ; shift 2 ;;
+        --ova-config) OVA_CFG_FILE=${2} ; shift 2 ;;
+        --ova-name) OVA_NAME=${2} ; shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+echo  "${OVA_CFG_FILE}"
+
+if [ -z "${OVA_CFG_FILE}" ] ; then
+    echo "need an OVA config file" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${OVA_NAME}" ] ; then
+    OVA_NAME=$(yq .system.name ${OVA_CFG_FILE})
+fi
+
+if [ -z "${RAW_IMAGE}" -a -z "${CFG_FILE}" ] ; then
+    echo "need a config file or image" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${RAW_IMAGE}" ] ; then
+    RAW_IMAGE=$(yq .disks.default.filename ${CFG_FILE})
+fi
+
+if [ -z "${RAW_IMAGE}" ] ; then
+    echo "no suitable image found" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+create_ova

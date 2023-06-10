@@ -1,0 +1,45 @@
+#!/bin/bash
+
+WORKDIR=/mnt/photon-root
+REPO_PATHS=/repo
+RELEASE_VER=5.0
+
+create_image() {
+    photon-installer -i ova -v ${RELEASE_VER} --repo-paths=${REPO_PATHS} -c ${CFG_FILE} -w ${WORKDIR}
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [-c|--config <config-file>] (required)"
+    echo "          [-v|--releasever <version>] (default is ${RELEASE_VER})"
+    echo "          [--repo-paths] (default ${REPO_PATHS})"
+}
+
+OPTS=$(getopt -o hc:v: --long config:,releasever:,repo-paths: -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -h) usage ; exit 0;;
+        -c | --config) CFG_FILE=${2} ; shift 2 ;;
+        -v | --releasever) RELEASE_VER=${2} ; shift 2 ;;
+        --repo-paths) REPO_PATHS=${2} ; shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+if [ -z "${CFG_FILE}" ] ; then
+    echo "need a config file" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+create_image
