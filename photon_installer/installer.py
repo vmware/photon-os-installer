@@ -257,9 +257,6 @@ class Installer(object):
 
 
     def execute(self):
-        if 'setup_grub_script' in self.install_config:
-            self.setup_grub_command = self.install_config['setup_grub_script']
-
         if self.install_config['ui']:
             curses.wrapper(self._install)
         else:
@@ -435,6 +432,13 @@ class Installer(object):
                                                 "baseurl": url,
                                                 "gpgcheck": 0,
                                                 "enabled": 1 }
+
+        if 'setup_grub_script' in self.install_config:
+            script = self.install_config['setup_grub_script']
+            # expect script in current working dir, unless path is absolute
+            if not script.startswith("/"):
+                script = os.path.join(os.getcwd(), script)
+            self.setup_grub_command = script
 
 
     def _check_install_config(self, install_config):
