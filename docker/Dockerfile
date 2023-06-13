@@ -39,7 +39,8 @@ RUN tdnf -y install \
     createrepo rpm jq \
     python3 python3-pip python3-setuptools python3-curses \
     python3-pyYAML python3-lxml python3-cracklib \
-    $([ "${TARGETARCH}" == "amd64" && grub2-pc ])
+    $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
+    rm -rf /var/cache/tdnf
 
 COPY --from=poi-helper / /photon-os-installer
 RUN cd /photon-os-installer && pip3 install . # && cd .. && rm -rf /photon-os-installer
