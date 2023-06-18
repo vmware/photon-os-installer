@@ -177,6 +177,21 @@ class Installer(object):
         self._insert_boot_partitions()
         self._add_shadow_partitions()
         self._check_disk_space()
+        self._get_vg_names()
+
+
+    # collect LVM Volume Group names
+    def _get_vg_names(self):
+        retval, host_vg_names = self.cmd.get_vgnames()
+        self.vg_names = set()
+        partitions = self.install_config['partitions']
+        for p in partitions:
+            if 'lvm' in p:
+                vg_name = p['lvm']['vg_name']
+                if vg_name in host_vg_names:
+                    # creating a VG with the same name as on the host will cause trouble
+                    raise Exception(f"vg name {vg_name} is in use by the host - if left over from a previous install remove it with 'vgremove'")
+                self.vg_names.add(vg_name)
 
 
     def _prepare_devices(self):
@@ -1560,18 +1575,22 @@ class Installer(object):
                 if is_last_partition_ab:
                     self.__set_ab_partition_size(l2entries, used_size, total_disk_size)
 
+
     def _clear_vgs(self):
-        retval,vg_list=self.cmd.get_vgnames()
-        if retval==0:
-            for vg_name in vg_list:
+        retval, active_vg_list = self.cmd.get_vgnames()
+        if retval != 0:
+            self.logger.warning("no LVM volume groups to clear found")
+        else:
+            # clear VG names that are in use and that we care about
+            for vg_name in self.vg_names:
+                if vg_name not in active_vg_list:
+                    continue
                 retval = self.cmd.run(['vgremove', '-ff', vg_name])
                 if retval == 0:
-                    self.logger.info(f"Cleared volume group {vg_name} & its associted lv's")
+                    self.logger.info(f"Cleared volume group {vg_name} and its associated LVs")
                 else:
                     self.logger.error(f"Error: Failed to remove existing VG: {vg_name} before clearing the disk")
                     self.exit_gracefully()
-        else:
-            self.logger.warning("Error: There are no VG's/Failed to get VG names ")
 
 
     def _check_device(self, device):
