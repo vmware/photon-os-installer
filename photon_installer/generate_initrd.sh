@@ -78,8 +78,9 @@ mkdir -p $INITRD/installer
 mv ${WORKINGDIR}/sample_ui.cfg ${INITRD}/installer
 mv ${WORKINGDIR}/EULA.txt ${INITRD}/installer
 mv ${WORKINGDIR}/$PACKAGE_LIST_FILE_BASE_NAME ${INITRD}/installer
-cp ${CUSTOM_PKG_LIST_FILE} ${INITRD}/installer
-
+if [ ! -f "${INITRD}/installer/$(basename "${CUSTOM_PKG_LIST_FILE}")" ]; then
+  cp ${CUSTOM_PKG_LIST_FILE} ${INITRD}/installer
+fi
 mkfifo ${INITRD}/dev/initctl
 mknod ${INITRD}/dev/ram0 b 1 0
 mknod ${INITRD}/dev/ram1 b 1 1

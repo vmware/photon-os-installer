@@ -1,0 +1,8 @@
+photon_release_version: '4.0'
+function: build-iso
+packageslist_file: packages_minimal.json
+packages_list:
+ packages:
+  - minimal
+  - linux
+  - linux-esx

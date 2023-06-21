@@ -206,3 +206,21 @@ class CommandUtils(object):
             retval=e.args[0]
         self.logger.info(f"VG's list {vg_list}")
         return retval, vg_list
+
+    def write_pkg_list_file(file_path, packages_list):
+        with open(file_path, 'w') as json_file:
+           json.dump(packages_list, json_file, indent=4)
+        return file_path
+
+    def merge_json_files(merged_file, file1, file2):
+        data1=CommandUtils.jsonread(file1)
+        data2=CommandUtils.jsonread(file2)
+        merged_data = {}
+        keys = ["packages", "packages_aarch64", "packages_x86_64"]
+
+        for key in keys:
+           merged_list = list(set(data1.get(key, []) + data2.get(key, [])))
+           if merged_list:
+              merged_data[key] = merged_list
+
+        return CommandUtils.write_pkg_list_file(merged_file, merged_data)
