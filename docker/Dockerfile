@@ -45,7 +45,7 @@ RUN tdnf makecache && \
     e2fsprogs kpartx lvm2 dosfstools \
     createrepo rpm jq \
     python3 python3-pip python3-setuptools python3-curses \
-    python3-pyYAML python3-lxml python3-cracklib \
+    python3-pyYAML python3-lxml python3-cracklib qemu-img \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 
@@ -57,6 +57,7 @@ COPY --from=builder yq_linux_${TARGETARCH} /usr/bin/yq
 COPY create-image /usr/bin
 COPY create-ova /usr/bin
 COPY create-repo /usr/bin
+COPY create-azure /usr/bin
 COPY poi-pkglist /usr/bin
 
 VOLUME /repo /workdir

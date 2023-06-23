@@ -131,3 +131,33 @@ Example:
 sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/5.0:/repo poi-debug create-image -c minimal_ks.yaml -v 5.0
 sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/:/repo poi-debug create-ova --installer-config minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --raw-image minimal.img
 ```
+
+### Create an AZURE image
+
+There are example files in `examples/azure`. Edit the files `azure_ks.yaml`, `packages_azure.json` and others as needed.
+
+Create the repository first (optional):
+```
+sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c azure_ks.yaml -v 5.0
+```
+Then create the image:
+```
+sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c azure_ks.yaml -v 5.0
+```
+This will result in a raw disk image, the name of the file is configured in the file `azure_ks.yaml` with `disks.default.filename`.
+
+Then create the azure image:
+```
+sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-azure --raw-image ${RAW_IMAGE}
+```
+This will result in a azure image with  `azure_ks.yaml` with `disks.default.filename`.vhd.tar.gz.
+
+There is a script called create-image-tool which will take care all the process above mention.
+
+Example:
+```
+create-image-util --raw-image <RAW_IMAGE> --config-file <KS_CONFIG_FILE> --repo-path <REPO_PATH> --poi-path <POI_PATH>
+
+Creating Azure image
+create-image-util --raw-image photon-azure.raw --config-file azure_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/azure_support/photon-os-installer/
+```

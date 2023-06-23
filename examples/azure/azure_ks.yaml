@@ -1,0 +1,19 @@
+live: False
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: photon-azure.raw
+        size: 16384
+
+packagelist_file: packages_azure.json
+linux_flavor: linux
+
+postinstallscripts:
+    - azure-patch.sh
+
+additional_files:
+    - cloud-photon.cfg: /etc/cloud/cloud.cfg
