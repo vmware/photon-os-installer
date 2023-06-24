@@ -1,15 +1,20 @@
 # to debug poi:
 # docker buildx build --build-context poi-helper=/home/okurth/projects/photon-os-installer .
 
+# to use a mirror:
+# sudo docker buildx build -t photon/installer --build-arg DOCKER_PROXY=harbor-repo.vmware.com/dockerhub-proxy-cache/ .
+
 # Example run:
 # sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/:/repo poi-debug create-image -c sample_ks.yaml -v 4.0
 
-FROM photon:5.0 AS builder
+ARG DOCKER_PROXY
+FROM ${DOCKER_PROXY}library/photon:5.0 AS builder
+
 ARG TARGETARCH
 
-RUN tdnf makecache
-RUN tdnf -y update
-RUN tdnf -y install \
+RUN tdnf makecache && \
+    tdnf -y update && \
+    tdnf -y install \
     python3 python3-pip build-essential zlib-devel \
     git curl tar
 
@@ -26,12 +31,14 @@ FROM scratch AS poi-helper
 COPY --from=builder /photon-os-installer /
 
 
-FROM photon:5.0
+ARG DOCKER_PROXY
+FROM ${DOCKER_PROXY}library/photon:5.0
+
 ARG TARGETARCH
 
-RUN tdnf makecache
-RUN tdnf -y update
-RUN tdnf -y install \
+RUN tdnf makecache && \
+    tdnf -y update && \
+    tdnf -y install \
     zlib tar \
     util-linux coreutils findutils binutils cdrkit \
     gptfdisk grub2 \
