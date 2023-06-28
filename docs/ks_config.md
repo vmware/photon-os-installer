@@ -722,6 +722,15 @@ Used to configure the network.
   }
   ```
 
+### _"linux_flavor_<arch>":_ (optional)
+- The flavor for a specific architecture, which takes precedence over `linux_flavor`. For example:
+  ```json
+  {
+    "linux_flavor_aarch64": "linux"
+  }
+  ```
+  architecture values can be `aarch64` or `x86_64`.
+
 ### _"photon_docker_image":_ (optional)
 - Contains the docker image <name:tag>
  are present in _"packages"_ or _"packagelist_file"_
