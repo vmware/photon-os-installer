@@ -88,7 +88,9 @@ def main():
                 for p in pkg_config[f'packages_{arch}']:
                     pkg_list.add(p)
 
-    if 'linux_flavor' in config:
+    if f'linux_flavor_{arch}' in config:
+        pkg_list.add(config[f'linux_flavor_{arch}'])
+    elif 'linux_flavor' in config:
         pkg_list.add(config['linux_flavor'])
 
     # TODO - figure out if needed based on disk layout

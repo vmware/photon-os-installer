@@ -8,7 +8,7 @@
         "tar"
     ],
     "packages_aarch64": [
-        "linux-aws"
+        "linux"
     ],
     "packages_x86_64": [
         "linux-aws"

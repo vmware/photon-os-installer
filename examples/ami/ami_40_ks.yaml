@@ -20,6 +20,7 @@ partitions:
       filesystem: swap
 
 packagelist_file: packages_ami.json
+linux_flavor_aarch64: linux
 linux_flavor: linux-aws
 
 postinstallscripts:
