@@ -108,6 +108,11 @@ class Installer(object):
         self.ab_present = False
         self.mounts = []
 
+        # some keys can have arch specific variations
+        for key in ['packages', 'linux_flavor']:
+            for arch in ['x86_64', 'aarch64']:
+                self.known_keys.add(f'{key}_{arch}')
+
         if os.path.exists(self.working_directory) and os.path.isdir(self.working_directory) and working_directory == Defaults.WORKING_DIRECTORY:
             shutil.rmtree(self.working_directory)
         if not os.path.exists(self.working_directory):
@@ -278,11 +283,12 @@ class Installer(object):
         """
         Add default install_config settings if not specified
         """
-        arch = subprocess.check_output(['uname', '-m'], universal_newlines=True).rstrip('\n')
-
         # set arch to host's one if not defined
         if 'arch' not in install_config:
+            arch = subprocess.check_output(['uname', '-m'], universal_newlines=True).rstrip('\n')
             install_config['arch'] = arch
+        else:
+            arch = install_config['arch']
 
         # 'bootmode' mode
         if 'bootmode' not in install_config:
@@ -385,6 +391,10 @@ class Installer(object):
         for dirname in [os.getcwd(), os.path.abspath(os.path.dirname(__file__))]:
             if dirname not in install_config['search_path']:
                 install_config['search_path'].append(dirname)
+
+        # arch specific setting takes precedence
+        if f'linux_flavor_{arch}' in install_config:
+            install_config['linux_flavor'] = install_config[f'linux_flavor_{arch}']
 
         if 'linux_flavor' not in install_config:
             install_config['linux_flavor'] = 'linux'
