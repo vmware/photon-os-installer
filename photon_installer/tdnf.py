@@ -26,8 +26,9 @@ class Tdnf:
     DOCKER_ARGS = ['--rm', '--privileged', '--ulimit', 'nofile=1024:1024']
     DEFAULT_CONTAINER = "photon:latest"
 
-    def __init__(self, **kwargs):
-        kwords = ['logger', 'config_file', 'reposdir', 'releasever', 'installroot', 'docker_image']
+    def __init__(self, force_docker=False, **kwargs):
+        kwords = ['logger', 'config_file', 'reposdir',
+                  'releasever', 'installroot', 'docker_image']
 
         for kw in kwords:
             attr = kwargs.get(kw, None)
@@ -36,16 +37,19 @@ class Tdnf:
         if self.logger is None:
             self.logger = Logger.get_logger(None, 'debug', True)
 
-        self.tdnf_bin = find_binary_in_path("tdnf")
+        self.tdnf_bin = None
 
-        if self.tdnf_bin:
-            try:
-                retval, tdnf_out = self.run(["--version"])
-                assert retval == 0
-                self.tdnf_version = tdnf_out['Version']
-            except Exception as e:
-                self.logger.error(f"tdnf binary found at {self.tdnf_bin} is not usable.")
-                self.tdnf_bin = None
+        if not force_docker:
+            self.tdnf_bin = find_binary_in_path("tdnf")
+
+            if self.tdnf_bin:
+                try:
+                    retval, tdnf_out = self.run(["--version"])
+                    assert retval == 0
+                    self.tdnf_version = tdnf_out['Version']
+                except Exception:
+                    self.logger.error(f"tdnf binary found at {self.tdnf_bin} is not usable.")
+                    self.tdnf_bin = None
 
         self.docker_bin = find_binary_in_path("docker")
 
@@ -77,7 +81,7 @@ class Tdnf:
         return args
 
 
-    def get_command(self, args=[], directories=[]):
+    def get_command(self, args=[], directories=[], repos={}):
         tdnf_args = ['-j', '-y'] + self.default_args() + args
         if self.tdnf_bin:
             return [self.tdnf_bin] + tdnf_args
@@ -89,6 +93,10 @@ class Tdnf:
                 dirs.add(os.path.dirname(self.config_file))
             if self.reposdir:
                 dirs.add(os.path.dirname(self.reposdir))
+
+            for repoid, repo in repos.items():
+                if repo['baseurl'].startswith('file://'):
+                    dirs.add(repo["baseurl"][7:])
 
             dir_args = []
             for d in dirs:
@@ -128,8 +136,8 @@ class Tdnf:
         return retval, out_json
 
 
-    def run(self, args=[], directories=[]):
-        args = self.get_command(args, directories)
+    def run(self, args=[], directories=[], repos={}):
+        args = self.get_command(args, directories, repos)
         return self.execute(args)
 
 
