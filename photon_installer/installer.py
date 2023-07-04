@@ -425,12 +425,12 @@ class Installer(object):
         # if "repos" key not present in install_config or "repos=" provided by user through cmdline prioritize cmdline
         if "repos" not in install_config or (self.repo_paths and self.repo_paths != Defaults.REPO_PATHS):
             # override "repos" provided via ks_config
-            install_config["repos"] = {}
+            install_config['repos'] = {}
             repo_pathslist = self.repo_paths.split(",")
             for idx,url in enumerate(repo_pathslist):
                 if url.startswith('/'):
                     url = f"file://{url}"
-                install_config["repos"][f"photon-local{idx}"] = {
+                install_config['repos'][f"photon-local{idx}"] = {
                                                 "name": f"VMware Photon OS Installer-{idx}",
                                                 "baseurl": url,
                                                 "gpgcheck": 0,
@@ -956,7 +956,8 @@ class Installer(object):
             self.logger.error("Failed to initialize rpm DB")
             self.exit_gracefully()
 
-        retval, tdnf_out = self.tdnf.run(['install', 'filesystem'])
+        retval, tdnf_out = self.tdnf.run(['install', 'filesystem'],
+                                         repos=self.install_config['repos'])
         if retval != 0:
             self.logger.error("Failed to install filesystem rpm")
             self.exit_gracefully()
@@ -1021,7 +1022,7 @@ class Installer(object):
             shutil.rmtree(cache_dir)
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
-        for repo in self.install_config["repos"]:
+        for repo in self.install_config['repos']:
             try:
                 os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
             except FileNotFoundError:
@@ -1146,7 +1147,7 @@ class Installer(object):
         """
         Setup the tdnf repo for installation
         """
-        repos = self.install_config["repos"]
+        repos = self.install_config['repos']
         for repo in repos:
             if self.insecure_installation:
                 repos[repo]["sslverify"] =  0
@@ -1167,12 +1168,19 @@ class Installer(object):
     def _install_additional_rpms(self):
         rpms_path = self.install_config.get('additional_rpms_path', None)
 
-        if not rpms_path or not os.path.exists(rpms_path):
+        if not rpms_path:
             return
 
-        if self.cmd.run(['rpm', '--root', self.photon_root, '-U', rpms_path + '/*.rpm']) != 0:
-            self.logger.info('Failed to install additional_rpms from ' + rpms_path)
-            self.exit_gracefully()
+        if not os.path.exists(rpms_path):
+            raise Exception(f"additional rpms path '{rpms_path}' not found")
+
+        pkgs = glob.glob(os.path.join(rpms_path, "*.rpm"))
+        retval, tdnf_out = self.tdnf.run(['install'] + pkgs,
+                                         directories=[rpms_path],
+                                         repos=self.install_config['repos'])
+
+        if retval != 0:
+            raise Exception(f"failed to install additional rpms from '{rpms_path}'")
 
 
     def _install_packages(self):
@@ -1236,7 +1244,7 @@ class Installer(object):
 
                     self.progress_bar.update_message(output)
         else:
-            retval, tdnf_out = self.tdnf.run(['install'] + selected_packages)
+            retval, tdnf_out = self.tdnf.run(['install'] + selected_packages, repos=self.install_config['repos'])
 
         # 0 : succeed; 137 : package already installed; 65 : package not found in repo.
         if retval != 0 and retval != 137:
