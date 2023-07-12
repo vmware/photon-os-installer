@@ -1,0 +1,78 @@
+#!/bin/bash
+
+init_env_and_create_raw_image()
+{
+    cd ${POI_PATH}/docker
+    sudo docker buildx build --build-context poi-helper=${POI_PATH} -t poi-debug .
+    cd ${POI_PATH}/examples/azure
+
+    if [ -d "${REPO_PATH}" ] ; then
+        echo "repo already exist"
+    else
+        echo "repo not exist. creating 5.0 repo..."
+        mkdir -p ${REPO_PATH}
+        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c ${KS_CONFIG_FILE} -v 5.0
+    fi
+
+    sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c ${KS_CONFIG_FILE} -v 5.0
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [--raw-image <image-file>] (required)"
+    echo "          [--config-file <ks-config-file>] (required)"
+    echo "          [--repo-path <repo-path>] (required)"
+    echo "          [--poi-path <poi-path>] (required)"
+}
+
+OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path: -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    echo $1
+    case "$1" in
+        -h) usage ; exit 0;;
+        --raw-image) RAW_IMAGE=${2} ; shift 2 ;;
+        --config-file) KS_CONFIG_FILE=${2} ; shift 2 ;;
+        --repo-path) REPO_PATH=${2} ; shift 2 ;;
+        --poi-path) POI_PATH=${2} ; shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+if [ -z "${RAW_IMAGE}" ] ; then
+    echo "raw image is missing" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${KS_CONFIG_FILE}" ] ; then
+    echo "config file is missing" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${REPO_PATH}" ] ; then
+    echo "repo path is missing" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${POI_PATH}" ] ; then
+    echo "poi path is missing" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+init_env_and_create_raw_image
