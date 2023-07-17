@@ -37,7 +37,6 @@ fi
 eval set -- "$OPTS"
 
 while true; do
-    echo $1
     case "$1" in
         -h) usage ; exit 0;;
         --installer-config) CFG_FILE=${2} ; shift 2 ;;
@@ -59,7 +58,7 @@ if [ -z "${OVA_CFG_FILE}" ] ; then
 fi
 
 if [ -z "${OVA_NAME}" ] ; then
-    OVA_NAME=$(yq .system.name ${OVA_CFG_FILE})
+    OVA_NAME=$(yjson < ${OVA_CFG_FILE} | jq -r '.system.name')
 fi
 
 if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
@@ -70,7 +69,7 @@ if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then
-    RAW_IMAGES=$(yq .disks.*.filename ${CFG_FILE})
+    RAW_IMAGES=$(yjson < ${CFG_FILE} | jq -r '.disks|values[].filename')
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then

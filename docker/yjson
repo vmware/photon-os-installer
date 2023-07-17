@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+import getopt
+import json
+import platform
+import sys
+import yaml
+
+
+def usage():
+    print(f"Usage: {sys.argv[0]} -c|--config <config file>[-h]")
+    print("")
+    print("Options:")
+    print("  -c, --config <file>     config file")
+    print("")
+
+
+def yaml_param(loader, node):
+    params = loader.app_params
+    default = None
+    key = node.value
+
+    assert type(key) is str, f"param name must be a string"
+
+    if '=' in key:
+        key, default = [t.strip() for t in key.split('=')]
+        default = yaml.safe_load(default)
+    value = params.get(key, default)
+
+    assert value is not None, f"no param set for '{key}', and there is no default"
+
+    return value
+
+
+def main():
+    config_file = None
+    params = {}
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'h')
+    except:
+        print ("invalid option")
+        sys.exit(2)
+
+    for o, a in opts:
+        if o in ['-h']:
+            usage()
+            sys.exit(0)
+        else:
+            assert False, f"unhandled option {o}"
+
+    f = sys.stdin
+
+    yaml_loader = yaml.SafeLoader
+    yaml_loader.app_params = params
+    yaml.add_constructor("!param", yaml_param, Loader=yaml_loader)
+
+    config = yaml.load(f, Loader=yaml_loader)
+    if f != sys.stdin:
+        f.close()
+
+    print(json.dumps(config))
+
+
+if __name__ == "__main__":
+    main()
