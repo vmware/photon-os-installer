@@ -3,9 +3,20 @@
 create_ova()
 {
     # TODO: tools version
-    vmdk-convert ${RAW_IMAGE} ${RAW_IMAGE}.vmdk
-    ova-compose -i ${OVA_CFG_FILE} -o ${OVA_NAME}.ova --param disk=${RAW_IMAGE}.vmdk
-    rm -f ${RAW_IMAGE}.vmdk
+    img_list=(${RAW_IMAGES})
+    for img in ${img_list[@]} ; do
+        name=${img%.*} # remove extension
+        vmdk-convert ${img} ${name}.vmdk
+    done
+
+    img0=${img_list[0]}
+    name0=${img0%.*}
+    ova-compose -i ${OVA_CFG_FILE} -o ${OVA_NAME}.ova --param disk=${name0}.vmdk
+
+    for img in ${img_list[@]} ; do
+        name=${img%.*}
+        rm -f ${name}.vmdk
+    done
 }
 
 usage() {
@@ -16,7 +27,7 @@ usage() {
     echo "          [--ova-config <ova-config-file>] (required)"
 }
 
-OPTS=$(getopt -o h --long installer-config:,raw-image:,ova-config:,ova-name: -n $0 -- "$@")
+OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -30,7 +41,7 @@ while true; do
     case "$1" in
         -h) usage ; exit 0;;
         --installer-config) CFG_FILE=${2} ; shift 2 ;;
-        --raw-image) RAW_IMAGE=${2} ; shift 2 ;;
+        --raw-images) RAW_IMAGES=${2} ; shift 2 ;;
         --ova-config) OVA_CFG_FILE=${2} ; shift 2 ;;
         --ova-name) OVA_NAME=${2} ; shift 2 ;;
         --) shift; break ;;
@@ -51,18 +62,18 @@ if [ -z "${OVA_NAME}" ] ; then
     OVA_NAME=$(yq .system.name ${OVA_CFG_FILE})
 fi
 
-if [ -z "${RAW_IMAGE}" -a -z "${CFG_FILE}" ] ; then
+if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
     echo "need a config file or image" >&2
     usage
     echo "Terminating." >&2
     exit 1
 fi
 
-if [ -z "${RAW_IMAGE}" ] ; then
-    RAW_IMAGE=$(yq .disks.default.filename ${CFG_FILE})
+if [ -z "${RAW_IMAGES}" ] ; then
+    RAW_IMAGES=$(yq .disks.*.filename ${CFG_FILE})
 fi
 
-if [ -z "${RAW_IMAGE}" ] ; then
+if [ -z "${RAW_IMAGES}" ] ; then
     echo "no suitable image found" >&2
     usage
     echo "Terminating." >&2

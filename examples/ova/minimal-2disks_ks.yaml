@@ -1,0 +1,53 @@
+live: False
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: minimal.img
+        size: 2048
+    bigdisk:
+        filename: bigdisk.img
+        size: 51200
+
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /root
+      sizepercent: 5
+      filesystem: ext4
+    - sizepercent: 5
+      filesystem: swap
+    - mountpoint: /home
+      disk_id: bigdisk
+      filesystem: ext4
+      size: 0
+
+packagelist_file: packages_minimal.json
+
+additional_packages:
+    - vim
+
+public_key: <ssh-key-here>
+
+linux_flavor: linux
+
+eject_cdrom: false
+
+network:
+    version: "2"
+    nameservers:
+        addresses:
+            - 8.8.8.8
+            - 8.8.4.4
+    ethernets:
+        id0:
+            match:
+                name: eth0
+            dhcp4: "yes"
