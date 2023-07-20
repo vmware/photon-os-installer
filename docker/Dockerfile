@@ -23,9 +23,6 @@ RUN cd / && git clone https://github.com/vmware/photon-os-installer.git
 RUN cd / && git clone https://github.com/vmware/open-vmdk.git
 RUN cd /open-vmdk && make && make install DESTDIR=/installroot
 
-RUN curl -LO https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_${TARGETARCH}.tar.gz && \
-    tar zxf yq_linux_${TARGETARCH}.tar.gz
-
 
 FROM scratch AS poi-helper
 COPY --from=builder /photon-os-installer /
@@ -53,12 +50,9 @@ COPY --from=poi-helper / /photon-os-installer
 RUN cd /photon-os-installer && pip3 install . # && cd .. && rm -rf /photon-os-installer
 
 COPY --from=builder /installroot /
-COPY --from=builder yq_linux_${TARGETARCH} /usr/bin/yq
-COPY create-image /usr/bin
-COPY create-ova /usr/bin
-COPY create-repo /usr/bin
-COPY create-azure /usr/bin
-COPY poi-pkglist /usr/bin
+COPY create-image create-ova create-repo create-azure \
+     poi-pkglist yjson \
+     /usr/bin
 
 VOLUME /repo /workdir
 
