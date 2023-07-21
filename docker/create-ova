@@ -1,33 +1,54 @@
 #!/bin/bash
 
+CREATE_OVF="false"
+CREATE_MF="false"
+
 create_ova()
 {
-    # TODO: tools version
     img_list=(${RAW_IMAGES})
-    for img in ${img_list[@]} ; do
-        name=${img%.*} # remove extension
-        vmdk-convert ${img} ${name}.vmdk
-    done
+    if [ "${CREATE_OVF}" != "true" ] ; then
+        # TODO: tools version
+        for img in ${img_list[@]} ; do
+            name=${img%.*} # remove extension
+            vmdk-convert ${img} ${name}.vmdk
+        done
+    fi
 
     img0=${img_list[0]}
     name0=${img0%.*}
-    ova-compose -i ${OVA_CFG_FILE} -o ${OVA_NAME}.ova --param disk=${name0}.vmdk
 
-    for img in ${img_list[@]} ; do
-        name=${img%.*}
-        rm -f ${name}.vmdk
-    done
+    if [ "${CREATE_OVF}" == "true" ] ; then
+        output_file=${OVA_NAME}.ovf
+    else
+        output_file=${OVA_NAME}.ova
+    fi
+
+    if [ "${CREATE_MF}" == "true" ] ; then
+        opt_mf="--manifest"
+    fi
+
+    ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf}
+
+    # don't nuke the vmdk files if we haven't created them
+    if [ "${CREATE_OVF}" != "true" ] ; then
+        for img in ${img_list[@]} ; do
+            name=${img%.*}
+            rm -f ${name}.vmdk
+        done
+    fi
 }
 
 usage() {
     echo "Usage: $0"
-    echo "          [--installer-config <config-file>]"
+    echo "          [--installer-config <config-file>] (ks file used for create-image)"
+    echo "          [--mf]"
     echo "          [--raw-image <image-file>]"
     echo "          [--ova-name <name>]"
     echo "          [--ova-config <ova-config-file>] (required)"
+    echo "          [--ovf]"
 }
 
-OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name: -n $0 -- "$@")
+OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name:,ovf,mf -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -40,9 +61,11 @@ while true; do
     case "$1" in
         -h) usage ; exit 0;;
         --installer-config) CFG_FILE=${2} ; shift 2 ;;
+        --mf) CREATE_MF="true"; shift ;;
         --raw-images) RAW_IMAGES=${2} ; shift 2 ;;
         --ova-config) OVA_CFG_FILE=${2} ; shift 2 ;;
         --ova-name) OVA_NAME=${2} ; shift 2 ;;
+        --ovf) CREATE_OVF="true"; shift ;;
         --) shift; break ;;
         *) break ;;
     esac
