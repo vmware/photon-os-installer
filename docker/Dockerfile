@@ -15,8 +15,9 @@ ARG TARGETARCH
 RUN tdnf makecache && \
     tdnf -y update && \
     tdnf -y install \
-    python3 python3-pip build-essential zlib-devel \
-    git curl tar
+    build-essential zlib-devel \
+    git && \
+    rm -rf /var/cache/tdnf
 
 RUN cd / && git clone https://github.com/vmware/photon-os-installer.git
 
