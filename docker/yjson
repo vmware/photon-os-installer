@@ -39,7 +39,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'h')
     except:
-        print ("invalid option")
+        print (f"{sys.argv[0]}: invalid option")
         sys.exit(2)
 
     for o, a in opts:
