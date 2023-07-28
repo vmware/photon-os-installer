@@ -15,13 +15,10 @@ ARG TARGETARCH
 RUN tdnf makecache && \
     tdnf -y update && \
     tdnf -y install \
-    python3 python3-pip build-essential zlib-devel \
-    git curl tar
+    git && \
+    rm -rf /var/cache/tdnf
 
 RUN cd / && git clone https://github.com/vmware/photon-os-installer.git
-
-RUN cd / && git clone https://github.com/vmware/open-vmdk.git
-RUN cd /open-vmdk && make && make install DESTDIR=/installroot
 
 
 FROM scratch AS poi-helper
@@ -43,13 +40,13 @@ RUN tdnf makecache && \
     createrepo rpm jq \
     python3 python3-pip python3-setuptools python3-curses \
     python3-pyYAML python3-lxml python3-cracklib qemu-img \
+    open-vmdk \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 
 COPY --from=poi-helper / /photon-os-installer
 RUN cd /photon-os-installer && pip3 install . # && cd .. && rm -rf /photon-os-installer
 
-COPY --from=builder /installroot /
 COPY create-image create-ova create-repo create-azure \
      poi-pkglist yjson \
      /usr/bin
