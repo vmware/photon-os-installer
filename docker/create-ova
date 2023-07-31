@@ -14,27 +14,29 @@ create_ova()
         done
     fi
 
-    img0=${img_list[0]}
-    name0=${img0%.*}
+    if [ "${VMDK_ONLY}" != "true" ] ; then
+        img0=${img_list[0]}
+        name0=${img0%.*}
 
-    if [ "${CREATE_OVF}" == "true" ] ; then
-        output_file=${OVA_NAME}.ovf
-    else
-        output_file=${OVA_NAME}.ova
-    fi
+        if [ "${CREATE_OVF}" == "true" ] ; then
+            output_file=${OVA_NAME}.ovf
+        else
+            output_file=${OVA_NAME}.ova
+        fi
 
-    if [ "${CREATE_MF}" == "true" ] ; then
-        opt_mf="--manifest"
-    fi
+        if [ "${CREATE_MF}" == "true" ] ; then
+            opt_mf="--manifest"
+        fi
 
-    ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf} ${PARAMS}
+        ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf} ${PARAMS}
 
-    # don't nuke the vmdk files if we haven't created them
-    if [ "${CREATE_OVF}" != "true" ] ; then
-        for img in ${img_list[@]} ; do
-            name=${img%.*}
-            rm -f ${name}.vmdk
-        done
+        # don't nuke the vmdk files if we haven't created them
+        if [ "${CREATE_OVF}" != "true" ] ; then
+            for img in ${img_list[@]} ; do
+                name=${img%.*}
+                rm -f ${name}.vmdk
+            done
+        fi
     fi
 }
 
@@ -47,9 +49,10 @@ usage() {
     echo "          [--ova-config <ova-config-file>] (required)"
     echo "          [--ovf]"
     echo "          [[--param key=val] ...] (for ova-compose)"
+    echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
 }
 
-OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name:,param:,ovf,mf -n $0 -- "$@")
+OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -68,7 +71,8 @@ while true; do
         --ova-name) OVA_NAME=${2} ; shift 2 ;;
         --ovf) CREATE_OVF="true"; shift ;;
         --param) PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
-	--) shift; break ;;
+        --vmdk-only) VMDK_ONLY="true"; shift ;;
+        --) shift; break ;;
         *) break ;;
     esac
 done
