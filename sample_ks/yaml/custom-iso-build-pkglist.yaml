@@ -1,4 +1,4 @@
-photon_release_version: '4.0'
+photon_release_version: '5.0'
 function: build-iso
 packageslist_file: packages_minimal.json
 packages_list:
