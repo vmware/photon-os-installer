@@ -1,0 +1,34 @@
+live: False
+
+bootmode: dualboot
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: minimal.img
+        size: 2048
+
+ostree:
+    path: ostree-repo.tar.gz
+    default_repo: true
+
+public_key: <ssh-key-here>
+
+linux_flavor: linux
+
+eject_cdrom: false
+
+network:
+    version: "2"
+    nameservers:
+        addresses:
+            - 8.8.8.8
+            - 8.8.4.4
+    ethernets:
+        id0:
+            match:
+                name: eth0
+            dhcp4: "yes"
