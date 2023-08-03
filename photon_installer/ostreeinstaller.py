@@ -18,6 +18,7 @@ from commandutils import CommandUtils
 class OstreeInstaller(object):
 
     def __init__(self, installer):
+        self.installer = installer
         self.repo_config = {}
         self.installer_path = installer.installer_path
         self.photon_release_version = installer.photon_release_version
@@ -88,15 +89,25 @@ class OstreeInstaller(object):
         command.append(['mkdir', '-p', '{}/run/media'.format(deployment)])
         self.run(command, "symlink directory created")
 
+
     def mount_devices_in_deployment(self, commit_number):
-        command = []
-        command.append(['mount', '-t', 'bind', '-o', 'bind,defaults', '/dev', '{}/ostree/deploy/photon/deploy/{}.0/dev'.format(self.photon_root, commit_number)])
-        command.append(['mount', '-t', 'devpts', '-o', 'gid=5,mode=620', 'devpts', '{}/ostree/deploy/photon/deploy/{}.0/dev/pts'.format(self.photon_root, commit_number)])
-        command.append(['mount', '-t', 'tmpfs', '-o', 'defaults', 'tmpfs', '{}/ostree/deploy/photon/deploy/{}.0/dev/shm'.format(self.photon_root, commit_number)])
-        command.append(['mount', '-t', 'proc', '-o', 'defaults', 'proc', '{}/ostree/deploy/photon/deploy/{}.0/proc'.format(self.photon_root, commit_number)])
-        command.append(['mount', '-t', 'bind', '-o', 'bind,defaults', '/run',  '{}/ostree/deploy/photon/deploy/{}.0/run'.format(self.photon_root, commit_number)])
-        command.append(['mount', '-t', 'sysfs', '-o', 'defaults', 'sysfs',  '{}/ostree/deploy/photon/deploy/{}.0/sys'.format(self.photon_root, commit_number)])
-        self.run(command, "mounting done")
+        for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
+            path = f"ostree/deploy/photon/deploy/{commit_number}.0/{d}"
+            self.installer._mount(d, path, bind=True)
+
+        for d in ["/tmp", "/run"]:
+            path = f"ostree/deploy/photon/deploy/{commit_number}.0/{d}"
+            self.installer._mount(d, path, fstype='tmpfs')
+
+
+    def bind_mount_deployment(self, partition_data, commit_number):
+        bootmode = self.install_config['bootmode']
+        dplymnt = f"ostree/deploy/photon/deploy/{commit_number}.0"
+        self.installer._mount(self.photon_root, f"{dplymnt}/sysroot", bind=True)
+        self.installer._mount(partition_data['boot'], f"{dplymnt}/boot", bind=True)
+        if bootmode == 'dualboot' or bootmode == 'efi':
+            self.installer._mount(partition_data['bootefi'], f"{dplymnt}/boot/efi", bind=True)
+
 
     def get_commit_number(self, ref):
         fileName = os.path.join(self.photon_root, "ostree/repo/refs/remotes/photon/{}".format(ref))
@@ -104,6 +115,7 @@ class OstreeInstaller(object):
         with open (fileName, "r") as file:
             commit_number = file.read().replace('\n', '')
         return commit_number
+
 
     def install(self):
         """
@@ -153,14 +165,9 @@ class OstreeInstaller(object):
         commit_number = self.get_commit_number(self.ostree_ref)
         self.do_systemd_tmpfiles_commands(commit_number)
 
-        self.mount_devices_in_deployment(commit_number)
-        deployment = os.path.join(self.photon_root, "ostree/deploy/photon/deploy/" + commit_number + ".0/")
+        self.run_lambdas([lambda: self.mount_devices_in_deployment(commit_number)], "mounting done")
+        deployment = os.path.join(self.photon_root, f"ostree/deploy/photon/deploy/{commit_number}.0/")
         self.create_symlink_directory(deployment)
-
-        deployment_sysroot = os.path.join(deployment, "sysroot")
-        deployment_boot = os.path.join(deployment, "boot")
-        if bootmode == 'dualboot' or bootmode == 'efi':
-            deployment_bootefi = os.path.join(deployment, "boot/efi")
 
         if os.path.exists(loader1):
             cmd = []
@@ -169,12 +176,7 @@ class OstreeInstaller(object):
             cmd.append(['mv', '{}'.format(boot11), '{}'.format(boot01)])
             self.run(cmd)
 
-        mount_bind = []
-        mount_bind.append(['mount', '--bind', '{}'.format(self.photon_root), '{}'.format(deployment_sysroot)])
-        mount_bind.append(['mount', '--bind', '{}'.format(partition_data['boot']), '{}'.format(deployment_boot)])
-        if bootmode == 'dualboot' or bootmode == 'efi':
-            mount_bind.append(['mount', '--bind', '{}'.format(partition_data['bootefi']), '{}'.format(deployment_bootefi)])
-        self.run(mount_bind)
+        self.bind_mount_deployment(partition_data, commit_number)
 
         device = self.install_config['disks']['default']['device']
         if bootmode == 'dualboot' or bootmode == 'bios':
@@ -233,7 +235,18 @@ class OstreeInstaller(object):
         deployment_fstab = os.path.join(deployment, "etc/fstab")
         self._create_fstab(deployment_fstab)
 
-        self.run([['mount', '--bind', '{}'.format(deployment), '{}'.format(self.photon_root)]], "Bind deployment to photon root")
+        self.run_lambdas([lambda: self.installer._mount(deployment, "/", bind=True)], "Bind deployment to photon root")
+
+
+    def run_lambdas(self, lambdas, comment=None):
+        if comment is not None:
+            self.logger.info("Installer: {} ".format(comment))
+            if self.install_config['ui']:
+                self.progress_bar.update_loading_message(comment)
+
+        for l in lambdas:
+            l()
+
 
     def run(self, commands, comment = None):
         if comment != None:

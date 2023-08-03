@@ -712,14 +712,6 @@ class Installer(object):
             if retval != 0:
                 self.logger.error(f"Failed to unmount {d}")
 
-        # need to call it twice, because of internal bind mounts
-        if 'ostree' in self.install_config:
-            if os.path.exists(self.photon_root):
-                retval = self.cmd.run(['umount', '-R', self.photon_root])
-                retval = self.cmd.run(['umount', '-R', self.photon_root])
-                if retval != 0:
-                    self.logger.error("Failed to unmount disks in photon root")
-
         self.cmd.run(['sync'])
         if os.path.exists(self.photon_root):
             shutil.rmtree(self.photon_root)
