@@ -1,0 +1,19 @@
+photon_release_version: '5.0'
+function: build-initrd
+packageslist_file: packages_minimal.json
+initrd_pkgs_list_file: packages_installer_initrd.json
+initrd_pkgs:
+  packages:
+     - efibootmgr
+     - dracut
+     - curl
+     - dosfstools
+     - ostree
+     - ostree-grub2
+     - ostree-libs
+     - lvm2
+     - btrfs-progs
+     - xfsprogs
+     - photon-os-installer
+  packages_x86_64:
+     - grub2-pc

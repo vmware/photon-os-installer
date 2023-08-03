@@ -78,7 +78,7 @@ class IsoBuilder(object):
         install_option_data = {
                                 install_option_key: {
                                     "title": "Photon Custom",
-                                    "packagelist_file": os.path.basename(self.custom_packages_json),
+                                    "packagelist_file": os.path.basename(self.packageslist_file),
                                     "visible": False,
                                     "additional-files": additional_files
                                 }
@@ -99,7 +99,6 @@ class IsoBuilder(object):
         if self.additional_repos:
             for repo_file in self.additional_repos:
                 shutil.copy(repo_file, self.repos_dir)
-
 
     def generateInitrd(self):
         """
@@ -139,7 +138,7 @@ class IsoBuilder(object):
         self.logger.info("Starting to generate initrd.img...")
         self.runCmd([initrd_script, self.working_dir, initrd_pkgs,
                      self.rpms_path, self.photon_release_version,
-                     self.custom_packages_json, "build_install_options_custom.json", str(ostree_iso)])
+                     self.packageslist_file, "build_install_options_custom.json", str(ostree_iso)])
 
 
     def downloadRequiredFiles(self):
@@ -190,7 +189,7 @@ class IsoBuilder(object):
 
         # Add installer initrd and custom packages to package list..
         self.addPkgsToList(self.initrd_pkg_list_file)
-        self.addPkgsToList(self.custom_packages_json)
+        self.addPkgsToList(self.packageslist_file)
 
         linux_flavors = ["linux", "linux-esx", "linux-rt", "linux-aws", "linux-secure"]
         if not any(flavor in self.pkg_list for flavor in linux_flavors):
@@ -345,38 +344,96 @@ class IsoBuilder(object):
         build_iso_cmd += f"-V \"PHOTON_$(date +%Y%m%d)\" {self.working_dir} > {self.iso_name}"
         self.runCmd(build_iso_cmd)
 
+    def create_file(path, file_name):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return os.path.join(path, file_name)
+
+    def merge_packages_list(merged_file, file1, file2):
+        if file1:
+           merged_file = CommandUtils.merge_json_files(merged_file, file1, file2)
+           return merged_file
+        else:
+           return file2
+
+    @staticmethod
+    def validate_options(options, initrd_path, logger):
+
+        if not options.photon_release_version:
+           raise Exception("the following arguments are required: -v/--photon-release-version")
+
+        if options.function == "build-rpm-ostree-iso":
+           if not options.ostree_tar_path:
+               raise Exception("Ostree tar path not provided...")
+           elif not options.ostree_tar_path.startswith("http"):
+               options.ostree_tar_path = os.path.abspath(options.ostree_tar_path)
+           if not options.packageslist_file:
+               options.packageslist_file = f"{os.path.dirname(__file__)}/packages_ostree_host.json"
+
+        if isinstance(options.packages_list, dict):
+           file_path =  IsoBuilder.create_file(initrd_path, "custom_pkg_list.json")
+           options.packages_list = CommandUtils.write_pkg_list_file(file_path, options.packages_list)
+
+           merged_file_path = IsoBuilder.create_file(initrd_path, "merged_pkgs.json")
+           options.packageslist_file = IsoBuilder.merge_packages_list(merged_file_path, options.packageslist_file, options.packages_list)
+
+        elif not os.path.exists(options.packageslist_file):
+           raise Exception("Custom packages json doesn't exist.")
+
+        if isinstance(options.initrd_pkgs, dict):
+           file_path =  IsoBuilder.create_file(initrd_path, "custom_initrd_pkgs.json")
+           options.initrd_pkgs = CommandUtils.write_pkg_list_file(file_path, options.initrd_pkgs)
+
+           merged_file_path = IsoBuilder.create_file(initrd_path, "merged_initrd_pkgs.json")
+           options.initrd_pkgs_list_file = IsoBuilder.merge_packages_list(merged_file_path, options.initrd_pkgs_list_file, options.initrd_pkgs)
+
+        elif not options.initrd_pkgs_list_file:
+              logger.warning("WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{options.photon_release_version}/common/data/packages_installer_initrd.json")
+
 
 def main():
     usage = "Usage: %prog [options]"
     parser = ArgumentParser(usage)
     parser.add_argument("-l", "--log-level", dest="log_level", default="info")
-    parser.add_argument("-f", "--function", dest="function", default="build-iso", help="Building Options", choices=["build-iso", "build-initrd", "build-rpm-ostree-iso"])
-    parser.add_argument("-v", "--photon-release-version", dest="photon_release_version", required=True, help="Photon release version to build custom iso/initrd.")
+    parser.add_argument("-f", "--function", dest="function", default="", help="<Required> Building Options", choices=["build-iso", "build-initrd", "build-rpm-ostree-iso"])
+    parser.add_argument("-v", "--photon-release-version", dest="photon_release_version", default=None, help="<Required> Photon release version to build custom iso/initrd.")
     parser.add_argument("-o", "--ostree-tar-path", dest="ostree_tar_path", default="", help="Path to custom ostree tar.")
-    parser.add_argument("-c", "--custom-initrd-pkgs", dest="custom_initrd_pkgs", default=None, help="<Optional> parameter to provide cutom initrd pkg list file.")
+    parser.add_argument("-c", "--initrd-pkgs-list-file", dest="initrd_pkgs_list_file", default=None, help="<Optional> parameter to provide cutom initrd pkg list file.")
+    parser.add_argument("-i", "--initrd-pkgs", dest="initrd_pkgs", default=None, help="<Optional> parameter to provide cutom initrd pkg list")
     parser.add_argument("-r", "--additional_repos", action="append", default=None, help="<Optional> Pass repo file as input to download rpms from external repo")
-    parser.add_argument("-p", "--custom-packages-json", dest="custom_packages_json", default="", help="Custom package list file.")
+    parser.add_argument("-p", "--packageslist-file", dest="packageslist_file", default="", help="Custom package list file.")
+    parser.add_argument("-q", "--packages", dest="packages_list", default="", help="Custom package list.")
     parser.add_argument("-k", "--kickstart-path", dest="kickstart_path", default=None, help="<Optional> Path to custom kickstart file.")
     parser.add_argument("-b", "--boot-cmdline-param", dest="boot_cmdline_param", default="", help="<Optional> Extra boot commandline parameter to pass.")
     parser.add_argument("-a", "--artifact-path", dest="artifact_path", default=os.getcwd(), help="<Optional> Path to generate iso in.")
 
+    parser.add_argument("-P", "--param", dest='params', action='append', default=[], help="Specify a parameter value. This option can be used multiple times to provide multiple parameter values.")
+    parser.add_argument('-y', '--config', dest='config', type=str, help='Path to the configuration YAML file', default="")
+
+    # Parse the command-line arguments
     options = parser.parse_args()
+    if os.path.exists(options.config):
+        params = {}
+        for p in options.params:
+            k,v = p.split('=')
+            params[k] = yaml.safe_load(v)
 
-    if options.function == "build-rpm-ostree-iso":
-        if not options.ostree_tar_path:
-            raise Exception("Ostree tar path not provided...")
-        elif not options.ostree_tar_path.startswith("http"):
-            options.ostree_tar_path = os.path.abspath(options.ostree_tar_path)
-        if not options.custom_packages_json:
-            options.custom_packages_json = f"{os.path.dirname(__file__)}/packages_ostree_host.json"
-    elif not os.path.exists(options.custom_packages_json):
-        raise Exception("Custom packages json doesn't exist...")
+        # Load config from YAML file
+        with open(options.config, 'r') as f:
+            config = CommandUtils.readConfig(f, params=params)
+            # Override YAML values with command-line arguments
+            for dest, value in vars(options).items():
+                if value and dest in config:
+                    config[dest] = value
+        # Add config arguments to options
+        options.__dict__.update(config)
 
-    isoBuilder = IsoBuilder(function=options.function, custom_packages_json=options.custom_packages_json,
+    isoBuilder = IsoBuilder(function=options.function, packageslist_file=options.packageslist_file,
                             kickstart_path=options.kickstart_path, photon_release_version=options.photon_release_version,
-                            log_level=options.log_level, initrd_pkg_list_file=options.custom_initrd_pkgs, ostree_tar_path=options.ostree_tar_path,
-                            additional_repos=options.additional_repos, boot_cmdline_param=options.boot_cmdline_param, artifact_path=options.artifact_path)
+                            log_level=options.log_level, initrd_pkg_list_file=options.initrd_pkgs_list_file, initrd_pkgs = options.initrd_pkgs, ostree_tar_path=options.ostree_tar_path,
+                            additional_repos=options.additional_repos, boot_cmdline_param=options.boot_cmdline_param, artifact_path=options.artifact_path, packages_list=options.packages_list)
 
+    IsoBuilder.validate_options(options, f"{isoBuilder.initrd_path}/installer", isoBuilder.logger)
     isoBuilder.logger.info(f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img...")
     isoBuilder.downloadRequiredFiles()
     isoBuilder.generateInitrd()

@@ -1,0 +1,4 @@
+function: build-initrd
+photon_release_version: '5.0'
+packageslist_file: packages_minimal.json
+initrd_pkgs_list_file: packages_installer_initrd.json
