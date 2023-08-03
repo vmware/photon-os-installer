@@ -1,21 +1,16 @@
 #!/usr/bin/python2
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Touseef Liaqat <tliaqat@vmware.com>
 
-import subprocess
 import os
-import re
-import glob
-import modules.commons
-from installer import Installer
 from commandutils import CommandUtils
 
+
 class OstreeInstaller(object):
+
 
     def __init__(self, installer):
         self.installer = installer
@@ -35,11 +30,13 @@ class OstreeInstaller(object):
         self._get_partuuid = installer._get_partuuid
         self.cmd = CommandUtils(self.logger)
 
+
     def get_ostree_repo_url(self):
-        self.default_repo = self.install_config['ostree'].get('default_repo', False);
+        self.default_repo = self.install_config['ostree'].get('default_repo', False)
         if not self.default_repo:
             self.ostree_repo_url = self.install_config['ostree']['repo_url']
             self.ostree_ref = self.install_config['ostree']['repo_ref']
+
 
     def repo_read_conf(self):
         conf_path = os.path.abspath(self.installer_path + "/ostree-release-repo.conf")
@@ -47,6 +44,7 @@ class OstreeInstaller(object):
             for line in repo_conf:
                 name, value = line.partition("=")[::2]
                 self.repo_config[name] = str(value.strip(' \n\t\r')).format(self.photon_release_version, self.install_config['arch'])
+
 
     def pull_repo(self, repo_url, repo_ref):
         self.run([['ostree', 'remote', 'add', '--repo={}/ostree/repo'.format(self.photon_root), '--set=gpg-verify=false', 'photon', '{}'
@@ -60,6 +58,7 @@ class OstreeInstaller(object):
         else:
             self.run([['ostree', 'pull', '--repo={}/ostree/repo'.format(self.photon_root), 'photon', '{}'.format(repo_ref)]], "Pulling OSTree remote repo")
 
+
     def deploy_ostree(self, repo_url, repo_ref):
         self.run([['ostree', 'admin', '--sysroot={}'.format(self.photon_root), 'init-fs', '{}'.format(self.photon_root)]], "Initializing OSTree filesystem")
         self.pull_repo(repo_url, repo_ref)
@@ -68,7 +67,8 @@ class OstreeInstaller(object):
 
 
     def do_systemd_tmpfiles_commands(self, commit_number):
-        prefixes = ["/var/home",
+        prefixes = [
+            "/var/home",
             "/var/roothome",
             "/var/lib/rpm",
             "/var/opt",
@@ -79,8 +79,9 @@ class OstreeInstaller(object):
 
         for prefix in prefixes:
             command = ['systemd-tmpfiles', '--create', '--boot', '--root={}/ostree/deploy/photon/deploy/{}.0'
-                      .format(self.photon_root, commit_number), '--prefix={}'.format(prefix)]
+                       .format(self.photon_root, commit_number), '--prefix={}'.format(prefix)]
             self.run([command], "systemd-tmpfiles command done")
+
 
     def create_symlink_directory(self, deployment):
         command = []
@@ -112,7 +113,7 @@ class OstreeInstaller(object):
     def get_commit_number(self, ref):
         fileName = os.path.join(self.photon_root, "ostree/repo/refs/remotes/photon/{}".format(ref))
         commit_number = None
-        with open (fileName, "r") as file:
+        with open(fileName, "r") as file:
             commit_number = file.read().replace('\n', '')
         return commit_number
 
@@ -215,8 +216,8 @@ class OstreeInstaller(object):
             cmd.append(['mv', '{}'.format(boot01), '{}'.format(boot11)])
             self.run(cmd)
 
-        partuuid=self._get_partuuid(self.install_config['partitions_data']['root'])
-        if partuuid == "" :
+        partuuid = self._get_partuuid(self.install_config['partitions_data']['root'])
+        if partuuid == "":
             self.run([['chroot', '{}'.format(deployment), 'bash', '-c', "ostree admin instutil set-kargs '$photon_cmdline' '$systemd_cmdline' root={};"
                      .format(self.install_config['partitions_data']['root'])]], "Add ostree  menu entry in grub.cfg")
         else:
@@ -244,12 +245,12 @@ class OstreeInstaller(object):
             if self.install_config['ui']:
                 self.progress_bar.update_loading_message(comment)
 
-        for l in lambdas:
-            l()
+        for lmb in lambdas:
+            lmb()
 
 
-    def run(self, commands, comment = None):
-        if comment != None:
+    def run(self, commands, comment=None):
+        if comment is not None:
             self.logger.info("Installer: {} ".format(comment))
             if self.install_config['ui']:
                 self.progress_bar.update_loading_message(comment)
