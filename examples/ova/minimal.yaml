@@ -3,7 +3,7 @@ system:
     type: vmx-17
     os_vmw: other4xLinux64Guest
     firmware: efi
-    secure_boot: true
+    secure_boot: false
 
 networks:
     vm_network:

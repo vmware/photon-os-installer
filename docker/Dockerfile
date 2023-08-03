@@ -40,7 +40,7 @@ RUN tdnf makecache && \
     createrepo rpm jq \
     python3 python3-pip python3-setuptools python3-curses \
     python3-pyYAML python3-lxml python3-cracklib qemu-img \
-    open-vmdk \
+    open-vmdk ostree \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 
