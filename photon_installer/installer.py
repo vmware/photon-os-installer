@@ -696,20 +696,21 @@ class Installer(object):
         """
         Unmount partitions and special folders
         """
+
+        partitions = self.install_config['partitions']
+        for p in partitions:
+            # only fstrim fs types that are supported to avoid error messages
+            # instead of filtering for the fs type we could use '--quiet-unsupported',
+            # but this is not implemented in other fstrim version of Photon 3.0
+            if p['filesystem'] in ['ext4', 'btrfs', 'xfs']:
+                mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
+                retval = self.cmd.run(["fstrim", mntpoint])
+
         while self.mounts:
             d = self.mounts.pop()
-            self.cmd.run(["fstrim", d])
             retval = self.cmd.run(["umount", "-l", d])
             if retval != 0:
                 self.logger.error(f"Failed to unmount {d}")
-
-        # need to call it twice, because of internal bind mounts
-        if 'ostree' in self.install_config:
-            if os.path.exists(self.photon_root):
-                retval = self.cmd.run(['umount', '-R', self.photon_root])
-                retval = self.cmd.run(['umount', '-R', self.photon_root])
-                if retval != 0:
-                    self.logger.error("Failed to unmount disks in photon root")
 
         self.cmd.run(['sync'])
         if os.path.exists(self.photon_root):
