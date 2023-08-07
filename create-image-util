@@ -3,19 +3,41 @@
 init_env_and_create_raw_image()
 {
     cd ${POI_PATH}/docker
-    sudo docker buildx build --build-context poi-helper=${POI_PATH} -t poi-debug .
-    cd ${POI_PATH}/examples/azure
+
+    #In case of arm64 need to run on arm64 container
+    if [ $IMAGE_FLAVOR != "rpi" ]; then
+        sudo docker buildx build --build-context poi-helper=${POI_PATH} -t poi-debug .
+    else
+        sudo docker buildx build --build-context poi-helper=${POI_PATH} --platform=linux/arm64 -t arm64/poi-debug .
+    fi
+
+    cd ${POI_PATH}/examples/${IMAGE_FLAVOR}
 
     if [ -d "${REPO_PATH}" ] ; then
         echo "repo already exist"
     else
-        echo "repo not exist. creating 5.0 repo..."
+        echo "repo does not exist. creating 5.0 repo..."
         mkdir -p ${REPO_PATH}
-        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c ${KS_CONFIG_FILE} -v 5.0
     fi
 
-    sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c ${KS_CONFIG_FILE} -v 5.0
+    if [ $IMAGE_FLAVOR != "rpi" ]; then
+        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c ${KS_CONFIG_FILE} -v 5.0
+        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c ${KS_CONFIG_FILE} -v 5.0
+    else
+        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-repo -c ${KS_CONFIG_FILE} -v 5.0
+        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-image -c ${KS_CONFIG_FILE} -v 5.0
+    fi
 }
+
+create_flavor_image()
+{
+    if [ $IMAGE_FLAVOR == "azure" ]; then
+        sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-azure --raw-image ${RAW_IMAGE}
+    elif [ $IMAGE_FLAVOR == "ova" ]; then
+        sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}
+    fi
+}
+
 
 usage() {
     echo "Usage: $0"
@@ -23,9 +45,30 @@ usage() {
     echo "          [--config-file <ks-config-file>] (required)"
     echo "          [--repo-path <repo-path>] (required)"
     echo "          [--poi-path <poi-path>] (required)"
+    echo "          [--flavor <image-flavor>] (required)"
+    echo "          [--ova-config <ova-config>] (required in case of ova)"
+    echo "          [--ova-name <ova-name>] (required in case of ova)"
+    echo "============================================================"
+    echo         "           Create AZURE Image              "
+    echo "============================================================"
+    echo "./create-image-util --raw-image photon-azure.raw --config-file azure_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor azure"
+    echo "============================================================"
+    echo         "           Create OVA Image              "
+    echo "============================================================"
+    echo "./create-image-util --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal"
+    echo "============================================================"
+    echo         "           Create AMI Image              "
+    echo "============================================================"
+    echo "./create-image-util --config-file ami_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ami"
+    echo "============================================================"
+    echo         "           Create RPI Image              "
+    echo "============================================================"
+    echo "./create-image-util --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi"
+    echo "============================================================"
+
 }
 
-OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path: -n $0 -- "$@")
+OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path:,flavor:,ova-config:,ova-name: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -42,16 +85,21 @@ while true; do
         --config-file) KS_CONFIG_FILE=${2} ; shift 2 ;;
         --repo-path) REPO_PATH=${2} ; shift 2 ;;
         --poi-path) POI_PATH=${2} ; shift 2 ;;
+        --flavor) IMAGE_FLAVOR=${2} ; shift 2 ;;
+        --ova-config) OVA_CONFIG=${2} ; shift 2 ;;
+        --ova-name) OVA_NAME=${2} ; shift 2 ;;
         --) shift; break ;;
         *) break ;;
     esac
 done
 
-if [ -z "${RAW_IMAGE}" ] ; then
-    echo "raw image is missing" >&2
-    usage
-    echo "Terminating." >&2
-    exit 1
+if [ -z "${RAW_IMAGE}" ]; then
+    if [ $IMAGE_FLAVOR != "ami" -a $IMAGE_FLAVOR != "rpi" ] ; then
+        echo "raw image is missing" >&2
+        usage
+        echo "Terminating." >&2
+        exit 1
+    fi
 fi
 
 if [ -z "${KS_CONFIG_FILE}" ] ; then
@@ -75,4 +123,24 @@ if [ -z "${POI_PATH}" ] ; then
     exit 1
 fi
 
+if [ -z "${IMAGE_FLAVOR}" ] ; then
+    echo "image flavor is missing" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ ${IMAGE_FLAVOR} = "ova" ] ; then
+    if [ -z "${OVA_CONFIG}" -o -z "${OVA_NAME}" ] ; then
+        echo "ova config or ova name is missing" >&2
+        usage
+        echo "Terminating." >&2
+        exit 1
+    fi
+fi
+
 init_env_and_create_raw_image
+
+if [ ${IMAGE_FLAVOR} = "ova" -o ${IMAGE_FLAVOR} = "azure" ] ; then
+    create_flavor_image
+fi

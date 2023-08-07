@@ -5,7 +5,12 @@
         "sudo",
         "gawk",
         "gptfdisk",
-        "tar",
+        "tar"
+    ],
+    "packages_aarch64": [
         "linux"
+    ],
+    "packages_x86_64": [
+        "linux-aws"
     ]
 }
