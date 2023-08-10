@@ -108,6 +108,11 @@ tar zcf tar zcf photon-ami.tar.gz photon-ami.raw
 ### Create an RPi image
 
 The container image supports multiple architectures (`arm64` and `x86_64`), and can be built with another architecture to build disk images for another architecture:
+
+Note: It also required following packages need to be installed in host for cross platform docker images.
+```
+qemu binfmt-support qemu-user-static
+```
 ```
 sudo docker buildx build --build-context poi-helper=/home/okurth/projects/photon-os-installer --platform=linux/arm64 -t arm64/poi-debug .
 ```
