@@ -48,7 +48,7 @@ usage() {
     echo "          [--ova-name <name>]"
     echo "          [--ova-config <ova-config-file>] (required)"
     echo "          [--ovf]"
-    echo "          [[--param key=val] ...] (for ova-compose)"
+    echo "          [--param key=val [...]] (for ova-compose)"
     echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
 }
 

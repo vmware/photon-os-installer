@@ -5,17 +5,18 @@ REPO_PATHS=/repo
 RELEASE_VER=5.0
 
 create_image() {
-    photon-installer -i ova -v ${RELEASE_VER} --repo-paths=${REPO_PATHS} -c ${CFG_FILE} -w ${WORKDIR}
+    photon-installer -i ova -v ${RELEASE_VER} --repo-paths=${REPO_PATHS} -c ${CFG_FILE} -w ${WORKDIR} ${PARAMS}
 }
 
 usage() {
     echo "Usage: $0"
     echo "          [-c|--config <config-file>] (required)"
     echo "          [-v|--releasever <version>] (default is ${RELEASE_VER})"
+    echo "          [--param key=val [...]]"
     echo "          [--repo-paths] (default ${REPO_PATHS})"
 }
 
-OPTS=$(getopt -o hc:v: --long config:,releasever:,repo-paths: -n $0 -- "$@")
+OPTS=$(getopt -o hc:v: --long config:,param:,releasever:,repo-paths: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -26,10 +27,11 @@ eval set -- "$OPTS"
 
 while true; do
     case "$1" in
-        -h) usage ; exit 0;;
-        -c | --config) CFG_FILE=${2} ; shift 2 ;;
+        -c | --config)     CFG_FILE=${2} ; shift 2 ;;
+        -h)                usage ; exit 0;;
+        --param)           PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
+        --repo-paths)      REPO_PATHS=${2} ; shift 2 ;;
         -v | --releasever) RELEASE_VER=${2} ; shift 2 ;;
-        --repo-paths) REPO_PATHS=${2} ; shift 2 ;;
         --) shift; break ;;
         *) break ;;
     esac
