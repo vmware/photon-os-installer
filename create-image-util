@@ -1,27 +1,72 @@
 #!/bin/bash
 
+RELEASE_VERSION="5.0"
 CREATE_OVF="false"
 CREATE_MF="false"
 VMDK_ONLY="false"
-RELEASE_VERSION="5.0"
 SRC_REPO_URL=""
+SYSTEM_ARCH="$(uname -m)"
 
-init_env_and_create_raw_image()
+init_env()
 {
-    create_repo_command=""
-    create_raw_image_command=""
-    cd ${POI_PATH}/docker
-
-    #In case of arm64 need to run on arm64 container
-    if [ $IMAGE_FLAVOR != "rpi" ]; then
-        sudo docker buildx build --build-context poi-helper=${POI_PATH} -t poi-debug .
+    #map system arch to docker arch
+    if [ $SYSTEM_ARCH = "aarch64" ]; then
+        SYSTEM_ARCH="arm64"
     else
-        sudo docker buildx build --build-context poi-helper=${POI_PATH} --platform=linux/arm64 -t arm64/poi-debug .
+        SYSTEM_ARCH="amd64"
     fi
 
-    #create repo if not exist
-    cd ${POI_PATH}/examples/${IMAGE_FLAVOR}
+    #map user arch to docker arch
+    if [ ! -z "${ARCH}" ] ; then
+        if [ ${ARCH} = "aarch64" ]; then
+            ARCH="arm64"
+        elif [ ${ARCH} = "x86_64" ]; then
+            ARCH="amd64"
+        else
+            echo "$ARCH is not valid. setting system arch"
+	    ARCH=$SYSTEM_ARCH
+        fi
+    else
+        ARCH=$SYSTEM_ARCH
+        echo "setting default system arch: $ARCH"
+    fi
 
+    cd ${POI_PATH}/docker
+    #set POI_IMAGE_NAME if empty
+    if [ -z "${POI_IMAGE_NAME}" ] ; then
+        POI_IMAGE_NAME="photon/installer"
+        echo "using default POI_IMAGE_NAME: $POI_IMAGE_NAME"
+    else
+        echo "using exported POI_IMAGE_NAME: $POI_IMAGE_NAME"
+    fi
+
+    #check POI_IMAGE_NAME container is already running or not
+    if [ $ARCH = $SYSTEM_ARCH ]; then
+        sudo docker images | grep -w "$POI_IMAGE_NAME" | grep -v "arm64"
+    else
+        sudo docker images | grep -w "$ARCH/$POI_IMAGE_NAME"
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo "building $POI_IMAGE_NAME container image..."
+
+        #In case of arch and system arch is same build POI_IMAGE_NAME container
+        if [ $ARCH = $SYSTEM_ARCH ]; then
+            sudo docker buildx build --build-context poi-helper=${POI_PATH} -t $POI_IMAGE_NAME .
+        else
+            sudo docker buildx build --build-context poi-helper=${POI_PATH} --platform=linux/$ARCH -t $ARCH/$POI_IMAGE_NAME .
+        fi
+    else
+        echo "$POI_IMAGE_NAME container image already exists"
+    fi
+}
+
+create_repo_and_raw_image()
+{
+    exec_docker_cmd=""
+
+    #create repo path if not exist
+    cd ${POI_PATH}/examples/${IMAGE_FLAVOR}
     if [ ! -d "${REPO_PATH}" ] ; then
         echo "repo $RELEASE_VERSION does not exist"
         mkdir -p ${REPO_PATH}
@@ -32,15 +77,15 @@ init_env_and_create_raw_image()
 
     # create local repo only when remote repo url is empty
     if [ -z "${SRC_REPO_URL}" ] ; then
-        if [ $IMAGE_FLAVOR != "rpi" ]; then
-            create_repo_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+        if [ $ARCH = $SYSTEM_ARCH ]; then
+            exec_docker_cmd="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo $POI_IMAGE_NAME create-repo -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
         else
-            create_repo_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-repo -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+            exec_docker_cmd="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo $ARCH/$POI_IMAGE_NAME create-repo -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
         fi
 
         echo "downloading $RELEASE_VERSION repo..."
-        echo "$create_repo_command"
-        $create_repo_command
+        echo "$exec_docker_cmd"
+        $exec_docker_cmd
         echo "=================================="
     else
         echo "using public repo: ${SRC_REPO_URL}"
@@ -48,53 +93,61 @@ init_env_and_create_raw_image()
     fi
 
 
-    if [ $IMAGE_FLAVOR != "rpi" ]; then
-        create_raw_image_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+    if [ $ARCH = $SYSTEM_ARCH ]; then
+        exec_docker_cmd="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo $POI_IMAGE_NAME create-image -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
     else
-        create_raw_image_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-image -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+        exec_docker_cmd="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo $ARCH/$POI_IMAGE_NAME create-image -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
     fi
 
     # create raw image using public repo
     if [ ! -z "${SRC_REPO_URL}" ] ; then
-        create_raw_image_command="$create_raw_image_command --repo-paths=$SRC_REPO_URL"
+        exec_docker_cmd="$exec_docker_cmd --repo-paths=$SRC_REPO_URL"
     fi
 
     echo "building raw image..."
-    echo "$create_raw_image_command"
-    $create_raw_image_command
+    echo "$exec_docker_cmd"
+    $exec_docker_cmd
     echo "=================================="
 }
 
 create_flavor_image()
 {
-    image_exec_command=""
+    exec_docker_cmd=""
+
+    #select container to run docker command based on arch
+    if [ $ARCH = $SYSTEM_ARCH ]; then
+        exec_docker_cmd="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo $POI_IMAGE_NAME"
+    else
+	exec_docker_cmd="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo $ARCH/$POI_IMAGE_NAME"
+    fi
+
     if [ $IMAGE_FLAVOR = "azure" ]; then
 	#build azure
-        image_exec_command="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-azure --raw-image ${RAW_IMAGE}"
+        exec_docker_cmd="$exec_docker_cmd create-azure --raw-image ${RAW_IMAGE}"
     elif [ $IMAGE_FLAVOR = "ova" ]; then
         #build ova
-	image_exec_command="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}"
+	exec_docker_cmd="$exec_docker_cmd create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}"
 
 	#build ovf
 	if [ $CREATE_OVF = "true" -a $VMDK_ONLY != "true" ]; then
-            image_exec_command="$image_exec_command --ovf"
+            exec_docker_cmd="$exec_docker_cmd --ovf"
 	fi
 
 	#build manifest file, applicable for ovf
         if [ $VMDK_ONLY != "true" -a $CREATE_MF = "true" ]; then
-            image_exec_command="$image_exec_command --mf"
+            exec_docker_cmd="$exec_docker_cmd --mf"
 	fi
 
 	#build vmdk
 	if [ $CREATE_OVF != "true" -a $VMDK_ONLY = "true" ]; then
-            image_exec_command="$image_exec_command --vmdk-only"
+            exec_docker_cmd="$exec_docker_cmd --vmdk-only"
 	fi
     fi
 
     echo "Trigger image builder command..."
     echo "=================================="
-    echo "$image_exec_command"
-    $image_exec_command
+    echo "$exec_docker_cmd"
+    $exec_docker_cmd
 }
 
 
@@ -111,6 +164,7 @@ usage() {
     echo "          [--ovf <set true>] (optional parameter for ova flavor, required in case of building ovf cant use along with --vmdk-only)"
     echo "          [--mf <set true>] (optional parameter for ova flavor, required in case of building manifest file)"
     echo "          [--vmdk-only <set true>] (optional parameter for ova flavor, required in case of building vmdk cant use along with --ovf)"
+    echo "          [--arch <arch-type>] (optional parameter for building aarch64 or x86_64 images. accept aarch64 or x86_64 as value by default uses system arch)"
     echo "          [--releasever <release-version>] (optional parameter by default image build for 5.0)"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~EXAMPLE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "============================================================"
@@ -173,18 +227,18 @@ usage() {
     echo         "           create RPI image              "
     echo "============================================================"
     echo                     "create 5.0 RPI"
-    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi"
+    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --arch aarch64"
     echo "-------------------------------------------------------------"
     echo                     "create 4.0 RPI"
-    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --releasever 4.0"
+    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --arch aarch64 --releasever 4.0"
     echo "-------------------------------------------------------------"
     echo                     "create 4.0 RPI with remote repo"
-    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
+    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --arch aarch64 --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
     echo "============================================================"
 
 }
 
-OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path:,src-repo-url:,flavor:,ova-config:,ova-name:,ovf,mf,vmdk-only,releasever: -n $0 -- "$@")
+OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path:,src-repo-url:,flavor:,ova-config:,ova-name:,arch:,ovf,mf,vmdk-only,releasever: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -205,6 +259,7 @@ while true; do
         --flavor) IMAGE_FLAVOR=${2}; shift 2;;
         --ova-config) OVA_CONFIG=${2}; shift 2;;
         --ova-name) OVA_NAME=${2}; shift 2;;
+        --arch) ARCH=${2}; shift 2;;
         --ovf) CREATE_OVF="true"; shift;;
         --mf) CREATE_MF="true"; shift;;
         --vmdk-only) VMDK_ONLY="true"; shift;;
@@ -269,8 +324,13 @@ if [ ${IMAGE_FLAVOR} = "ova" ] ; then
     fi
 fi
 
-init_env_and_create_raw_image
+#Initialize container environment
+init_env
 
+#Create repository and raw image
+create_repo_and_raw_image
+
+#Create final image
 if [ ${IMAGE_FLAVOR} = "ova" -o ${IMAGE_FLAVOR} = "azure" ] ; then
     create_flavor_image
 fi

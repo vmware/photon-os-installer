@@ -4,11 +4,12 @@ virtualSize=1048676
 
 create_azure()
 {
+    output_image_name="${RAW_IMAGE%.*}"
     qemu-img info -f raw --output json ${RAW_IMAGE}
     qemu-img resize -f raw ${RAW_IMAGE} $virtualSize
-    qemu-img convert ${RAW_IMAGE} -O vpc -o subformat=fixed,force_size ${RAW_IMAGE}.vhd
-    tar -cvzf ${RAW_IMAGE}.vhd.tar.gz ${RAW_IMAGE}.vhd
-    rm -f ${RAW_IMAGE} ${RAW_IMAGE}.vhd
+    qemu-img convert ${RAW_IMAGE} -O vpc -o subformat=fixed,force_size ${output_image_name}.vhd
+    tar -cvzf ${output_image_name}.vhd.tar.gz ${output_image_name}.vhd
+    rm -f ${RAW_IMAGE} ${output_image_name}.vhd
 }
 
 usage() {
