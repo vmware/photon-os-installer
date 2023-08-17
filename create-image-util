@@ -1,7 +1,15 @@
 #!/bin/bash
 
+CREATE_OVF="false"
+CREATE_MF="false"
+VMDK_ONLY="false"
+RELEASE_VERSION="5.0"
+SRC_REPO_URL=""
+
 init_env_and_create_raw_image()
 {
+    create_repo_command=""
+    create_raw_image_command=""
     cd ${POI_PATH}/docker
 
     #In case of arm64 need to run on arm64 container
@@ -11,31 +19,82 @@ init_env_and_create_raw_image()
         sudo docker buildx build --build-context poi-helper=${POI_PATH} --platform=linux/arm64 -t arm64/poi-debug .
     fi
 
+    #create repo if not exist
     cd ${POI_PATH}/examples/${IMAGE_FLAVOR}
 
-    if [ -d "${REPO_PATH}" ] ; then
-        echo "repo already exist"
-    else
-        echo "repo does not exist. creating 5.0 repo..."
+    if [ ! -d "${REPO_PATH}" ] ; then
+        echo "repo $RELEASE_VERSION does not exist"
         mkdir -p ${REPO_PATH}
+    else
+        echo "repo path already exist: ${REPO_PATH}"
+	echo "=================================="
     fi
 
-    if [ $IMAGE_FLAVOR != "rpi" ]; then
-        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c ${KS_CONFIG_FILE} -v 5.0
-        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c ${KS_CONFIG_FILE} -v 5.0
+    # create local repo only when remote repo url is empty
+    if [ -z "${SRC_REPO_URL}" ] ; then
+        if [ $IMAGE_FLAVOR != "rpi" ]; then
+            create_repo_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-repo -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+        else
+            create_repo_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-repo -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+        fi
+
+        echo "downloading $RELEASE_VERSION repo..."
+        echo "$create_repo_command"
+        $create_repo_command
+        echo "=================================="
     else
-        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-repo -c ${KS_CONFIG_FILE} -v 5.0
-        sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-image -c ${KS_CONFIG_FILE} -v 5.0
+        echo "using public repo: ${SRC_REPO_URL}"
+        echo "=================================="
     fi
+
+
+    if [ $IMAGE_FLAVOR != "rpi" ]; then
+        create_raw_image_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-image -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+    else
+        create_raw_image_command="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo arm64/poi-debug create-image -c ${KS_CONFIG_FILE} -v ${RELEASE_VERSION}"
+    fi
+
+    # create raw image using public repo
+    if [ ! -z "${SRC_REPO_URL}" ] ; then
+        create_raw_image_command="$create_raw_image_command --repo-paths=$SRC_REPO_URL"
+    fi
+
+    echo "building raw image..."
+    echo "$create_raw_image_command"
+    $create_raw_image_command
+    echo "=================================="
 }
 
 create_flavor_image()
 {
-    if [ $IMAGE_FLAVOR == "azure" ]; then
-        sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-azure --raw-image ${RAW_IMAGE}
-    elif [ $IMAGE_FLAVOR == "ova" ]; then
-        sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}
+    image_exec_command=""
+    if [ $IMAGE_FLAVOR = "azure" ]; then
+	#build azure
+        image_exec_command="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-azure --raw-image ${RAW_IMAGE}"
+    elif [ $IMAGE_FLAVOR = "ova" ]; then
+        #build ova
+	image_exec_command="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PATH}:/repo poi-debug create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}"
+
+	#build ovf
+	if [ $CREATE_OVF = "true" -a $VMDK_ONLY != "true" ]; then
+            image_exec_command="$image_exec_command --ovf"
+	fi
+
+	#build manifest file, applicable for ovf
+        if [ $VMDK_ONLY != "true" -a $CREATE_MF = "true" ]; then
+            image_exec_command="$image_exec_command --mf"
+	fi
+
+	#build vmdk
+	if [ $CREATE_OVF != "true" -a $VMDK_ONLY = "true" ]; then
+            image_exec_command="$image_exec_command --vmdk-only"
+	fi
     fi
+
+    echo "Trigger image builder command..."
+    echo "=================================="
+    echo "$image_exec_command"
+    $image_exec_command
 }
 
 
@@ -45,30 +104,87 @@ usage() {
     echo "          [--config-file <ks-config-file>] (required)"
     echo "          [--repo-path <repo-path>] (required)"
     echo "          [--poi-path <poi-path>] (required)"
+    echo "          [--src-repo-url <src-repo-url>] (optional, use this parameter in case of public repo)"
     echo "          [--flavor <image-flavor>] (required)"
     echo "          [--ova-config <ova-config>] (required in case of ova)"
     echo "          [--ova-name <ova-name>] (required in case of ova)"
+    echo "          [--ovf <set true>] (optional parameter for ova flavor, required in case of building ovf cant use along with --vmdk-only)"
+    echo "          [--mf <set true>] (optional parameter for ova flavor, required in case of building manifest file)"
+    echo "          [--vmdk-only <set true>] (optional parameter for ova flavor, required in case of building vmdk cant use along with --ovf)"
+    echo "          [--releasever <release-version>] (optional parameter by default image build for 5.0)"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~EXAMPLE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "============================================================"
-    echo         "           Create AZURE Image              "
+    echo         "           create AZURE image              "
     echo "============================================================"
-    echo "./create-image-util --raw-image photon-azure.raw --config-file azure_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor azure"
+    echo                     "create 5.0 AZURE"
+    echo "$0 --raw-image photon-azure.raw --config-file azure_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor azure"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 AZURE"
+    echo "$0 --raw-image photon-azure-4.0.raw --config-file azure_40_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor azure --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 AZURE with remote repo"
+    echo "$0 --raw-image photon-azure-4.0.raw --config-file azure_40_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor azure --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
     echo "============================================================"
-    echo         "           Create OVA Image              "
+    echo         "           create OVA image              "
     echo "============================================================"
-    echo "./create-image-util --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal"
+    echo                     "create 5.0 OVA"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 OVA"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 OVA with remote repo"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
     echo "============================================================"
-    echo         "           Create AMI Image              "
+    echo         "           create VMDK only              "
     echo "============================================================"
-    echo "./create-image-util --config-file ami_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ami"
+    echo                     "create 5.0 VMDK"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --vmdk-only"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 VMDK"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --vmdk-only --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 VMDK with remote repo"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --vmdk-only --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
     echo "============================================================"
-    echo         "           Create RPI Image              "
+    echo         "           create OVF image and manifest file    "
+    echo         " Note: Creating OVF required to first build VMDK from above command line"
     echo "============================================================"
-    echo "./create-image-util --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo/5.0/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi"
+    echo                     "create 5.0 OVF"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --ovf --mf"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 OVF"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --ovf --mf --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 OVF with remote repo"
+    echo "$0 --raw-image minimal.img --config-file minimal_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ova --ova-config minimal.yaml --ova-name minimal --ovf --mf --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
+    echo "============================================================"
+    echo         "           create AMI image              "
+    echo "============================================================"
+    echo                     "create 5.0 AMI"
+    echo "$0 --config-file ami_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ami"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 AMI"
+    echo "$0 --config-file ami_40_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ami --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 AMI with remote repo"
+    echo "$0 --config-file ami_40_ks.yaml --repo-path /home/dbx/poi/repo/ --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor ami --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
+    echo "============================================================"
+    echo         "           create RPI image              "
+    echo "============================================================"
+    echo                     "create 5.0 RPI"
+    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 RPI"
+    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 RPI with remote repo"
+    echo "$0 --config-file rpi_ks.yaml --repo-path /home/dbx/poi/repo --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
     echo "============================================================"
 
 }
 
-OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path:,flavor:,ova-config:,ova-name: -n $0 -- "$@")
+OPTS=$(getopt -o h --long raw-image:,config-file:,repo-path:,poi-path:,src-repo-url:,flavor:,ova-config:,ova-name:,ovf,mf,vmdk-only,releasever: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -80,14 +196,19 @@ eval set -- "$OPTS"
 while true; do
     echo $1
     case "$1" in
-        -h) usage ; exit 0;;
-        --raw-image) RAW_IMAGE=${2} ; shift 2 ;;
-        --config-file) KS_CONFIG_FILE=${2} ; shift 2 ;;
-        --repo-path) REPO_PATH=${2} ; shift 2 ;;
-        --poi-path) POI_PATH=${2} ; shift 2 ;;
-        --flavor) IMAGE_FLAVOR=${2} ; shift 2 ;;
-        --ova-config) OVA_CONFIG=${2} ; shift 2 ;;
-        --ova-name) OVA_NAME=${2} ; shift 2 ;;
+        -h) usage; exit 0;;
+        --raw-image) RAW_IMAGE=${2}; shift 2;;
+        --config-file) KS_CONFIG_FILE=${2}; shift 2;;
+        --repo-path) REPO_PATH=${2}; shift 2;;
+        --poi-path) POI_PATH=${2}; shift 2;;
+        --src-repo-url) SRC_REPO_URL=${2}; shift 2;;
+        --flavor) IMAGE_FLAVOR=${2}; shift 2;;
+        --ova-config) OVA_CONFIG=${2}; shift 2;;
+        --ova-name) OVA_NAME=${2}; shift 2;;
+        --ovf) CREATE_OVF="true"; shift;;
+        --mf) CREATE_MF="true"; shift;;
+        --vmdk-only) VMDK_ONLY="true"; shift;;
+        --releasever) RELEASE_VERSION=${2}; shift 2;;
         --) shift; break ;;
         *) break ;;
     esac
@@ -114,6 +235,8 @@ if [ -z "${REPO_PATH}" ] ; then
     usage
     echo "Terminating." >&2
     exit 1
+else
+    REPO_PATH="$REPO_PATH/$RELEASE_VERSION"
 fi
 
 if [ -z "${POI_PATH}" ] ; then
@@ -133,6 +256,13 @@ fi
 if [ ${IMAGE_FLAVOR} = "ova" ] ; then
     if [ -z "${OVA_CONFIG}" -o -z "${OVA_NAME}" ] ; then
         echo "ova config or ova name is missing" >&2
+        usage
+        echo "Terminating." >&2
+        exit 1
+    fi
+
+    if [ $CREATE_OVF = "true" -a $VMDK_ONLY = "true" ] ; then
+        echo "cannot use simultaneously, either --ovf or --vmdk-only can be used at once" >&2
         usage
         echo "Terminating." >&2
         exit 1

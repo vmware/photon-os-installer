@@ -19,7 +19,7 @@ partitions:
     - size: 128
       filesystem: swap
 
-packagelist_file: packages_ami.json
+packagelist_file: packages_ami_40.json
 linux_flavor_aarch64: linux
 linux_flavor: linux-aws
 
