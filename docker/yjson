@@ -37,7 +37,7 @@ def main():
     params = {}
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h')
+        opts, args = getopt.getopt(sys.argv[1:], 'h', longopts=['param='])
     except:
         print (f"{sys.argv[0]}: invalid option")
         sys.exit(2)
@@ -46,6 +46,9 @@ def main():
         if o in ['-h']:
             usage()
             sys.exit(0)
+        elif o in ['--param']:
+            k,v = a.split('=')
+            params[k] = yaml.safe_load(v)
         else:
             assert False, f"unhandled option {o}"
 
