@@ -100,6 +100,8 @@ class IsoBuilder(object):
             json_file.write(json.dumps(install_option_data))
 
     def setupReposDir(self):
+        self.logger.info(f"setting up repo files in {self.yum_repos_dir}")
+
         os.makedirs(self.yum_repos_dir, exist_ok=True)
 
         # copy repo files from host
@@ -129,21 +131,7 @@ class IsoBuilder(object):
         Generate custom initrd
         """
         initrd_pkgs = None
-        if not os.path.exists(self.working_dir):
-            self.logger.info(f"Creating working directory: {self.working_dir}")
-            os.makedirs(self.working_dir)
-        if not self.initrd_pkg_list_file:
-            initrd_pkg_file = f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
-            self.logger.info(
-                f"Downloading initrd package list file {initrd_pkg_file}..."
-            )
-            self.cmdUtil.wget(
-                initrd_pkg_file,
-                f"{self.working_dir}/packages_installer_initrd.json",
-            )
-            self.initrd_pkg_list_file = (
-                f"{self.working_dir}/packages_installer_initrd.json"
-            )
+
         initrd_pkg_data = CommandUtils.jsonread(self.initrd_pkg_list_file)
         initrd_pkgs = initrd_pkg_data["packages"]
         if f"packages_{self.architecture}" in initrd_pkg_data:
@@ -152,16 +140,6 @@ class IsoBuilder(object):
             )
         self.logger.info(f"Initrd package list: {initrd_pkgs}")
         initrd_pkgs = " ".join(initrd_pkgs)
-
-        # Download all initrd packages before installing them during initrd generation.
-        # Skip downloading packages if ostree iso.
-        ostree_iso = False
-        if self.function != "build-rpm-ostree-iso":
-            self.setupReposDir()
-            self.downloadPkgs()
-        else:
-            ostree_iso = True
-            self.additional_files.append(self.ostree_tar_path)
 
         self.createInstallOptionJson()
 
@@ -179,7 +157,7 @@ class IsoBuilder(object):
                 self.photon_release_version,
                 self.packageslist_file,
                 "build_install_options_custom.json",
-                str(ostree_iso),
+                str(self.ostree_iso),
             ]
         )
 
@@ -194,6 +172,19 @@ class IsoBuilder(object):
         if not os.path.exists(self.working_dir):
             self.logger.info(f"Creating working directory: {self.working_dir}")
             os.makedirs(self.working_dir)
+
+        if not self.initrd_pkg_list_file:
+            initrd_pkg_file = f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
+            self.logger.info(
+                f"Downloading initrd package list file {initrd_pkg_file}..."
+            )
+            self.cmdUtil.wget(
+                initrd_pkg_file,
+                f"{self.working_dir}/packages_installer_initrd.json",
+            )
+            self.initrd_pkg_list_file = (
+                f"{self.working_dir}/packages_installer_initrd.json"
+            )
 
         # Download required files for given branch and extract it in working dir.
         files_to_download = [
@@ -535,6 +526,27 @@ class IsoBuilder(object):
                 "WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{options.photon_release_version}/common/data/packages_installer_initrd.json"
             )
 
+    def setup(self):
+        # create working directory
+        if not os.path.exists(self.working_dir):
+            self.logger.info(f"Creating working directory: {self.working_dir}")
+            os.makedirs(self.working_dir)
+
+        self.ostree_iso = False
+        if self.function == "build-rpm-ostree-iso":
+            self.ostree_iso = True
+        self.logger.info(f"building for ostree: {self.ostree_iso}")
+
+        self.downloadRequiredFiles()
+
+        # Download all packages before installing them during initrd generation.
+        # Skip downloading packages if ostree iso.
+        if not self.ostree_iso:
+            self.setupReposDir()
+            self.downloadPkgs()
+        else:
+            self.additional_files.append(self.ostree_tar_path)
+
 
 def main():
     usage = "Usage: %prog [options]"
@@ -681,7 +693,9 @@ def main():
     isoBuilder.logger.info(
         f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img..."
     )
-    isoBuilder.downloadRequiredFiles()
+
+    isoBuilder.setup()
+
     isoBuilder.generateInitrd()
 
     if options.function in ["build-iso", "build-rpm-ostree-iso"]:
