@@ -100,6 +100,8 @@ class IsoBuilder(object):
             json_file.write(json.dumps(install_option_data))
 
     def setupReposDir(self):
+        self.logger.info(f"setting up repo files in {self.yum_repos_dir}")
+
         os.makedirs(self.yum_repos_dir, exist_ok=True)
 
         # copy repo files from host
@@ -129,21 +131,7 @@ class IsoBuilder(object):
         Generate custom initrd
         """
         initrd_pkgs = None
-        if not os.path.exists(self.working_dir):
-            self.logger.info(f"Creating working directory: {self.working_dir}")
-            os.makedirs(self.working_dir)
-        if not self.initrd_pkg_list_file:
-            initrd_pkg_file = f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
-            self.logger.info(
-                f"Downloading initrd package list file {initrd_pkg_file}..."
-            )
-            self.cmdUtil.wget(
-                initrd_pkg_file,
-                f"{self.working_dir}/packages_installer_initrd.json",
-            )
-            self.initrd_pkg_list_file = (
-                f"{self.working_dir}/packages_installer_initrd.json"
-            )
+
         initrd_pkg_data = CommandUtils.jsonread(self.initrd_pkg_list_file)
         initrd_pkgs = initrd_pkg_data["packages"]
         if f"packages_{self.architecture}" in initrd_pkg_data:
@@ -152,16 +140,6 @@ class IsoBuilder(object):
             )
         self.logger.info(f"Initrd package list: {initrd_pkgs}")
         initrd_pkgs = " ".join(initrd_pkgs)
-
-        # Download all initrd packages before installing them during initrd generation.
-        # Skip downloading packages if ostree iso.
-        ostree_iso = False
-        if self.function != "build-rpm-ostree-iso":
-            self.setupReposDir()
-            self.downloadPkgs()
-        else:
-            ostree_iso = True
-            self.additional_files.append(self.ostree_tar_path)
 
         self.createInstallOptionJson()
 
@@ -179,7 +157,7 @@ class IsoBuilder(object):
                 self.photon_release_version,
                 self.packageslist_file,
                 "build_install_options_custom.json",
-                str(ostree_iso),
+                str(self.ostree_iso),
             ]
         )
 
@@ -194,6 +172,19 @@ class IsoBuilder(object):
         if not os.path.exists(self.working_dir):
             self.logger.info(f"Creating working directory: {self.working_dir}")
             os.makedirs(self.working_dir)
+
+        if not self.initrd_pkg_list_file:
+            initrd_pkg_file = f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
+            self.logger.info(
+                f"Downloading initrd package list file {initrd_pkg_file}..."
+            )
+            self.cmdUtil.wget(
+                initrd_pkg_file,
+                f"{self.working_dir}/packages_installer_initrd.json",
+            )
+            self.initrd_pkg_list_file = (
+                f"{self.working_dir}/packages_installer_initrd.json"
+            )
 
         # Download required files for given branch and extract it in working dir.
         files_to_download = [
@@ -239,7 +230,35 @@ class IsoBuilder(object):
             if not retval:
                 raise Exception(msg)
 
+    def copyRPMs(self):
+        """
+        copies packages as set by a list of RPM paths
+        there is no dependency check
+        """
+        # TODO: deal with source pkgs which go to SRPMS
+        if not os.path.exists(self.rpms_path):
+            self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
+            os.makedirs(self.rpms_path, exist_ok=True)
+
+        for f in self.rpms_list:
+            # list is a plain list of files with absolute paths, we need to
+            # put them into their arch specific directory
+            # arch is the second to last word in the file name separated by dots:
+            arch = f.split('.')[-2]
+            arch_dir = os.path.join(self.rpms_path, arch)
+            if not os.path.isdir(arch_dir):
+                os.makedirs(arch_dir)
+            shutil.copy(f, arch_dir)
+
+        self.logger.info("Creating repodata for copied packages")
+        self.createRepo()
+
     def downloadPkgs(self):
+        """
+        downloads packages as set by packages list files,
+        including their dependencies by using tdnf
+        """
+
         if not os.path.exists(self.rpms_path):
             self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
             os.makedirs(self.rpms_path, exist_ok=True)
@@ -356,7 +375,7 @@ class IsoBuilder(object):
         os.makedirs(f"{self.working_dir}/isolinux-temp")
         pkg_list = ["photon-iso-config"]
         if self.architecture == "x86_64":
-            pkg_list.extend(["syslinux"])
+            pkg_list.append("syslinux")
 
         self.logger.info("installing packages for isolinux...")
         isolinux_dir = os.path.join(self.working_dir, "isolinux-temp")
@@ -368,9 +387,6 @@ class IsoBuilder(object):
             raise Exception(f"tdnf failed: {tdnf_out}")
         self.logger.info("...done.")
 
-        self.logger.debug(
-            "Succesfully installed photon-iso-config syslinux..."
-        )
         for file in os.listdir(
             f"{self.working_dir}/isolinux-temp/usr/share/photon-iso-config"
         ):
@@ -405,7 +421,7 @@ class IsoBuilder(object):
             )
         if self.boot_cmdline_param:
             self.logger.info(
-                "Adding Boot command line paramters to isolinux menu..."
+                "Adding Boot command line parameters to isolinux menu..."
             )
             self.runCmd(
                 f"sed -i '/photon.media=cdrom/ s#$# {self.boot_cmdline_param}#' {self.working_dir}/isolinux/menu.cfg"
@@ -535,6 +551,43 @@ class IsoBuilder(object):
                 "WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{options.photon_release_version}/common/data/packages_installer_initrd.json"
             )
 
+    def setup(self):
+        # create working directory
+        if not os.path.exists(self.working_dir):
+            self.logger.info(f"Creating working directory: {self.working_dir}")
+            os.makedirs(self.working_dir)
+
+        self.ostree_iso = False
+        if self.function == "build-rpm-ostree-iso":
+            self.ostree_iso = True
+        self.logger.info(f"building for ostree: {self.ostree_iso}")
+
+        # read list of RPMs from file, if given
+        self.rpms_list = None
+        if self.rpms_list_file is not None:
+            self.rpms_list = []
+            with open(self.rpms_list_file, "rt") as f:
+                for line in f:
+                    self.rpms_list.append(line.strip())
+
+        self.downloadRequiredFiles()
+
+        # Download all packages before installing them during initrd generation.
+        # Skip downloading packages if ostree iso.
+        if not self.ostree_iso:
+            self.setupReposDir()
+            # if we have a list of RPMs to ship with the iso, use that
+            # (generic ISO use case)
+            if self.rpms_list is not None:
+                self.copyRPMs()
+            # otherwise, use the packages list, which will also be used for
+            # installation
+            # (custom ISO use case)
+            else:
+                self.downloadPkgs()
+        else:
+            self.additional_files.append(self.ostree_tar_path)
+
 
 def main():
     usage = "Usage: %prog [options]"
@@ -620,11 +673,19 @@ def main():
         help="<Optional> Path to generate iso in.",
     )
     parser.add_argument(
-            "-R",
-            "--repo-paths",
-            action="append",
-            default=[],
-            help="<Optional> Pass repo file as input to download rpms from external repo"
+        "-R",
+        "--repo-paths",
+        dest="repo_paths",
+        action="append",
+        default=[],
+        help="<Optional> repo paths or urls to download rpms from"
+    )
+    parser.add_argument(
+        "--rpms-list-file",
+        dest="rpms_list_file",
+        type=str,
+        default=None,
+        help="<Optional> rpm list file that contains list of rpms paths to copy"
     )
     parser.add_argument(
         "-P",
@@ -674,8 +735,8 @@ def main():
         boot_cmdline_param=options.boot_cmdline_param,
         artifact_path=options.artifact_path,
         packages_list=options.packages_list,
-        repo_paths=options.repo_paths
-    )
+        repo_paths=options.repo_paths,
+        rpms_list_file=options.rpms_list_file)
 
     IsoBuilder.validate_options(
         options, f"{isoBuilder.initrd_path}/installer", isoBuilder.logger
@@ -683,7 +744,9 @@ def main():
     isoBuilder.logger.info(
         f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img..."
     )
-    isoBuilder.downloadRequiredFiles()
+
+    isoBuilder.setup()
+
     isoBuilder.generateInitrd()
 
     if options.function in ["build-iso", "build-rpm-ostree-iso"]:
