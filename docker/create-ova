@@ -43,12 +43,13 @@ create_ova()
 usage() {
     echo "Usage: $0"
     echo "          [--installer-config <config-file>] (ks file used for create-image)"
+    echo "          [--installer-param key=val [...]] (params for parsing the ks file)"
     echo "          [--mf]"
     echo "          [--raw-image <image-file>]"
     echo "          [--ova-name <name>]"
     echo "          [--ova-config <ova-config-file>] (required)"
     echo "          [--ovf]"
-    echo "          [[--param key=val] ...] (for ova-compose)"
+    echo "          [--param key=val [...]] (for ova-compose)"
     echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
 }
 
@@ -65,15 +66,16 @@ while true; do
     case "$1" in
         -h) usage ; exit 0;;
         --installer-config) CFG_FILE=${2} ; shift 2 ;;
-        --mf) CREATE_MF="true"; shift ;;
-        --raw-images) RAW_IMAGES=${2} ; shift 2 ;;
-        --ova-config) OVA_CFG_FILE=${2} ; shift 2 ;;
-        --ova-name) OVA_NAME=${2} ; shift 2 ;;
-        --ovf) CREATE_OVF="true"; shift ;;
-        --param) PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
-        --vmdk-only) VMDK_ONLY="true"; shift ;;
-        --) shift; break ;;
-        *) break ;;
+        --installer-param)  INSTALLER_PARAMS="${INSTALLER_PARAMS} --param ${2}"; shift 2 ;;
+        --mf)               CREATE_MF="true"; shift ;;
+        --raw-images)       RAW_IMAGES=${2} ; shift 2 ;;
+        --ova-config)       OVA_CFG_FILE=${2} ; shift 2 ;;
+        --ova-name)         OVA_NAME=${2} ; shift 2 ;;
+        --ovf)              CREATE_OVF="true"; shift ;;
+        --param)            PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
+        --vmdk-only)        VMDK_ONLY="true"; shift ;;
+        --)                 shift; break ;;
+        *)                  break ;;
     esac
 done
 
@@ -98,7 +100,7 @@ if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then
-    RAW_IMAGES=$(yjson < ${CFG_FILE} | jq -r '.disks|values[].filename')
+    RAW_IMAGES=$(yjson ${INSTALLER_PARAMS} < ${CFG_FILE} | jq -r '.disks|values[].filename')
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then
