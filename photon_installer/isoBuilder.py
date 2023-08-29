@@ -328,10 +328,15 @@ class IsoBuilder(object):
         repoDataDir = f"{self.rpms_path}/repodata"
         self.runCmd(f"createrepo --database --update {self.rpms_path}")
         if os.path.exists(repoDataDir):
-            primary_xml_gz = glob.glob(repoDataDir + "/*primary.xml.gz")
-            self.runCmd(
-                f"ln -sfv {primary_xml_gz[0]} {repoDataDir}/primary.xml.gz"
-            )
+            primary_xml_gz = glob.glob(os.path.join(repoDataDir, "*-primary.xml.gz"))
+            if len(primary_xml_gz) > 0:
+                # use basename because symlink should be relative to make ISO relocatable
+                primary_xml_gz = os.path.basename(primary_xml_gz[0])
+                os.symlink(primary_xml_gz, f"{repoDataDir}/primary.xml.gz")
+            else:
+                raise Exception(f"no file matching '*-primary.xml.gz' found in {self.rpms_path}/repodata")
+        else:
+            raise Exception("no repdata folder found in {self.rpms_path}")
 
     def cleanUp(self):
         try:
