@@ -147,7 +147,6 @@ class OstreeInstaller(object):
             self.run([['mkdir', '-p', '{}/repo'.format(self.photon_root)]])
             if self.install_config['ui']:
                 self.progress_bar.show_loading("Unpacking local OSTree repo")
-
             if 'path' in self.install_config['ostree']:
                 ostree_repo_tree = self.install_config['ostree']['path']
             else:
@@ -155,7 +154,6 @@ class OstreeInstaller(object):
                 if not os.path.isfile(ostree_repo_tree):
                     ostree_repo_tree = os.path.abspath(os.getcwd() + "/../ostree-repo.tar.gz")
             self.run([['tar', '--warning=none', '-xf', ostree_repo_tree, '-C' '{}/repo'.format(self.photon_root)]])
-
             self.local_repo_path = "{}/repo".format(self.photon_root)
             self.ostree_repo_url = self.repo_config['OSTREEREPOURL']
             self.ostree_ref = self.repo_config['OSTREEREFS']
@@ -180,15 +178,16 @@ class OstreeInstaller(object):
 
         self.bind_mount_deployment(partition_data, commit_number)
 
+        device = self.install_config['disks']['default']['device']
         if bootmode == 'dualboot' or bootmode == 'bios':
-            self.run([['chroot', '{}'.format(deployment), 'bash', '-c', 'grub2-install --target=i386-pc --force --boot-directory={} {};'
-                     .format(partition_data['bootdirectory'], self.install_config['disk'])]], "Generating Grub binaries for BIOS mode")
+            self.cmd.run(["chroot", deployment, "bash", "-c",
+                         f"grub2-install --target=i386-pc --force --boot-directory={partition_data['bootdirectory']} {device}"])
+
         if bootmode == 'dualboot' or bootmode == 'efi':
             self.run([['mkdir', '-p', partition_data['bootefi'] + '/boot/grub2']], "Generating grub.cfg for efi boot")
             with open(os.path.join(partition_data['bootefi'], 'boot/grub2/grub.cfg'), "w") as grub_cfg:
                 grub_cfg.write("search -n -u {} -s\n".format(self._get_uuid(self.install_config['partitions_data']['boot'])))
                 grub_cfg.write("configfile {}grub2/grub.cfg\n".format(self.install_config['partitions_data']['bootdirectory']))
-            self.run([['chroot', '{}'.format(deployment), 'bash', '-c', 'mkdir -p /boot/grub2;']])
             self.run([['chroot', deployment, 'bash', '-c', 'mkdir -p /boot/grub2;']])
 
         self.run([['chroot', deployment, 'bash', '-c', 'grub2-mkconfig -o {}/grub2/grub.cfg;'
