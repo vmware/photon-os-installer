@@ -1,18 +1,21 @@
-#/*
+# /*
 # * Copyright © 2020 VMware, Inc.
 # * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 # */
 
 import os
-import subprocess
 import commons
 import shutil
 
 install_phase = commons.POST_INSTALL
 enabled = True
 
+
 def execute(installer):
-    if 'postinstall' not in installer.install_config and 'postinstallscripts' not in installer.install_config:
+    if (
+        'postinstall' not in installer.install_config
+        and 'postinstallscripts' not in installer.install_config
+    ):
         return
 
     tempdir = "/tmp/tempscripts"
@@ -41,9 +44,14 @@ def execute(installer):
 
     for script in scripts:
         if not os.access(os.path.join(tempdir_full, script), os.X_OK):
-            installer.logger.warning("Post install script {} is not executable. Skipping execution of script.".format(script))
+            installer.logger.warning(
+                f"Post install script {script} is not executable. "
+                "Skipping execution of script."
+            )
             continue
         installer.logger.info("Running script {}".format(script))
-        installer.cmd.run_in_chroot(installer.photon_root, "{}/{}".format(tempdir, script))
+        installer.cmd.run_in_chroot(
+            installer.photon_root, "{}/{}".format(tempdir, script)
+        )
 
     shutil.rmtree(tempdir_full, ignore_errors=True)

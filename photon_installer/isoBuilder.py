@@ -131,7 +131,6 @@ class IsoBuilder(object):
         Generate custom initrd
         """
         initrd_pkgs = None
-
         initrd_pkg_data = CommandUtils.jsonread(self.initrd_pkg_list_file)
         initrd_pkgs = initrd_pkg_data["packages"]
         if f"packages_{self.architecture}" in initrd_pkg_data:
@@ -593,7 +592,6 @@ class IsoBuilder(object):
         else:
             self.additional_files.append(self.ostree_tar_path)
 
-
 def main():
     usage = "Usage: %prog [options]"
     parser = ArgumentParser(usage)
@@ -750,7 +748,6 @@ def main():
     )
 
     isoBuilder.setup()
-
     isoBuilder.generateInitrd()
 
     if options.function in ["build-iso", "build-rpm-ostree-iso"]:

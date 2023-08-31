@@ -1,18 +1,21 @@
-#/*
+# /*
 # * Copyright © 2020 VMware, Inc.
 # * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 # */
 
 import os
-import subprocess
 import commons
 import shutil
 
 install_phase = commons.PRE_INSTALL
 enabled = True
 
+
 def execute(installer):
-    if 'preinstall' not in installer.install_config and 'preinstallscripts' not in installer.install_config:
+    if (
+        'preinstall' not in installer.install_config
+        and 'preinstallscripts' not in installer.install_config
+    ):
         return
 
     tempdir = "/tmp/tempscripts"
@@ -39,7 +42,10 @@ def execute(installer):
 
     for script in scripts:
         if not os.access(os.path.join(tempdir, script), os.X_OK):
-            installer.logger.warning("Pre install script {} is not executable. Skipping execution of script.".format(script))
+            installer.logger.warning(
+                f"Pre install script {script} is not executable. "
+                "Skipping execution of script."
+            )
             continue
         installer.logger.info("Running script {}".format(script))
         cmd = ["/bin/bash"]
