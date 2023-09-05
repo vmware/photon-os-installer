@@ -180,8 +180,8 @@ class OstreeInstaller(object):
 
         device = self.install_config['disks']['default']['device']
         if bootmode == 'dualboot' or bootmode == 'bios':
-            path = os.path.join(self.photon_root, "boot")
-            self.cmd.run(f"grub2-install --target=i386-pc --force --boot-directory={path} {device}")
+            self.cmd.run(["chroot", deployment, "bash", "-c",
+                         f"grub2-install --target=i386-pc --force --boot-directory={partition_data['bootdirectory']} {device}"])
 
         if bootmode == 'dualboot' or bootmode == 'efi':
             self.run([['mkdir', '-p', partition_data['bootefi'] + '/boot/grub2']], "Generating grub.cfg for efi boot")
