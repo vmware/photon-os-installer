@@ -33,12 +33,12 @@ class IsoBuilder(object):
         self.cmdUtil = CommandUtils(self.logger)
         self.architecture = platform.machine()
         self.additional_files = []
-        self.repos_dir = os.path.join(self.working_dir, "yum.repos.d")
+        self.yum_repos_dir = os.path.join(self.working_dir, "yum.repos.d")
 
         self.tdnf = Tdnf(
             logger=self.logger,
             releasever=self.photon_release_version,
-            reposdir=self.repos_dir,
+            reposdir=self.yum_repos_dir,
             docker_image=self.photon_docker_image,
         )
 
@@ -100,17 +100,29 @@ class IsoBuilder(object):
             json_file.write(json.dumps(install_option_data))
 
     def setupReposDir(self):
-        os.makedirs(self.repos_dir, exist_ok=True)
+        os.makedirs(self.yum_repos_dir, exist_ok=True)
 
         # copy repo files from host
-        if os.path.isdir("/etc/yum.repos.d"):
-            for repo_file in glob.glob("/etc/yum.repos.d/*.repo"):
-                shutil.copy(repo_file, self.repos_dir)
+        if not self.repo_paths:
+            if os.path.isdir("/etc/yum.repos.d"):
+                for repo_file in glob.glob("/etc/yum.repos.d/*.repo"):
+                    shutil.copy(repo_file, self.yum_repos_dir)
+        else:
+            for i, url in enumerate(self.repo_paths):
+                name = f"_repo{i}"
+                filepath = os.path.join(self.yum_repos_dir, f"{name}.repo")
+                with open(filepath, "wt") as f:
+                    f.write(f"[{name}]\n")
+                    if url.startswith("/"):
+                        url = f"file://{url}"
+                    f.write(f"baseurl={url}\n")
+                    f.write("enabled=1\n")
+                    f.write("gpgcheck=0\n")
 
         # additional repos
         if self.additional_repos:
             for repo_file in self.additional_repos:
-                shutil.copy(repo_file, self.repos_dir)
+                shutil.copy(repo_file, self.yum_repos_dir)
 
     def generateInitrd(self):
         """
@@ -528,6 +540,7 @@ def main():
     usage = "Usage: %prog [options]"
     parser = ArgumentParser(usage)
     parser.add_argument("-l", "--log-level", dest="log_level", default="info")
+
     parser.add_argument(
         "-f",
         "--function",
@@ -606,7 +619,13 @@ def main():
         default=os.getcwd(),
         help="<Optional> Path to generate iso in.",
     )
-
+    parser.add_argument(
+            "-R",
+            "--repo-paths",
+            action="append",
+            default=[],
+            help="<Optional> Pass repo file as input to download rpms from external repo"
+    )
     parser.add_argument(
         "-P",
         "--param",
@@ -655,6 +674,7 @@ def main():
         boot_cmdline_param=options.boot_cmdline_param,
         artifact_path=options.artifact_path,
         packages_list=options.packages_list,
+        repo_paths=options.repo_paths
     )
 
     IsoBuilder.validate_options(
