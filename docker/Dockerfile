@@ -47,7 +47,11 @@ RUN tdnf makecache && \
 COPY --from=poi-helper / /photon-os-installer
 RUN cd /photon-os-installer && pip3 install . # && cd .. && rm -rf /photon-os-installer
 
-COPY create-image create-ova create-repo create-azure \
+COPY create-image \
+     create-ova \
+     create-repo \
+     create-azure \
+     create-ostree \
      poi-pkglist yjson \
      /usr/bin
 
