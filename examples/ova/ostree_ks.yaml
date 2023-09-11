@@ -8,12 +8,14 @@ password:
 
 disks:
     default:
-        filename: minimal.img
+        filename: ostree.img
         size: 2048
 
 ostree:
     path: ostree-repo.tar.gz
     default_repo: true
+
+packagelist_file: packages_ostree.json
 
 public_key: <ssh-key-here>
 
