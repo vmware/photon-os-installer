@@ -1,0 +1,32 @@
+live: False
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: minimal.img
+        size: 2048
+
+partitions:
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+      lvm:
+        vg_name: vg_root_0
+        lv_name: lv_root_0
+
+packagelist_file: packages_minimal.json
+
+additional_packages:
+    - vim
+
+public_key: <ssh-key-here>
+
+linux_flavor: linux
+
+eject_cdrom: false

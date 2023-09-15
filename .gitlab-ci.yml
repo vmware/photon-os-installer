@@ -1,0 +1,8 @@
+stages:
+    - test
+
+test:
+  stage: test
+  scripts:
+    - pip3 install pytest setuptools pyinstaller
+    - pytest -v -s tests/poi-container-test.py
