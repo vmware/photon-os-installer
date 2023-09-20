@@ -116,9 +116,9 @@ create_flavor_image()
 
     #select container to run docker command based on arch
     if [ $ARCH = $SYSTEM_ARCH ]; then
-        exec_docker_cmd="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${LOCAL_REPO_PATH}:/repo $POI_IMAGE_NAME"
+        exec_docker_cmd="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${LOCAL_REPO_PATH}:/repo $POI_IMAGE_NAME"
     else
-	exec_docker_cmd="sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${LOCAL_REPO_PATH}:/repo $ARCH/$POI_IMAGE_NAME"
+	exec_docker_cmd="sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${LOCAL_REPO_PATH}:/repo $ARCH/$POI_IMAGE_NAME"
     fi
 
     if [ $IMAGE_FLAVOR = "azure" ]; then
