@@ -40,6 +40,8 @@ class IsoBuilder(object):
             reposdir=self.yum_repos_dir,
             docker_image=self.photon_docker_image,
         )
+        if self.function == "build-rpm-ostree-iso":
+            self.tdnf.reposdir = None
 
     def runCmd(self, cmd):
         retval = self.cmdUtil.run(cmd)
@@ -695,7 +697,7 @@ def main():
     # Parse the command-line arguments
     options = parser.parse_args()
     temp_file_path = ""
-    if not os.path.isfile(options.config):
+    if options.config and not os.path.isfile(options.config):
         file_descriptor, temp_file_path = tempfile.mkstemp(prefix="isoBuilder-", suffix="-config")
         var = CommandUtils.wget(options.config, temp_file_path, False)
         if not var[0]:
