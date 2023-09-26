@@ -1,0 +1,4 @@
+photon_release_version: '5.0'
+function: build-iso
+packageslist_file: "https://raw.githubusercontent.com/vmware/photon/master/common/data/packages_minimal.json"
+initrd_pkgs_list_file: "https://raw.githubusercontent.com/vmware/photon/master/common/data/packages_installer_initrd.json"

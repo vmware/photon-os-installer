@@ -13,7 +13,6 @@ from argparse import ArgumentParser
 from commandutils import CommandUtils
 from tdnf import Tdnf
 
-
 class IsoBuilder(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -333,7 +332,9 @@ class IsoBuilder(object):
                 f"ln -sfv {primary_xml_gz[0]} {repoDataDir}/primary.xml.gz"
             )
 
-    def cleanUp(self):
+    def cleanUp(self, temp_file):
+        if temp_file:
+            os.remove(temp_file)
         try:
             shutil.rmtree(self.working_dir)
         except FileNotFoundError:
@@ -475,12 +476,8 @@ class IsoBuilder(object):
         build_iso_cmd += f"-V \"PHOTON_$(date +%Y%m%d)\" {self.working_dir} > {self.iso_name}"
         self.runCmd(build_iso_cmd)
 
-    def create_file(path, file_name):
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return os.path.join(path, file_name)
 
-    def merge_packages_list(merged_file, file1, file2):
+    def merge_packages_list(self, merged_file, file1, file2):
         if file1:
             merged_file = CommandUtils.merge_json_files(
                 merged_file, file1, file2
@@ -489,67 +486,58 @@ class IsoBuilder(object):
         else:
             return file2
 
-    @staticmethod
-    def validate_options(options, initrd_path, logger):
+    def process_packages(self, package_data, target_file, merged_file_name, list_file, path):
+        file_path = os.path.join(path, target_file)
+        package_data = CommandUtils.write_pkg_list_file(file_path, package_data)
+        merged_file_path = os.path.join(path, merged_file_name)
+        return self.merge_packages_list(
+           merged_file_path, list_file, package_data
+        )
 
-        if not options.photon_release_version:
-            raise Exception(
-                "the following arguments are required: -v/--photon-release-version"
-            )
+    def validate_options(self):
 
-        if options.function == "build-rpm-ostree-iso":
-            if not options.ostree_tar_path:
-                raise Exception("Ostree tar path not provided...")
-            elif not options.ostree_tar_path.startswith("http"):
-                options.ostree_tar_path = os.path.abspath(
-                    options.ostree_tar_path
-                )
-            if not options.packageslist_file:
-                options.packageslist_file = (
-                    f"{os.path.dirname(__file__)}/packages_ostree_host.json"
-                )
+        if not self.photon_release_version:
+           raise Exception(
+              "the following arguments are required: -v/--photon-release-version"
+           )
+        if self.function == "build-rpm-ostree-iso":
+           if not self.ostree_tar_path:
+               raise Exception("Ostree tar path not provided...")
+           elif not self.ostree_tar_path.startswith("http"):
+               self.ostree_tar_path = os.path.abspath(self.ostree_tar_path)
+           if not self.packageslist_file:
+               self.packageslist_file = (
+                   f"{os.path.dirname(__file__)}/packages_ostree_host.json"
+               )
+        path = f"{self.initrd_path}/installer"
+        os.makedirs(path)
 
-        if isinstance(options.packages_list, dict):
-            file_path = IsoBuilder.create_file(
-                initrd_path, "custom_pkg_list.json"
-            )
-            options.packages_list = CommandUtils.write_pkg_list_file(
-                file_path, options.packages_list
-            )
+        files = ["packageslist_file", "initrd_pkg_list_file"]
+        for key in files:
+            val = getattr(self, key)
+            if val and not os.path.isfile(val):
+                file_path = os.path.join(path, val.split('/')[-1])
+                var = CommandUtils.wget(val, file_path, False)
+                if not var[0]:
+                    raise Exception(f"Error - {var[1]}")
+                setattr(self, key, file_path)
 
-            merged_file_path = IsoBuilder.create_file(
-                initrd_path, "merged_pkgs.json"
-            )
-            options.packageslist_file = IsoBuilder.merge_packages_list(
-                merged_file_path,
-                options.packageslist_file,
-                options.packages_list,
-            )
+        if isinstance(self.packages_list, dict):
+           self.packageslist_file = self.process_packages(
+               self.packages_list, "custom_pkg_list.json", "merged_pkgs.json", self.packageslist_file, path
+           )
 
-        elif not os.path.exists(options.packageslist_file):
-            raise Exception("Custom packages json doesn't exist.")
+        elif not os.path.exists(self.packageslist_file):
+           raise Exception("Custom packages json doesn't exist.")
 
-        if isinstance(options.initrd_pkgs, dict):
-            file_path = IsoBuilder.create_file(
-                initrd_path, "custom_initrd_pkgs.json"
-            )
-            options.initrd_pkgs = CommandUtils.write_pkg_list_file(
-                file_path, options.initrd_pkgs
-            )
-
-            merged_file_path = IsoBuilder.create_file(
-                initrd_path, "merged_initrd_pkgs.json"
-            )
-            options.initrd_pkgs_list_file = IsoBuilder.merge_packages_list(
-                merged_file_path,
-                options.initrd_pkgs_list_file,
-                options.initrd_pkgs,
-            )
-
-        elif not options.initrd_pkgs_list_file:
-            logger.warning(
-                "WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{options.photon_release_version}/common/data/packages_installer_initrd.json"
-            )
+        if isinstance(self.initrd_pkgs, dict):
+           self.initrd_pkg_list_file = self.process_packages(
+               self.initrd_pkgs, "custom_initrd_pkgs.json", "merged_initrd_pkgs.json", self.initrd_pkg_list_file, path
+           )
+        elif not self.initrd_pkg_list_file:
+           self.logger.warning(
+               f"WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
+           )
 
     def setup(self):
         # create working directory
@@ -617,14 +605,14 @@ def main():
         help="Path to custom ostree tar.",
     )
     parser.add_argument(
-        "-c",
+        "-i",
         "--initrd-pkgs-list-file",
         dest="initrd_pkgs_list_file",
         default=None,
         help="<Optional> parameter to provide cutom initrd pkg list file.",
     )
     parser.add_argument(
-        "-i",
+        "-I",
         "--initrd-pkgs",
         dest="initrd_pkgs",
         default=None,
@@ -645,7 +633,7 @@ def main():
         help="Custom package list file.",
     )
     parser.add_argument(
-        "-q",
+        "-P",
         "--packages",
         dest="packages_list",
         default="",
@@ -688,7 +676,7 @@ def main():
         help="<Optional> rpm list file that contains list of rpms paths to copy"
     )
     parser.add_argument(
-        "-P",
+        "-m",
         "--param",
         dest='params',
         action='append',
@@ -706,6 +694,14 @@ def main():
 
     # Parse the command-line arguments
     options = parser.parse_args()
+    temp_file_path = ""
+    if not os.path.isfile(options.config):
+        file_descriptor, temp_file_path = tempfile.mkstemp(prefix="isoBuilder-", suffix="-config")
+        var = CommandUtils.wget(options.config, temp_file_path, False)
+        if not var[0]:
+            raise Exception(f"Error - {var[1]}")
+        options.config = temp_file_path
+
     if os.path.exists(options.config):
         params = {}
         for p in options.params:
@@ -738,9 +734,8 @@ def main():
         repo_paths=options.repo_paths,
         rpms_list_file=options.rpms_list_file)
 
-    IsoBuilder.validate_options(
-        options, f"{isoBuilder.initrd_path}/installer", isoBuilder.logger
-    )
+    isoBuilder.validate_options()
+
     isoBuilder.logger.info(
         f"Starting to generate photon {isoBuilder.photon_release_version} initrd.img..."
     )
@@ -764,8 +759,7 @@ def main():
     else:
         raise Exception(f"{options.function} not supported...")
 
-    isoBuilder.cleanUp()
-
+    isoBuilder.cleanUp(temp_file_path)
 
 if __name__ == '__main__':
     main()
