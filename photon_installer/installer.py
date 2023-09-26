@@ -72,6 +72,7 @@ class Installer(object):
         'partition_type',
         'partitions',
         'network',
+        'no_unmount',
         'password',
         'postinstall',
         'postinstallscripts',
@@ -757,10 +758,13 @@ class Installer(object):
         for p in partitions:
             # only fstrim fs types that are supported to avoid error messages
             # instead of filtering for the fs type we could use '--quiet-unsupported',
-            # but this is not implemented in other fstrim version of Photon 3.0
+            # but this is not implemented in older fstrim versions in Photon 3.0
             if p['filesystem'] in ['ext4', 'btrfs', 'xfs']:
                 mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
                 retval = self.cmd.run(["fstrim", mntpoint])
+
+        if self.install_config.get('no_unmount', False):
+            return
 
         while self.mounts:
             d = self.mounts.pop()
