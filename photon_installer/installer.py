@@ -1641,7 +1641,7 @@ class Installer(object):
             self._clear_vgs()
 
             # Clear the disk first
-            retval = self.cmd.run(['sgdisk', '-o', '-g', device])
+            retval = self.cmd.run(["sgdisk", "-Z", device])
             if retval != 0:
                 raise Exception(f"failed clearing disk '{device}'")
 
