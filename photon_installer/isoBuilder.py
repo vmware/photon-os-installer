@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+#
+# Copyright © 2023 VMware, Inc.
+# SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#
+# pylint: disable=invalid-name,missing-docstring,no-member
 
 import os
 import glob
@@ -8,18 +13,18 @@ import shutil
 import platform
 import yaml
 
+from generate_initrd import IsoInitrd
 from logger import Logger
 from argparse import ArgumentParser
 from commandutils import CommandUtils
-from tdnf import Tdnf
+from tdnf import Tdnf, create_repo_conf
+
 
 class IsoBuilder(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.pkg_list = []
-        self.working_dir = tempfile.mkdtemp(
-            prefix="photon-", dir=self.artifact_path
-        )
+        self.working_dir = tempfile.mkdtemp(prefix="photon-", dir=self.artifact_path)
         self.iso_name = os.path.join(
             self.artifact_path, f"photon-{self.photon_release_version}.iso"
         )
@@ -56,12 +61,8 @@ class IsoBuilder(object):
                 self.pkg_list.extend(pkg_data[f"packages_{self.architecture}"])
 
     def addGrubConfig(self):
-        self.logger.info("Adding grub config...")
-        if not os.path.exists(f"{self.working_dir}/boot/grub2"):
-            self.logger.info(
-                f"Creating grub dir: {self.working_dir}/boot/grub2"
-            )
-            os.makedirs(f"{self.working_dir}/boot/grub2")
+        self.logger.info(f"Adding grub config: {self.working_dir}/boot/grub2")
+        os.makedirs(f"{self.working_dir}/boot/grub2", exist_ok=True)
         with open(f"{self.working_dir}/boot/grub2/grub.cfg", "w") as conf_file:
             conf_file.writelines(
                 [
@@ -81,9 +82,7 @@ class IsoBuilder(object):
 
     def createInstallOptionJson(self):
         install_option_key = "custom"
-        additional_files = [
-            os.path.basename(file) for file in self.additional_files
-        ]
+        additional_files = [os.path.basename(file) for file in self.additional_files]
         if self.function == "build-rpm-ostree-iso":
             install_option_key = "ostree_host"
             additional_files = ["ostree-repo.tar.gz"]
@@ -102,7 +101,6 @@ class IsoBuilder(object):
 
     def setupReposDir(self):
         self.logger.info(f"setting up repo files in {self.yum_repos_dir}")
-
         os.makedirs(self.yum_repos_dir, exist_ok=True)
 
         # copy repo files from host
@@ -112,15 +110,20 @@ class IsoBuilder(object):
                     shutil.copy(repo_file, self.yum_repos_dir)
         else:
             for i, url in enumerate(self.repo_paths):
-                name = f"_repo{i}"
-                filepath = os.path.join(self.yum_repos_dir, f"{name}.repo")
-                with open(filepath, "wt") as f:
-                    f.write(f"[{name}]\n")
-                    if url.startswith("/"):
-                        url = f"file://{url}"
-                    f.write(f"baseurl={url}\n")
-                    f.write("enabled=1\n")
-                    f.write("gpgcheck=0\n")
+                if url.startswith("/"):
+                    url = f"file://{url}"
+                create_repo_conf(
+                    {
+                        f"_repo{i}": {
+                            "baseurl": url,
+                            "enabled": 1,
+                            "gpgcheck": 0,
+                            "name": "VMWare Photon Linux (x86_64)",
+                            "skip_if_unavailable": True,
+                        }
+                    },
+                    reposdir=self.yum_repos_dir,
+                )
 
         # additional repos
         if self.additional_repos:
@@ -136,31 +139,24 @@ class IsoBuilder(object):
         initrd_pkg_data = CommandUtils.jsonread(self.initrd_pkg_list_file)
         initrd_pkgs = initrd_pkg_data["packages"]
         if f"packages_{self.architecture}" in initrd_pkg_data:
-            initrd_pkgs.extend(
-                initrd_pkg_data[f"packages_{self.architecture}"]
-            )
+            initrd_pkgs.extend(initrd_pkg_data[f"packages_{self.architecture}"])
         self.logger.info(f"Initrd package list: {initrd_pkgs}")
         initrd_pkgs = " ".join(initrd_pkgs)
 
         self.createInstallOptionJson()
 
-        # Get absolute path of generate_initrd script
-        initrd_script = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/generate_initrd.sh"
-        )
         self.logger.info("Starting to generate initrd.img...")
-        self.runCmd(
-            [
-                initrd_script,
-                self.working_dir,
-                initrd_pkgs,
-                self.rpms_path,
-                self.photon_release_version,
-                self.packageslist_file,
-                "build_install_options_custom.json",
-                str(self.ostree_iso),
-            ]
+        iso_initrd = IsoInitrd(
+            logger=self.logger,
+            working_dir=self.working_dir,
+            initrd_pkgs=initrd_pkgs,
+            rpms_path=self.rpms_path,
+            photon_release_version=self.photon_release_version,
+            pkg_list_file=self.packageslist_file,
+            install_options_file="build_install_options_custom.json",
+            ostree_iso=self.ostree_iso,
         )
+        iso_initrd.build_initrd()
 
     def downloadRequiredFiles(self):
         """
@@ -169,11 +165,6 @@ class IsoBuilder(object):
         ISO's: [open_source_license.tar.gz, sample_ks.cfg, sample_ui.cfg, NOTICE-Apachev2, NOTICE-GPL2.0, EULA.txt]
         initrd: [sample_ks.cfg, sample_ui.cfg, EULA.txt]
         """
-
-        if not os.path.exists(self.working_dir):
-            self.logger.info(f"Creating working directory: {self.working_dir}")
-            os.makedirs(self.working_dir)
-
         if not self.initrd_pkg_list_file:
             initrd_pkg_file = f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
             self.logger.info(
@@ -204,9 +195,8 @@ class IsoBuilder(object):
             )
 
         # Download ostree tar to working directory if url is provided.
-        if (
-            self.function == "build-rpm-ostree-iso"
-            and self.ostree_tar_path.startswith("http")
+        if self.function == "build-rpm-ostree-iso" and self.ostree_tar_path.startswith(
+            "http"
         ):
             files_to_download.append(self.ostree_tar_path)
             self.ostree_tar_path = (
@@ -219,13 +209,13 @@ class IsoBuilder(object):
             output_file = os.path.basename(file)
             if file.startswith("http:"):
                 secure_download = False
-            if self.ostree_tar_path and os.path.basename(
-                file
-            ) == os.path.basename(self.ostree_tar_path):
+            if self.ostree_tar_path and os.path.basename(file) == os.path.basename(
+                self.ostree_tar_path
+            ):
                 output_file = "ostree-repo.tar.gz"
             retval, msg = self.cmdUtil.wget(
                 file,
-                f'{self.working_dir}/{output_file}',
+                f"{self.working_dir}/{output_file}",
                 enforce_https=secure_download,
             )
             if not retval:
@@ -237,15 +227,14 @@ class IsoBuilder(object):
         there is no dependency check
         """
         # TODO: deal with source pkgs which go to SRPMS
-        if not os.path.exists(self.rpms_path):
-            self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
-            os.makedirs(self.rpms_path, exist_ok=True)
+        self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
+        os.makedirs(self.rpms_path, exist_ok=True)
 
         for f in self.rpms_list:
             # list is a plain list of files with absolute paths, we need to
             # put them into their arch specific directory
             # arch is the second to last word in the file name separated by dots:
-            arch = f.split('.')[-2]
+            arch = f.split(".")[-2]
             arch_dir = os.path.join(self.rpms_path, arch)
             if not os.path.isdir(arch_dir):
                 os.makedirs(arch_dir)
@@ -259,10 +248,8 @@ class IsoBuilder(object):
         downloads packages as set by packages list files,
         including their dependencies by using tdnf
         """
-
-        if not os.path.exists(self.rpms_path):
-            self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
-            os.makedirs(self.rpms_path, exist_ok=True)
+        self.logger.info(f"Creating RPMS directory: {self.rpms_path}")
+        os.makedirs(self.rpms_path, exist_ok=True)
 
         # Add installer initrd and custom packages to package list..
         self.addPkgsToList(self.initrd_pkg_list_file)
@@ -288,15 +275,15 @@ class IsoBuilder(object):
         self.logger.info(f"List of packages to download: {pkg_list}")
 
         # skip downloading if repo already exists
-        if not os.path.isdir(os.path.join(self.rpms_path, 'repodata')):
+        if not os.path.isdir(os.path.join(self.rpms_path, "repodata")):
             self.logger.info("downloading packages...")
             retval, tdnf_out = self.tdnf.run(
                 [
-                    '--alldeps',
-                    '--downloadonly',
-                    '--downloaddir',
+                    "--alldeps",
+                    "--downloadonly",
+                    "--downloaddir",
                     self.rpms_path,
-                    'install',
+                    "install",
                 ]
                 + self.pkg_list,
                 directories=[self.rpms_path],
@@ -307,17 +294,15 @@ class IsoBuilder(object):
 
         # Separate out packages downloaded into arch specific directories.
         # Run createrepo on the rpm download path once downloaded.
-        if not os.path.exists(f"{self.rpms_path}/x86_64"):
-            os.mkdir(f"{self.rpms_path}/x86_64")
-        if not os.path.exists(f"{self.rpms_path}/noarch"):
-            os.mkdir(f"{self.rpms_path}/noarch")
+        os.makedirs(f"{self.rpms_path}/x86_64", exist_ok=True)
+        os.makedirs(f"{self.rpms_path}/noarch", exist_ok=True)
         for file in os.listdir(f"{self.working_dir}/RPMS"):
-            if file.endswith('.x86_64.rpm'):
+            if file.endswith(".x86_64.rpm"):
                 shutil.move(
                     f"{self.rpms_path}/{file}",
                     f"{self.rpms_path}/x86_64/{file}",
                 )
-            elif file.endswith('.noarch.rpm'):
+            elif file.endswith(".noarch.rpm"):
                 shutil.move(
                     f"{self.rpms_path}/{file}",
                     f"{self.rpms_path}/noarch/{file}",
@@ -359,23 +344,18 @@ class IsoBuilder(object):
         )
         self.runCmd(f"mkdosfs {self.working_dir}/{self.efi_img}")
         os.makedirs(efi_dir)
-        self.runCmd(
-            f"mount -o loop {self.working_dir}/{self.efi_img} {efi_dir}"
-        )
+        self.runCmd(f"mount -o loop {self.working_dir}/{self.efi_img} {efi_dir}")
         shutil.move(f"{self.working_dir}/boot/efi/EFI", efi_dir)
         os.listdir(efi_dir)
         self.runCmd(f"umount {efi_dir}")
-        shutil.rmtree(efi_dir)
+        self.cmdUtil.remove_files([efi_dir])
 
     def createIsolinux(self):
         """
         Install photon-iso-config rpm in working dir.
         """
-        if not os.path.exists(f"{self.working_dir}/isolinux"):
-            os.makedirs(f"{self.working_dir}/isolinux")
-        shutil.move(
-            f"{self.working_dir}/initrd.img", f"{self.working_dir}/isolinux"
-        )
+        os.makedirs(f"{self.working_dir}/isolinux", exist_ok=True)
+        shutil.move(f"{self.working_dir}/initrd.img", f"{self.working_dir}/isolinux")
 
         self.logger.info(
             "Installing photon-iso-config and syslinux in working directory..."
@@ -388,7 +368,7 @@ class IsoBuilder(object):
         self.logger.info("installing packages for isolinux...")
         isolinux_dir = os.path.join(self.working_dir, "isolinux-temp")
         retval, tdnf_out = self.tdnf.run(
-            ['install', '--installroot', isolinux_dir] + pkg_list,
+            ["install", "--installroot", isolinux_dir] + pkg_list,
             directories=[isolinux_dir],
         )
         if retval != 0:
@@ -413,24 +393,18 @@ class IsoBuilder(object):
                 f"{self.working_dir}/isolinux-temp/usr/share/syslinux/{file}",
                 f"{self.working_dir}/isolinux/{file}",
             )
-        shutil.rmtree(f"{self.working_dir}/isolinux-temp")
+        self.cmdUtil.remove_files([f"{self.working_dir}/isolinux-temp"])
         for file in ["tdnf.conf", "photon-local.repo"]:
             if os.path.exists(f"{self.working_dir}/{file}"):
                 os.remove(f"{self.working_dir}/{file}")
-        shutil.move(
-            f"{self.working_dir}/sample_ks.cfg", f"{self.working_dir}/isolinux"
-        )
+        shutil.move(f"{self.working_dir}/sample_ks.cfg", f"{self.working_dir}/isolinux")
         if self.kickstart_path:
             self.logger.info(
                 f"Moving {self.kickstart_path} to {self.working_dir}/isolinux..."
             )
-            shutil.copyfile(
-                f"{self.kickstart_path}", f"{self.working_dir}/isolinux"
-            )
+            shutil.copyfile(f"{self.kickstart_path}", f"{self.working_dir}/isolinux")
         if self.boot_cmdline_param:
-            self.logger.info(
-                "Adding Boot command line parameters to isolinux menu..."
-            )
+            self.logger.info("Adding Boot command line parameters to isolinux menu...")
             self.runCmd(
                 f"sed -i '/photon.media=cdrom/ s#$# {self.boot_cmdline_param}#' {self.working_dir}/isolinux/menu.cfg"
             )
@@ -441,10 +415,8 @@ class IsoBuilder(object):
             # Rename ostree tar to ostree-repo.tar.gz in iso.
             if (
                 self.ostree_tar_path
-                and os.path.basename(file)
-                == os.path.basename(self.ostree_tar_path)
-                and os.path.basename(self.ostree_tar_path)
-                != "ostree-repo.tar.gz"
+                and os.path.basename(file) == os.path.basename(self.ostree_tar_path)
+                and os.path.basename(self.ostree_tar_path) != "ostree-repo.tar.gz"
             ):
                 output_file = f"{self.working_dir}/ostree-repo.tar.gz"
             if not os.path.exists(output_file):
@@ -454,10 +426,6 @@ class IsoBuilder(object):
         """
         Create Custom Iso
         """
-        if not os.path.exists(self.working_dir):
-            self.logger.info(f"Creating working directory: {self.working_dir}")
-            os.makedirs(self.working_dir)
-
         # Create isolinux dir inside iso.
         self.createIsolinux()
 
@@ -475,47 +443,51 @@ class IsoBuilder(object):
 
         self.addGrubConfig()
 
+        # Clean up yum repos dir before creating iso
+        if os.path.exists(self.yum_repos_dir):
+            self.cmdUtil.remove_files([self.yum_repos_dir])
+
         self.logger.info(f"Generating Iso: {self.iso_name}")
         build_iso_cmd = f"cd {self.working_dir} && "
-        build_iso_cmd += "mkisofs -R -l -L -D -b isolinux/isolinux.bin -c isolinux/boot.cat "
+        build_iso_cmd += (
+            "mkisofs -R -l -L -D -b isolinux/isolinux.bin -c isolinux/boot.cat "
+        )
         build_iso_cmd += "-no-emul-boot -boot-load-size 4 -boot-info-table "
         build_iso_cmd += f"-eltorito-alt-boot -e {self.efi_img} -no-emul-boot "
-        build_iso_cmd += f"-V \"PHOTON_$(date +%Y%m%d)\" {self.working_dir} > {self.iso_name}"
+        build_iso_cmd += (
+            f'-V "PHOTON_$(date +%Y%m%d)" {self.working_dir} > {self.iso_name}'
+        )
         self.runCmd(build_iso_cmd)
-
 
     def merge_packages_list(self, merged_file, file1, file2):
         if file1:
-            merged_file = CommandUtils.merge_json_files(
-                merged_file, file1, file2
-            )
+            merged_file = CommandUtils.merge_json_files(merged_file, file1, file2)
             return merged_file
         else:
             return file2
 
-    def process_packages(self, package_data, target_file, merged_file_name, list_file, path):
+    def process_packages(
+        self, package_data, target_file, merged_file_name, list_file, path
+    ):
         file_path = os.path.join(path, target_file)
         package_data = CommandUtils.write_pkg_list_file(file_path, package_data)
         merged_file_path = os.path.join(path, merged_file_name)
-        return self.merge_packages_list(
-           merged_file_path, list_file, package_data
-        )
+        return self.merge_packages_list(merged_file_path, list_file, package_data)
 
     def validate_options(self):
-
         if not self.photon_release_version:
-           raise Exception(
-              "the following arguments are required: -v/--photon-release-version"
-           )
+            raise Exception(
+                "the following arguments are required: -v/--photon-release-version"
+            )
         if self.function == "build-rpm-ostree-iso":
-           if not self.ostree_tar_path:
-               raise Exception("Ostree tar path not provided...")
-           elif not self.ostree_tar_path.startswith("http"):
-               self.ostree_tar_path = os.path.abspath(self.ostree_tar_path)
-           if not self.packageslist_file:
-               self.packageslist_file = (
-                   f"{os.path.dirname(__file__)}/packages_ostree_host.json"
-               )
+            if not self.ostree_tar_path:
+                raise Exception("Ostree tar path not provided...")
+            elif not self.ostree_tar_path.startswith("http"):
+                self.ostree_tar_path = os.path.abspath(self.ostree_tar_path)
+            if not self.packageslist_file:
+                self.packageslist_file = (
+                    f"{os.path.dirname(__file__)}/packages_ostree_host.json"
+                )
         path = f"{self.initrd_path}/installer"
         os.makedirs(path)
 
@@ -523,34 +495,41 @@ class IsoBuilder(object):
         for key in files:
             val = getattr(self, key)
             if val and not os.path.isfile(val):
-                file_path = os.path.join(path, val.split('/')[-1])
+                file_path = os.path.join(path, val.split("/")[-1])
                 var = CommandUtils.wget(val, file_path, False)
                 if not var[0]:
                     raise Exception(f"Error - {var[1]}")
                 setattr(self, key, file_path)
 
         if isinstance(self.packages_list, dict):
-           self.packageslist_file = self.process_packages(
-               self.packages_list, "custom_pkg_list.json", "merged_pkgs.json", self.packageslist_file, path
-           )
+            self.packageslist_file = self.process_packages(
+                self.packages_list,
+                "custom_pkg_list.json",
+                "merged_pkgs.json",
+                self.packageslist_file,
+                path,
+            )
 
         elif not os.path.exists(self.packageslist_file):
-           raise Exception("Custom packages json doesn't exist.")
+            raise Exception("Custom packages json doesn't exist.")
 
         if isinstance(self.initrd_pkgs, dict):
-           self.initrd_pkg_list_file = self.process_packages(
-               self.initrd_pkgs, "custom_initrd_pkgs.json", "merged_initrd_pkgs.json", self.initrd_pkg_list_file, path
-           )
+            self.initrd_pkg_list_file = self.process_packages(
+                self.initrd_pkgs,
+                "custom_initrd_pkgs.json",
+                "merged_initrd_pkgs.json",
+                self.initrd_pkg_list_file,
+                path,
+            )
         elif not self.initrd_pkg_list_file:
-           self.logger.warning(
-               f"WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
-           )
+            self.logger.warning(
+                f"WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
+            )
 
     def setup(self):
         # create working directory
-        if not os.path.exists(self.working_dir):
-            self.logger.info(f"Creating working directory: {self.working_dir}")
-            os.makedirs(self.working_dir)
+        self.logger.info(f"Creating working directory: {self.working_dir}")
+        os.makedirs(self.working_dir, exist_ok=True)
 
         self.ostree_iso = False
         if self.function == "build-rpm-ostree-iso":
@@ -709,29 +688,29 @@ def main():
         dest="repo_paths",
         action="append",
         default=[],
-        help="<Optional> repo paths or urls to download rpms from"
+        help="<Optional> repo paths or urls to download rpms from",
     )
     parser.add_argument(
         "--rpms-list-file",
         dest="rpms_list_file",
         type=str,
         default=None,
-        help="<Optional> rpm list file that contains list of rpms paths to copy"
+        help="<Optional> rpm list file that contains list of rpms paths to copy",
     )
     parser.add_argument(
         "-m",
         "--param",
-        dest='params',
-        action='append',
+        dest="params",
+        action="append",
         default=[],
         help="Specify a parameter value. This option can be used multiple times to provide multiple parameter values.",
     )
     parser.add_argument(
-        '-y',
-        '--config',
-        dest='config',
+        "-y",
+        "--config",
+        dest="config",
         type=str,
-        help='Path to the configuration YAML file',
+        help="Path to the configuration YAML file",
         default="",
     )
 
@@ -739,7 +718,7 @@ def main():
     options = parser.parse_args()
     temp_file_path = ""
     if options.config and not os.path.isfile(options.config):
-        file_descriptor, temp_file_path = tempfile.mkstemp(prefix="isoBuilder-", suffix="-config")
+        _, temp_file_path = tempfile.mkstemp(prefix="isoBuilder-", suffix="-config")
         var = CommandUtils.wget(options.config, temp_file_path, False)
         if not var[0]:
             raise Exception(f"Error - {var[1]}")
@@ -748,11 +727,11 @@ def main():
     if os.path.exists(options.config):
         params = {}
         for p in options.params:
-            k, v = p.split('=')
+            k, v = p.split("=")
             params[k] = yaml.safe_load(v)
 
         # Load config from YAML file
-        with open(options.config, 'r') as f:
+        with open(options.config, "r") as f:
             config = CommandUtils.readConfig(f, params=params)
             # Override YAML values with command-line arguments
             for dest, value in vars(options).items():
@@ -775,7 +754,8 @@ def main():
         artifact_path=options.artifact_path,
         packages_list=options.packages_list,
         repo_paths=options.repo_paths,
-        rpms_list_file=options.rpms_list_file)
+        rpms_list_file=options.rpms_list_file,
+    )
 
     isoBuilder.validate_options()
 
@@ -795,13 +775,13 @@ def main():
         isoBuilder.logger.debug(
             f"Moving {isoBuilder.working_dir}/initrd.img to {options.artifact_path}"
         )
-        shutil.move(
-            f"{isoBuilder.working_dir}/initrd.img", options.artifact_path
-        )
+        shutil.move(f"{isoBuilder.working_dir}/initrd.img", options.artifact_path)
     else:
         raise Exception(f"{options.function} not supported...")
 
-    isoBuilder.cleanUp(temp_file_path)
+    # Clean Up Working Directory and temp config file
+    isoBuilder.cmdUtil.remove_files([isoBuilder.working_dir, temp_file_path])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
