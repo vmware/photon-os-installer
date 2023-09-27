@@ -719,21 +719,6 @@ def main():
         help="<Optional> rpm list file that contains list of rpms paths to copy"
     )
     parser.add_argument(
-        "-R",
-        "--repo-paths",
-        dest="repo_paths",
-        action="append",
-        default=[],
-        help="<Optional> repo paths or urls to download rpms from"
-    )
-    parser.add_argument(
-        "--rpms-list-file",
-        dest="rpms_list_file",
-        type=str,
-        default=None,
-        help="<Optional> rpm list file that contains list of rpms paths to copy"
-    )
-    parser.add_argument(
         "-m",
         "--param",
         dest='params',
