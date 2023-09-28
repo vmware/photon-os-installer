@@ -25,9 +25,17 @@ class IsoBuilder(object):
         self.__dict__.update(kwargs)
         self.pkg_list = []
         self.working_dir = tempfile.mkdtemp(prefix="photon-", dir=self.artifact_path)
-        self.iso_name = os.path.join(
-            self.artifact_path, f"photon-{self.photon_release_version}.iso"
-        )
+
+        if self.iso_name is None:
+            self.iso_name = os.path.join(
+                self.artifact_path, f"photon-{self.photon_release_version}.iso"
+            )
+        else:
+            if not self.iso_name.startswith("/"):
+                self.iso_name = os.path.join(
+                    self.artifact_path, self.iso_name
+                )
+
         self.rpms_path = os.path.join(self.working_dir, "RPMS")
         self.initrd_path = os.path.join(self.working_dir, "photon-chroot")
         self.photon_docker_image = f"photon:{self.photon_release_version}"
@@ -713,6 +721,14 @@ def main():
         help="Path to the configuration YAML file",
         default="",
     )
+    parser.add_argument(
+        "-n",
+        "--name",
+        dest="iso_name",
+        type=str,
+        help="Name of the iso file",
+        default=None
+    )
 
     # Parse the command-line arguments
     options = parser.parse_args()
@@ -755,6 +771,7 @@ def main():
         packages_list=options.packages_list,
         repo_paths=options.repo_paths,
         rpms_list_file=options.rpms_list_file,
+        iso_name=options.iso_name
     )
 
     isoBuilder.validate_options()
