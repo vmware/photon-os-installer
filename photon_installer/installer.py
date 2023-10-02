@@ -55,6 +55,7 @@ class Installer(object):
         'additional_files',
         'additional_packages',
         'additional_rpms_path',
+        'ansible',
         'arch',
         'autopartition',
         'bootmode',
@@ -330,6 +331,10 @@ class Installer(object):
         # add bootloader packages after bootmode set
         if install_config['bootmode'] in ['dualboot', 'efi']:
             packages.append('grub2-efi-image')
+
+        # ansible needs python3 in the target
+        if 'ansible' in install_config:
+            packages.append("python3")
 
         install_config['packages'] = list(set(packages))
 
@@ -652,6 +657,7 @@ class Installer(object):
             self._update_abupdate()
         self._execute_modules(modules.commons.POST_INSTALL)
         self._deactivate_network_in_chroot()
+        self._ansible_run()
         self._unmount_all()
 
 
@@ -689,6 +695,57 @@ class Installer(object):
         # Configure network when in live mode (ISO)
         if (self.install_config.get('live', True)):
             nm.restart_networkd()
+
+
+    def _ansible_run(self):
+        if 'ansible' not in self.install_config:
+            return
+
+        ansibles = self.install_config['ansible']
+        for ans_cfg in ansibles:
+            playbook = ans_cfg['playbook']
+            cmd = [
+                "/usr/bin/ansible-playbook",
+                "-c", "chroot",
+                # the comma is important:
+                "-i", self.photon_root + ",",
+                "-u", "root",
+                playbook]
+
+            verbose= "-v"
+            if 'verbosity' in ans_cfg:
+                if ans_cfg['verbosity'] > 0:
+                    verbose = "-" + "v"*ans_cfg['verbosity']
+                else:
+                    verbose = None
+            if verbose is not None:
+                cmd.append(verbose)
+
+            if 'extra-vars' in ans_cfg:
+                extra_vars = ans_cfg['extra-vars']
+                if type(extra_vars) is str:
+                    # file name (must start with '@'), or setting
+                    cmd.extend(["--extra-vars", extra_vars])
+                elif type(extra_vars) is list:
+                    # multiple settings
+                    for setting in extra_vars:
+                        cmd.extend(["--extra-vars", setting])
+
+            for option in ['tags', 'skip-tags']:
+                if option in ans_cfg:
+                    tags = ans_cfg[option]
+                    if type(tags) is list:
+                        cmd.extend([f"--{option}", ",".join(tags)])
+                    elif type(tags) is str:
+                        cmd.extend([f"--{option}", tags])
+
+            logf = None
+            if ans_cfg.get('logfile', None) is not None:
+                logf = open(ans_cfg['logfile'], "wt")
+
+            ret = subprocess.run(cmd, stdout=logf)
+            if ret.returncode != 0:
+                self.logger.error(f"ansible run for playbook {playbook} failed")
 
 
     def _unmount_all(self):

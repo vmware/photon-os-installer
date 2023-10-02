@@ -41,6 +41,7 @@ RUN tdnf makecache && \
     python3 python3-pip python3-setuptools python3-curses \
     python3-pyYAML python3-lxml python3-cracklib qemu-img \
     open-vmdk ostree rpm-ostree \
+    stig-hardening \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 
@@ -56,5 +57,8 @@ COPY create-image \
      /usr/bin
 
 VOLUME /repo /workdir
+
+# ansible (for stig-hardening) needs this
+ENV LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8
 
 WORKDIR /workdir
