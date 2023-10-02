@@ -330,7 +330,7 @@ class IsoBuilder(object):
             else:
                 raise Exception(f"no file matching '*-primary.xml.gz' found in {self.rpms_path}/repodata")
         else:
-            raise Exception("no repdata folder found in {self.rpms_path}")
+            raise Exception("no repodata folder found in {self.rpms_path}")
 
     def cleanUp(self, temp_file):
         if temp_file:

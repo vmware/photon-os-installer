@@ -123,6 +123,8 @@ class Installer(object):
         self.photon_root = os.path.join(self.working_directory, "photon-chroot")
         self.tdnf_conf_path = os.path.join(self.working_directory, "tdnf.conf")
 
+        self.setup_grub_command = os.path.join(os.path.dirname(__file__), "mk-setup-grub.sh")
+
         signal.signal(signal.SIGINT, self.exit_gracefully)
         self.lvs_to_detach = {'vgs': [], 'pvs': []}
 
@@ -437,8 +439,6 @@ class Installer(object):
             if not script.startswith("/"):
                 script = os.path.join(os.getcwd(), script)
             self.setup_grub_command = script
-        else:
-            self.setup_grub_command = os.path.join(os.path.dirname(__file__), "mk-setup-grub.sh")
 
 
     def _check_install_config(self, install_config):
