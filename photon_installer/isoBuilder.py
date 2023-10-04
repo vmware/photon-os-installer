@@ -36,6 +36,9 @@ class IsoBuilder(object):
                     self.artifact_path, self.iso_name
                 )
 
+        if self.initrd_pkg_list_file is None:
+            self.initrd_pkg_list_file = os.path.join(os.path.dirname(__file__), "packages_installer_initrd.json")
+
         self.rpms_path = os.path.join(self.working_dir, "RPMS")
         self.initrd_path = os.path.join(self.working_dir, "photon-chroot")
         self.photon_docker_image = f"photon:{self.photon_release_version}"
@@ -173,18 +176,6 @@ class IsoBuilder(object):
         ISO's: [open_source_license.tar.gz, sample_ks.cfg, sample_ui.cfg, NOTICE-Apachev2, NOTICE-GPL2.0, EULA.txt]
         initrd: [sample_ks.cfg, sample_ui.cfg, EULA.txt]
         """
-        if not self.initrd_pkg_list_file:
-            initrd_pkg_file = f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
-            self.logger.info(
-                f"Downloading initrd package list file {initrd_pkg_file}..."
-            )
-            self.cmdUtil.wget(
-                initrd_pkg_file,
-                f"{self.working_dir}/packages_installer_initrd.json",
-            )
-            self.initrd_pkg_list_file = (
-                f"{self.working_dir}/packages_installer_initrd.json"
-            )
 
         # Download required files for given branch and extract it in working dir.
         files_to_download = [
@@ -529,10 +520,7 @@ class IsoBuilder(object):
                 self.initrd_pkg_list_file,
                 path,
             )
-        elif not self.initrd_pkg_list_file:
-            self.logger.warning(
-                f"WARNING: 'custom-initrd-pkgs' is empty. It will be downloaded from https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/common/data/packages_installer_initrd.json"
-            )
+
 
     def setup(self):
         # create working directory
