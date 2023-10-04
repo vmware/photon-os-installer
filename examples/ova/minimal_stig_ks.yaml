@@ -6,7 +6,7 @@ password:
 
 disks:
     default:
-        filename: minimal.img
+        filename: minimal-stig.img
         size: 10240
 
 partitions:
@@ -22,7 +22,7 @@ partitions:
     - sizepercent: 5
       filesystem: swap
 
-packagelist_file: packages_minimal.json
+packagelist_file: packages_stig.json
 
 additional_packages:
     - vim
@@ -33,4 +33,10 @@ linux_flavor: linux
 
 eject_cdrom: false
 
-stig_harden: True
+ansible:
+    - playbook: /usr/share/ansible/stig-hardening/playbook.yml
+      logfile: ansible-stig-skip.log
+      verbosity: 2
+      extra-vars: "@/usr/share/ansible/stig-hardening/vars-chroot.yml"
+      skip-tags:
+          - PHTN-50-000245
