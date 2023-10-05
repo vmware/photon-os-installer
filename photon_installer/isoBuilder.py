@@ -5,12 +5,14 @@
 #
 # pylint: disable=invalid-name,missing-docstring,no-member
 
-import os
+
 import glob
 import json
-import tempfile
-import shutil
+import os
 import platform
+import shutil
+import tempfile
+import urllib.request
 import yaml
 
 from generate_initrd import IsoInitrd
@@ -145,14 +147,6 @@ class IsoBuilder(object):
         """
         Generate custom initrd
         """
-        initrd_pkgs = None
-
-        initrd_pkg_data = CommandUtils.jsonread(self.initrd_pkg_list_file)
-        initrd_pkgs = initrd_pkg_data["packages"]
-        if f"packages_{self.architecture}" in initrd_pkg_data:
-            initrd_pkgs.extend(initrd_pkg_data[f"packages_{self.architecture}"])
-        self.logger.info(f"Initrd package list: {initrd_pkgs}")
-        initrd_pkgs = " ".join(initrd_pkgs)
 
         self.createInstallOptionJson()
 
@@ -160,7 +154,7 @@ class IsoBuilder(object):
         iso_initrd = IsoInitrd(
             logger=self.logger,
             working_dir=self.working_dir,
-            initrd_pkgs=initrd_pkgs,
+            initrd_pkgs=self.initrd_pkgs,
             rpms_path=self.rpms_path,
             photon_release_version=self.photon_release_version,
             pkg_list_file=self.packageslist_file,
@@ -450,21 +444,6 @@ class IsoBuilder(object):
         )
         self.runCmd(build_iso_cmd)
 
-    def merge_packages_list(self, merged_file, file1, file2):
-        if file1:
-            merged_file = CommandUtils.merge_json_files(merged_file, file1, file2)
-            return merged_file
-        else:
-            return file2
-
-    def process_packages(
-        self, package_data, target_file, merged_file_name, list_file, path
-    ):
-        file_path = os.path.join(path, target_file)
-        package_data = CommandUtils.write_pkg_list_file(file_path, package_data)
-        merged_file_path = os.path.join(path, merged_file_name)
-        return self.merge_packages_list(merged_file_path, list_file, package_data)
-
     def validate_options(self):
         if not self.photon_release_version:
             raise Exception(
@@ -482,36 +461,18 @@ class IsoBuilder(object):
         path = f"{self.initrd_path}/installer"
         os.makedirs(path)
 
-        files = ["packageslist_file", "initrd_pkg_list_file"]
-        for key in files:
-            val = getattr(self, key)
-            if val and not os.path.isfile(val):
-                file_path = os.path.join(path, val.split("/")[-1])
-                var = CommandUtils.wget(val, file_path, False)
-                if not var[0]:
-                    raise Exception(f"Error - {var[1]}")
-                setattr(self, key, file_path)
+    def read_pkglist_file(self, plf):
+        packages = []
+        arch = self.architecture
 
-        if isinstance(self.packages_list, dict):
-            self.packageslist_file = self.process_packages(
-                self.packages_list,
-                "custom_pkg_list.json",
-                "merged_pkgs.json",
-                self.packageslist_file,
-                path,
-            )
+        plf_json = self.cmdUtil.load_json(plf)
 
-        elif not os.path.exists(self.packageslist_file):
-            raise Exception("Custom packages json doesn't exist.")
+        if 'packages' in plf_json:
+            packages.extend(plf_json['packages'])
+        if f'packages_{arch}' in plf_json:
+            packages.extend(plf_json[f'packages_{arch}'])
 
-        if isinstance(self.initrd_pkgs, dict):
-            self.initrd_pkg_list_file = self.process_packages(
-                self.initrd_pkgs,
-                "custom_initrd_pkgs.json",
-                "merged_initrd_pkgs.json",
-                self.initrd_pkg_list_file,
-                path,
-            )
+        return packages
 
 
     def setup(self):
@@ -533,6 +494,22 @@ class IsoBuilder(object):
                     self.rpms_list.append(line.strip())
 
         self.downloadRequiredFiles()
+
+        # merge initrd pkg list
+        if self.initrd_pkg_list_file is not None:
+            self.initrd_pkgs.extend(self.read_pkglist_file(self.initrd_pkg_list_file))
+        self.initrd_pkgs = list(set(self.initrd_pkgs))
+
+        # merge pkg list for list of packages to be installed in target
+        if self.packageslist_file is not None:
+            self.packages_list.extend(self.read_pkglist_file(self.packageslist_file))
+        self.packages_list = list(set(self.packages_list))
+
+        # create packages.json file from packages_list
+        self.packageslist_file = os.path.join(self.working_dir, "packages.json")
+        with open(self.packageslist_file, "wt") as f:
+            pkg_json = {'packages': self.packages_list}
+            json.dump(pkg_json, f, indent=4)
 
         # Download all packages before installing them during initrd generation.
         # Skip downloading packages if ostree iso.
@@ -583,14 +560,15 @@ def main():
         "--initrd-pkgs-list-file",
         dest="initrd_pkgs_list_file",
         default=None,
-        help="<Optional> parameter to provide cutom initrd pkg list file.",
+        help="<Optional> package list file or URL for the initrd",
     )
     parser.add_argument(
         "-I",
         "--initrd-pkgs",
         dest="initrd_pkgs",
-        default=None,
-        help="<Optional> parameter to provide cutom initrd pkg list",
+        type=str,
+        default="",
+        help="<Optional> list of packages to be installed in the initrd, separated by commas",
     )
     parser.add_argument(
         "-r",
@@ -604,14 +582,14 @@ def main():
         "--packageslist-file",
         dest="packageslist_file",
         default="",
-        help="Custom package list file.",
+        help="Custom package list file or URL",
     )
     parser.add_argument(
         "-P",
         "--packages",
         dest="packages_list",
         default="",
-        help="Custom package list.",
+        help="<Optional> list of packages to be installed in the target, separated by commas",
     )
     parser.add_argument(
         "-k",
@@ -707,12 +685,12 @@ def main():
         photon_release_version=options.photon_release_version,
         log_level=options.log_level,
         initrd_pkg_list_file=options.initrd_pkgs_list_file,
-        initrd_pkgs=options.initrd_pkgs,
+        initrd_pkgs=options.initrd_pkgs.split(",") if options.initrd_pkgs else [],
         ostree_tar_path=options.ostree_tar_path,
         additional_repos=options.additional_repos,
         boot_cmdline_param=options.boot_cmdline_param,
         artifact_path=options.artifact_path,
-        packages_list=options.packages_list,
+        packages_list=options.packages_list.split(",") if options.packages_list else [],
         repo_paths=options.repo_paths,
         rpms_list_file=options.rpms_list_file,
         iso_name=options.iso_name

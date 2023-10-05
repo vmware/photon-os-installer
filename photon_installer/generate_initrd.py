@@ -186,7 +186,7 @@ class IsoInitrd:
         self.cmd_util.remove_files(files_to_remove)
 
     def install_initrd_packages(self):
-        tdnf_args = ["--rpmverbosity", "10", "install"] + self.initrd_pkgs.split()
+        tdnf_args = ["install"] + self.initrd_pkgs
         mount_dirs = []
         if self.ostree_iso:
             self.tdnf.config_file = None
