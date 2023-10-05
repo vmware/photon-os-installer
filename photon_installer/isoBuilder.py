@@ -481,6 +481,7 @@ class IsoBuilder(object):
         else:
             self.additional_files.append(self.ostree_tar_path)
 
+
 def main():
     usage = "Usage: %prog [options]"
     parser = ArgumentParser(usage)

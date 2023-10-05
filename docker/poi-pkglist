@@ -97,6 +97,11 @@ def main():
     pkg_list.add('lvm2')
     pkg_list.add('grub2-efi-image')
 
+    # needed for ISO
+    pkg_list.add("photon-iso-config")
+    if arch == "x86_64":
+        pkg_list.add("syslinux")
+
     for p in pkg_list:
         print(p)
 
