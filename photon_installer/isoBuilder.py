@@ -521,43 +521,6 @@ class IsoBuilder(object):
                 path,
             )
 
-
-    def setup(self):
-        # create working directory
-        self.logger.info(f"Creating working directory: {self.working_dir}")
-        os.makedirs(self.working_dir, exist_ok=True)
-
-        self.ostree_iso = False
-        if self.function == "build-rpm-ostree-iso":
-            self.ostree_iso = True
-        self.logger.info(f"building for ostree: {self.ostree_iso}")
-
-        # read list of RPMs from file, if given
-        self.rpms_list = None
-        if self.rpms_list_file is not None:
-            self.rpms_list = []
-            with open(self.rpms_list_file, "rt") as f:
-                for line in f:
-                    self.rpms_list.append(line.strip())
-
-        self.downloadRequiredFiles()
-
-        # Download all packages before installing them during initrd generation.
-        # Skip downloading packages if ostree iso.
-        if not self.ostree_iso:
-            self.setupReposDir()
-            # if we have a list of RPMs to ship with the iso, use that
-            # (generic ISO use case)
-            if self.rpms_list is not None:
-                self.copyRPMs()
-            # otherwise, use the packages list, which will also be used for
-            # installation
-            # (custom ISO use case)
-            else:
-                self.downloadPkgs()
-        else:
-            self.additional_files.append(self.ostree_tar_path)
-
     def setup(self):
         # create working directory
         if not os.path.exists(self.working_dir):
