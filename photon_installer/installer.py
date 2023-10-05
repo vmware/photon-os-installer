@@ -310,29 +310,28 @@ class Installer(object):
                 install_config['bootmode'] = 'efi'
 
         # extend 'packages' by 'packagelist_file' and 'additional_packages'
-        packages = []
+        packages = install_config.get('packages', [])
+        if 'additional_packages' in install_config:
+            packages.extend(install_config['additional_packages'])
+        if f'packages_{arch}' in install_config:
+            packages.extend(install_config[f'packages_{arch}'])
         if 'packagelist_file' in install_config:
             plf = install_config['packagelist_file']
             if not plf.startswith('/'):
                 plf = os.path.join(os.getcwd(), plf)
-            json_wrapper_package_list = JsonWrapper(plf)
-            package_list_json = json_wrapper_package_list.read()
-            if "packages_" + install_config['arch'] in package_list_json:
-                packages.extend(package_list_json["packages"] + package_list_json["packages_"+install_config['arch']])
-            else:
-                packages.extend(package_list_json["packages"])
 
-        if 'additional_packages' in install_config:
-            packages.extend(install_config['additional_packages'])
+            with open(plf, "rt") as f:
+                plf_json = json.load(f)
+            if 'packages' in plf_json:
+                packages.extend(plf_json['packages'])
+            if f'packages_{arch}' in plf_json:
+                packages.extend(plf_json[f'packages_{arch}'])
 
         # add bootloader packages after bootmode set
         if install_config['bootmode'] in ['dualboot', 'efi']:
             packages.append('grub2-efi-image')
 
-        if 'packages' in install_config:
-            install_config['packages'] = list(set(packages + install_config['packages']))
-        else:
-            install_config['packages'] = packages
+        install_config['packages'] = list(set(packages))
 
         # live means online system, and it's True be default. When you create an image for
         # target system, live should be set to False.
