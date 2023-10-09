@@ -432,8 +432,8 @@ class Installer(object):
                                                 "gpgcheck": 0,
                                                 "enabled": 1 }
 
-        if 'setup_grub_script' in self.install_config:
-            script = self.install_config['setup_grub_script']
+        if 'setup_grub_script' in install_config:
+            script = install_config['setup_grub_script']
             # expect script in current working dir, unless path is absolute
             if not script.startswith("/"):
                 script = os.path.join(os.getcwd(), script)
