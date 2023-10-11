@@ -744,9 +744,12 @@ class Installer(object):
             if ans_cfg.get('logfile', None) is not None:
                 logf = open(ans_cfg['logfile'], "wt")
 
-            ret = subprocess.run(cmd, stdout=logf)
-            if ret.returncode != 0:
-                self.logger.error(f"ansible run for playbook {playbook} failed")
+            self.logger.info(f"running ansible playbook {playbook}")
+            ret = subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            assert ret.returncode == 0, f"ansible run for playbook {playbook} failed"
+
+            if logf is not None:
+                shutil.copy(ans_cfg['logfile'], os.path.join(self.photon_root, "var/log"))
 
 
     def _unmount_all(self):
