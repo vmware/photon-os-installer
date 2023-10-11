@@ -160,59 +160,9 @@ class IsoBuilder(object):
             pkg_list_file=self.packageslist_file,
             install_options_file="build_install_options_custom.json",
             ostree_iso=self.ostree_iso,
+            initrd_files=self.initrd_files,
         )
         iso_initrd.build_initrd()
-
-    def downloadRequiredFiles(self):
-        """
-        Download required files to generate specific image in working directory.
-
-        ISO's: [open_source_license.tar.gz, sample_ks.cfg, sample_ui.cfg, NOTICE-Apachev2, NOTICE-GPL2.0, EULA.txt]
-        initrd: [sample_ks.cfg, sample_ui.cfg, EULA.txt]
-        """
-
-        # Download required files for given branch and extract it in working dir.
-        files_to_download = [
-            f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/support/image-builder/iso/sample_ks.cfg",
-            f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/support/image-builder/iso/sample_ui.cfg",
-            f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/EULA.txt",
-        ]
-
-        if "iso" in self.function:
-            files_to_download.extend(
-                [
-                    f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-Apachev2",
-                    f"https://raw.githubusercontent.com/vmware/photon/{self.photon_release_version}/NOTICE-GPL2.0",
-                    f"https://github.com/vmware/photon/raw/{self.photon_release_version}/support/image-builder/iso/open_source_license.tar.gz",
-                ]
-            )
-
-        # Download ostree tar to working directory if url is provided.
-        if self.function == "build-rpm-ostree-iso" and self.ostree_tar_path.startswith(
-            "http"
-        ):
-            files_to_download.append(self.ostree_tar_path)
-            self.ostree_tar_path = (
-                f"{self.working_dir}/{os.path.basename(self.ostree_tar_path)}"
-            )
-
-        for file in files_to_download:
-            self.logger.info(f"Downloading file: {file}")
-            secure_download = True
-            output_file = os.path.basename(file)
-            if file.startswith("http:"):
-                secure_download = False
-            if self.ostree_tar_path and os.path.basename(file) == os.path.basename(
-                self.ostree_tar_path
-            ):
-                output_file = "ostree-repo.tar.gz"
-            retval, msg = self.cmdUtil.wget(
-                file,
-                f"{self.working_dir}/{output_file}",
-                enforce_https=secure_download,
-            )
-            if not retval:
-                raise Exception(msg)
 
     def copyRPMs(self):
         """
@@ -260,7 +210,8 @@ class IsoBuilder(object):
 
         # Include additional packages if mentioned in kickstart.
         if self.kickstart_path:
-            kickstart_data = CommandUtils.jsonread(self.kickstart_path)
+            with open(self.kickstart_path, "rt") as f:
+                kickstart_data = CommandUtils.readConfig(f)
             if "packages" in kickstart_data:
                 self.pkg_list.extend(kickstart_data["packages"])
 
@@ -390,12 +341,7 @@ class IsoBuilder(object):
         for file in ["tdnf.conf", "photon-local.repo"]:
             if os.path.exists(f"{self.working_dir}/{file}"):
                 os.remove(f"{self.working_dir}/{file}")
-        shutil.move(f"{self.working_dir}/sample_ks.cfg", f"{self.working_dir}/isolinux")
-        if self.kickstart_path:
-            self.logger.info(
-                f"Moving {self.kickstart_path} to {self.working_dir}/isolinux..."
-            )
-            shutil.copy(f"{self.kickstart_path}", f"{self.working_dir}/isolinux")
+
         if self.boot_cmdline_param:
             self.logger.info("Adding Boot command line parameters to isolinux menu...")
             self.runCmd(
@@ -501,7 +447,7 @@ class IsoBuilder(object):
                 for line in f:
                     self.rpms_list.append(line.strip())
 
-        self.downloadRequiredFiles()
+        self.cmdUtil.acquire_file_map(self.iso_files, self.working_dir)
 
         # merge initrd pkg list
         if self.initrd_pkg_list_file is not None:
@@ -661,6 +607,11 @@ def main():
 
     # Parse the command-line arguments
     options = parser.parse_args()
+
+    # no commandd line equiv for these, but we need to initialize them:
+    options.iso_files = {}
+    options.initrd_files = {}
+
     temp_file_path = ""
     if options.config and not os.path.isfile(options.config):
         _, temp_file_path = tempfile.mkstemp(prefix="isoBuilder-", suffix="-config")
@@ -700,7 +651,9 @@ def main():
         packages_list=options.packages_list.split(",") if options.packages_list else [],
         repo_paths=options.repo_paths,
         rpms_list_file=options.rpms_list_file,
-        iso_name=options.iso_name
+        iso_name=options.iso_name,
+        iso_files=options.iso_files,
+        initrd_files=options.initrd_files,
     )
 
     isoBuilder.validate_options()

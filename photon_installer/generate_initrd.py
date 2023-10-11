@@ -38,10 +38,11 @@ class IsoInitrd:
             "pkg_list_file",
             "install_options_file",
             "ostree_iso",
+            "initrd_files",
         ]
         for key in kwargs:
             if key not in known_kw:
-                raise KeyError("Not a known keyword")
+                raise KeyError(f"{key} is not a known keyword")
             else:
                 attr = kwargs.get(key, None)
                 setattr(self, key, attr)
@@ -202,7 +203,9 @@ class IsoInitrd:
         if not os.path.exists(installer_dir):
             os.mkdir(installer_dir)
 
-        files_to_move = ["sample_ui.cfg", "EULA.txt", self.install_options_file]
+        self.cmd_util.acquire_file_map(self.initrd_files, self.initrd_path)
+
+        files_to_move = [self.install_options_file]
         for file_name in files_to_move:
             source_path = f"{self.working_dir}/{file_name}"
             destination_path = f"{self.initrd_path}/installer/{file_name}"
