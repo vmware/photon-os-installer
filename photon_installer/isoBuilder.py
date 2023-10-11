@@ -346,6 +346,12 @@ class IsoBuilder(object):
             if os.path.exists(f"{self.working_dir}/{file}"):
                 os.remove(f"{self.working_dir}/{file}")
 
+        if self.kickstart_path:
+            self.logger.info(
+                f"Moving {self.kickstart_path} to {self.working_dir}/isolinux..."
+            )
+            shutil.copy(f"{self.kickstart_path}", f"{self.working_dir}/isolinux")
+
         if self.boot_cmdline_param:
             self.logger.info("Adding Boot command line parameters to isolinux menu...")
             self.runCmd(
