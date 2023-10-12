@@ -423,10 +423,12 @@ class IsoBuilder(object):
         self.runCmd(build_iso_cmd)
 
     def validate_options(self):
-        if not self.photon_release_version:
-            raise Exception(
-                "the following arguments are required: -v/--photon-release-version"
-            )
+        supported_releases = ["4.0", "5.0"]
+        assert self.photon_release_version is not None, "the Photon release version is required"
+        assert type(self.photon_release_version) is str, "the Photon relase version must be a string"
+        assert type(self.photon_release_version) != "", "the Photon release version must not be empty"
+        assert self.photon_release_version in supported_releases, f"Photon release {self.photon_release_version} is not supported"
+
         if self.function == "build-rpm-ostree-iso":
             if not self.ostree_tar_path:
                 raise Exception("Ostree tar path not provided...")
