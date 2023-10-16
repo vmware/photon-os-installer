@@ -1,7 +1,7 @@
 system:
     name: minimal
-    type: vmx-17
-    os_vmw: other4xLinux64Guest
+    type: vmx-14 vmx-20 vmx-21
+    os_vmw: vmwarePhoton64Guest
     firmware: efi
     secure_boot: false
 
