@@ -14,6 +14,7 @@ import requests
 import copy
 import json
 from urllib.parse import urlparse
+from urllib.request import urlopen
 from OpenSSL.crypto import load_certificate, FILETYPE_PEM
 import yaml
 
@@ -102,6 +103,28 @@ class CommandUtils(object):
                 return False
         except FileNotFoundError:
             return False
+
+    # check if url is a URL (note: a file path is not a URL)
+    @staticmethod
+    def is_url(url):
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except:
+            return False
+
+    # read json from a file or URL
+    @staticmethod
+    def load_json(url):
+        if CommandUtils.is_url(url):
+            with urlopen(url) as f:
+                data = json.load(f)
+        else:
+            if url.startswith("file://"):
+                url = url[7:]
+            with open(url, "rt") as f:
+                data = json.load(f)
+        return data
 
     @staticmethod
     def wget(url, out, enforce_https=True, ask_fn=None, fingerprint=None):
@@ -245,20 +268,6 @@ class CommandUtils(object):
         with open(file_path, "w") as json_file:
             json.dump(packages_list, json_file, indent=4)
         return file_path
-
-    @staticmethod
-    def merge_json_files(merged_file, file1, file2):
-        data1 = CommandUtils.jsonread(file1)
-        data2 = CommandUtils.jsonread(file2)
-        merged_data = {}
-        keys = ["packages", "packages_aarch64", "packages_x86_64"]
-
-        for key in keys:
-            merged_list = list(set(data1.get(key, []) + data2.get(key, [])))
-            if merged_list:
-                merged_data[key] = merged_list
-
-        return CommandUtils.write_pkg_list_file(merged_file, merged_data)
 
     def replace_in_file(self, file_path, pattern, replacement):
         try:
