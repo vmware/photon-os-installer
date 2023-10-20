@@ -48,7 +48,7 @@ class IsoBuilder(object):
             os.path.join(self.artifact_path, "LOGS"), self.log_level, True
         )
         self.cmdUtil = CommandUtils(self.logger)
-        self.architecture = platform.machine()
+        self.arch = platform.machine()
         self.additional_files = []
         self.yum_repos_dir = os.path.join(self.working_dir, "yum.repos.d")
 
@@ -70,8 +70,8 @@ class IsoBuilder(object):
         if os.path.exists(pkg_list_file):
             pkg_data = CommandUtils.jsonread(pkg_list_file)
             self.pkg_list.extend(pkg_data["packages"])
-            if f"packages_{self.architecture}" in pkg_data:
-                self.pkg_list.extend(pkg_data[f"packages_{self.architecture}"])
+            if f"packages_{self.arch}" in pkg_data:
+                self.pkg_list.extend(pkg_data[f"packages_{self.arch}"])
 
     def addGrubConfig(self):
         self.logger.info(f"Adding grub config: {self.working_dir}/boot/grub2")
@@ -131,7 +131,7 @@ class IsoBuilder(object):
                             "baseurl": url,
                             "enabled": 1,
                             "gpgcheck": 0,
-                            "name": "VMWare Photon Linux (x86_64)",
+                            "name": f"VMWare Photon Linux ({self.arch})",
                             "skip_if_unavailable": True,
                         }
                     },
@@ -238,13 +238,13 @@ class IsoBuilder(object):
 
         # Separate out packages downloaded into arch specific directories.
         # Run createrepo on the rpm download path once downloaded.
-        os.makedirs(f"{self.rpms_path}/x86_64", exist_ok=True)
+        os.makedirs(f"{self.rpms_path}/{self.arch}", exist_ok=True)
         os.makedirs(f"{self.rpms_path}/noarch", exist_ok=True)
         for file in os.listdir(f"{self.working_dir}/RPMS"):
-            if file.endswith(".x86_64.rpm"):
+            if file.endswith(f".{self.arch}.rpm"):
                 shutil.move(
                     f"{self.rpms_path}/{file}",
-                    f"{self.rpms_path}/x86_64/{file}",
+                    f"{self.rpms_path}/{self.arch}/{file}",
                 )
             elif file.endswith(".noarch.rpm"):
                 shutil.move(
@@ -290,7 +290,6 @@ class IsoBuilder(object):
         os.makedirs(efi_dir)
         self.runCmd(f"mount -o loop {self.working_dir}/{self.efi_img} {efi_dir}")
         shutil.move(f"{self.working_dir}/boot/efi/EFI", efi_dir)
-        os.listdir(efi_dir)
         self.runCmd(f"umount {efi_dir}")
         self.cmdUtil.remove_files([efi_dir])
 
@@ -306,7 +305,7 @@ class IsoBuilder(object):
         )
         os.makedirs(f"{self.working_dir}/isolinux-temp")
         pkg_list = ["photon-iso-config"]
-        if self.architecture == "x86_64":
+        if self.arch == "x86_64":
             pkg_list.append("syslinux")
 
         self.logger.info("installing packages for isolinux...")
@@ -326,17 +325,19 @@ class IsoBuilder(object):
                 f"{self.working_dir}/isolinux-temp/usr/share/photon-iso-config/{file}",
                 f"{self.working_dir}/isolinux/{file}",
             )
-        for file in [
-            "isolinux.bin",
-            "libcom32.c32",
-            "libutil.c32",
-            "vesamenu.c32",
-            "ldlinux.c32",
-        ]:
-            shutil.copyfile(
-                f"{self.working_dir}/isolinux-temp/usr/share/syslinux/{file}",
-                f"{self.working_dir}/isolinux/{file}",
-            )
+        if self.arch == 'x86_64':
+            for file in [
+                "isolinux.bin",
+                "libcom32.c32",
+                "libutil.c32",
+                "vesamenu.c32",
+                "ldlinux.c32",
+            ]:
+                shutil.copyfile(
+                    f"{self.working_dir}/isolinux-temp/usr/share/syslinux/{file}",
+                    f"{self.working_dir}/isolinux/{file}",
+                )
+
         self.cmdUtil.remove_files([f"{self.working_dir}/isolinux-temp"])
         for file in ["tdnf.conf", "photon-local.repo"]:
             if os.path.exists(f"{self.working_dir}/{file}"):
@@ -389,12 +390,26 @@ class IsoBuilder(object):
         self.logger.info(f"Generating Iso: {self.iso_name}")
         build_iso_cmd = f"cd {self.working_dir} && "
         build_iso_cmd += (
-            "mkisofs -R -l -L -D -b isolinux/isolinux.bin -c isolinux/boot.cat "
+            "mkisofs -R -l -L -D -c isolinux/boot.cat "
         )
-        build_iso_cmd += "-no-emul-boot -boot-load-size 4 -boot-info-table "
-        build_iso_cmd += f"-eltorito-alt-boot -e {self.efi_img} -no-emul-boot "
+
+        # important:
+        # * the order of options matters
+        # * flags apply to previous boot image (given with -b or -e)
+        # * 'eltorito-alt-boot' functions as separator
+        # * if options appear twice it's because they apply to different boot
+        #   images
+
+        # BIOS, x86_64 only
+        if self.arch == "x86_64":
+            build_iso_cmd += "-b isolinux/isolinux.bin "
+            build_iso_cmd += "-no-emul-boot -boot-load-size 4 -boot-info-table "
+            build_iso_cmd += "-eltorito-alt-boot "
+
+        # EFI boot
+        build_iso_cmd += f"-e {self.efi_img} -no-emul-boot "
         build_iso_cmd += (
-            f'-V "PHOTON_$(date +%Y%m%d)" {self.working_dir} > {self.iso_name}'
+            f'-V "PHOTON_$(date +%Y%m%d)" -o {self.iso_name} {self.working_dir}'
         )
         self.runCmd(build_iso_cmd)
 
@@ -417,7 +432,7 @@ class IsoBuilder(object):
 
     def read_pkglist_file(self, plf):
         packages = []
-        arch = self.architecture
+        arch = self.arch
 
         plf_json = self.cmdUtil.load_json(plf)
 
@@ -680,7 +695,7 @@ def main():
         raise Exception(f"{options.function} not supported...")
 
     # Clean Up Working Directory and temp config file
-    isoBuilder.cmdUtil.remove_files([isoBuilder.working_dir, temp_file_path])
+#    isoBuilder.cmdUtil.remove_files([isoBuilder.working_dir, temp_file_path])
 
 
 if __name__ == "__main__":
