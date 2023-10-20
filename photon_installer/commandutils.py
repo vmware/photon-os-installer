@@ -313,3 +313,30 @@ class CommandUtils(object):
             pass
         except Exception as e:
             raise Exception(f"Error removing {file_path}: {e}")
+
+    def acquire_file_map(self, map, dest_dir):
+        """
+        map is a dictionary that maps source files to destinations
+        the sources can be URLs or files.
+        The destinations are paths under dest_dir. Any directories in the
+        paths will be created if needed.
+        If the basename of the destination is just a directory, the basename
+        of the source will be used.
+        """
+        for src, dest in map.items():
+            if dest.startswith("/"):
+                dest = dest[1:]
+            if os.path.basename(dest) == "":
+                dest = os.path.join(os.path.dirname(dest), os.path.basename(src))
+            dest = os.path.join(dest_dir, dest)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+
+            if src.startswith("file://"):
+                src = src[7:]
+            if CommandUtils.is_url(src):
+                self.logger.info(f"downloading {src} to {dest}")
+                ret, _ = CommandUtils.wget(src, dest)
+                assert ret, f"downloading {src} failed"
+            else:
+                self.logger.info(f"copying {src} to {dest}")
+                shutil.copyfile(src, dest)
