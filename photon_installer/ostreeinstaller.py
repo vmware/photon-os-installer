@@ -165,9 +165,9 @@ class OstreeInstaller(object):
         commit_number = self.get_commit_number(self.ostree_ref)
         self.do_systemd_tmpfiles_commands(commit_number)
 
-        self.run_lambdas([lambda: self.mount_devices_in_deployment(commit_number)], "mounting done")
         deployment = os.path.join(self.photon_root, f"ostree/deploy/photon/deploy/{commit_number}.0/")
         self.create_symlink_directory(deployment)
+        self.run_lambdas([lambda: self.mount_devices_in_deployment(commit_number)], "mounting done")
 
         if os.path.exists(loader1):
             cmd = []
