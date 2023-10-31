@@ -12,7 +12,6 @@ import os
 import platform
 import shutil
 import tempfile
-import urllib.request
 import yaml
 
 from generate_initrd import IsoInitrd
@@ -20,6 +19,8 @@ from logger import Logger
 from argparse import ArgumentParser
 from commandutils import CommandUtils
 from tdnf import Tdnf, create_repo_conf
+
+DEFAULT_INSTALL_OPTIONS_FILE = "build_install_options_custom.json"
 
 
 class IsoBuilder(object):
@@ -108,7 +109,7 @@ class IsoBuilder(object):
             }
         }
         with open(
-            f"{self.working_dir}/build_install_options_custom.json", "w"
+            f"{self.working_dir}/{DEFAULT_INSTALL_OPTIONS_FILE}", "w"
         ) as json_file:
             json_file.write(json.dumps(install_option_data))
 
@@ -148,7 +149,9 @@ class IsoBuilder(object):
         Generate custom initrd
         """
 
-        self.createInstallOptionJson()
+        if self.install_options_file is None:
+            self.createInstallOptionJson()
+            self.install_options_file = os.path.join(self.working_dir, DEFAULT_INSTALL_OPTIONS_FILE)
 
         self.logger.info("Starting to generate initrd.img...")
         iso_initrd = IsoInitrd(
@@ -158,7 +161,7 @@ class IsoBuilder(object):
             rpms_path=self.rpms_path,
             photon_release_version=self.photon_release_version,
             pkg_list_file=self.packageslist_file,
-            install_options_file="build_install_options_custom.json",
+            install_options_file=self.install_options_file,
             ostree_iso=self.ostree_iso,
             initrd_files=self.initrd_files,
         )
@@ -620,6 +623,13 @@ def main():
         help="Name of the iso file",
         default=None
     )
+    parser.add_argument(
+        "--install-options-file",
+        dest="install_options_file",
+        type=str,
+        help="the install options file for the installer",
+        default=None
+    )
 
     # Parse the command-line arguments
     options = parser.parse_args()
@@ -670,6 +680,7 @@ def main():
         iso_name=options.iso_name,
         iso_files=options.iso_files,
         initrd_files=options.initrd_files,
+        install_options_file=options.install_options_file,
     )
 
     isoBuilder.validate_options()

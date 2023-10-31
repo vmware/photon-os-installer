@@ -65,11 +65,12 @@ class IsoInitrd:
         )
 
     def create_installer_script(self):
+        install_options_file = os.path.basename(self.install_options_file)
         script_content = f"""#!/bin/bash
             cd /installer
             ACTIVE_CONSOLE="$(< /sys/devices/virtual/tty/console/active)"
             install() {{
-            LANG=en_US.UTF-8 photon-installer -i iso -o {self.install_options_file} -e EULA.txt -t "{self.license_text}" -v {self.photon_release_version} && shutdown -r now
+            LANG=en_US.UTF-8 photon-installer -i iso -o {install_options_file} -e EULA.txt -t "{self.license_text}" -v {self.photon_release_version} && shutdown -r now
             }}
             try_run_installer() {{
             if [ "$ACTIVE_CONSOLE" == "tty0" ]; then
@@ -203,25 +204,13 @@ class IsoInitrd:
         if not os.path.exists(installer_dir):
             os.mkdir(installer_dir)
 
+        installer_dir = os.path.join(self.initrd_path, "installer")
+        shutil.copy(self.install_options_file, installer_dir)
+        if self.pkg_list_file:
+            shutil.copy(self.pkg_list_file, os.path.join(self.initrd_path, "installer"))
+
+        # do this after copying files above - self.initrd_files should have priority
         self.cmd_util.acquire_file_map(self.initrd_files, self.initrd_path)
-
-        files_to_move = [self.install_options_file]
-        for file_name in files_to_move:
-            source_path = f"{self.working_dir}/{file_name}"
-            destination_path = f"{self.initrd_path}/installer/{file_name}"
-
-            try:
-                shutil.move(source_path, destination_path)
-                self.logger.info(f"Moved {file_name} successfully.")
-            except Exception as err:
-                raise Exception(f"Error moving {file_name}: {err}")
-
-        # Copy provided pkg list file into installer
-        file_to_copy = (
-            f"{self.initrd_path}/installer/{os.path.basename(self.pkg_list_file)}"
-        )
-        if not os.path.exists(file_to_copy):
-            shutil.copyfile(self.pkg_list_file, file_to_copy)
 
     def build_initrd(self):
         os.makedirs(self.initrd_path, exist_ok=True)
