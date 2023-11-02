@@ -745,9 +745,14 @@ class Installer(object):
                 logf = open(ans_cfg['logfile'], "wt")
 
             self.logger.info(f"running ansible playbook {playbook}")
-            ret = subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT)
-            assert ret.returncode == 0, f"ansible run for playbook {playbook} failed"
-
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            for line in process.stdout:
+                if logf:
+                    logf.write(line)
+                else:
+                    self.logger.info(line)
+            process.wait()
+            assert process.returncode == 0, f"ansible run for playbook {playbook} failed"
             if logf is not None:
                 shutil.copy(ans_cfg['logfile'], os.path.join(self.photon_root, "var/log"))
 
