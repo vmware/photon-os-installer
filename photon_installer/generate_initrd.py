@@ -121,7 +121,7 @@ class IsoInitrd:
             print(f"Error processing {file}: {err}")
 
     def clean_up(self):
-        exclusions = ["terminfo", "cracklib", "grub", "factory", "dbus-1"]
+        exclusions = ["terminfo", "cracklib", "grub", "factory", "dbus-1", "ansible"]
         dir_to_list = ["usr/share", "usr/sbin"]
         listed_contents = []
 

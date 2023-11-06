@@ -7,6 +7,7 @@
 # Example run:
 # sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/:/repo poi-debug create-image -c sample_ks.yaml -v 4.0
 
+# stage to clone poi
 ARG DOCKER_PROXY
 FROM ${DOCKER_PROXY}library/photon:5.0 AS builder
 
@@ -21,10 +22,28 @@ RUN tdnf makecache && \
 RUN cd / && git clone https://github.com/vmware/photon-os-installer.git
 
 
+# this stage is a place holder that can be overidden with the
+# --build-context arg
 FROM scratch AS poi-helper
 COPY --from=builder /photon-os-installer /
 
 
+# this stage builds an RPM from photon-os-installer which can
+# be installed into the final image and into the initrd
+ARG DOCKER_PROXY
+FROM ${DOCKER_PROXY}library/photon:5.0 as poi-rpm-builder
+
+RUN tdnf makecache && \
+    tdnf -y install git rpm-build python3
+
+COPY --from=poi-helper / /photon-os-installer
+
+COPY build-rpms.sh /usr/bin/
+
+RUN cd /photon-os-installer && build-rpms.sh photon-os-installer
+
+
+# final image
 ARG DOCKER_PROXY
 FROM ${DOCKER_PROXY}library/photon:5.0
 
@@ -38,14 +57,18 @@ RUN tdnf makecache && \
     gptfdisk grub2 \
     e2fsprogs kpartx lvm2 dosfstools \
     createrepo rpm jq \
-    python3 python3-pip python3-setuptools python3-curses \
-    python3-pyYAML python3-lxml python3-cracklib qemu-img \
+    python3-PyYAML \
+    qemu-img \
     open-vmdk ostree rpm-ostree \
+    stig-hardening \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 
-COPY --from=poi-helper / /photon-os-installer
-RUN cd /photon-os-installer && pip3 install . # && cd .. && rm -rf /photon-os-installer
+COPY --from=poi-rpm-builder /usr/src/photon /poi
+RUN createrepo /poi
+
+# install directly from path to make sure we are using current source
+RUN tdnf -y install /poi/RPMS/*/photon-os-installer-*.rpm
 
 COPY create-image \
      create-ova \
@@ -56,5 +79,8 @@ COPY create-image \
      /usr/bin
 
 VOLUME /repo /workdir
+
+# ansible needs this
+ENV LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8
 
 WORKDIR /workdir

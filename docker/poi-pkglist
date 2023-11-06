@@ -19,7 +19,7 @@ def yaml_param(loader, node):
     default = None
     key = node.value
 
-    assert type(key) is str, f"param name must be a string"
+    assert type(key) is str, "param name must be a string"
 
     if '=' in key:
         key, default = [t.strip() for t in key.split('=')]
@@ -38,7 +38,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'c:h', longopts=['config='])
     except:
-        print (f"{sys.argv[0]}: invalid option")
+        print(f"{sys.argv[0]}: invalid option")
         sys.exit(2)
 
     for o, a in opts:
@@ -50,9 +50,9 @@ def main():
         else:
             assert False, f"unhandled option {o}"
 
-    assert config_file != None, "no config file specified"
+    assert config_file is not None, "no config file specified"
 
-    if config_file != None:
+    if config_file is not None:
         f = open(config_file, 'r')
 
     yaml_loader = yaml.SafeLoader
@@ -80,7 +80,7 @@ def main():
             pkg_list.add(p)
 
     if 'packagelist_file' in config:
-        with open (config['packagelist_file'], 'r') as f:
+        with open(config['packagelist_file'], 'r') as f:
             pkg_config = yaml.load(f, Loader=yaml_loader)
             for p in pkg_config['packages']:
                 pkg_list.add(p)
@@ -93,9 +93,12 @@ def main():
     elif 'linux_flavor' in config:
         pkg_list.add(config['linux_flavor'])
 
+    if 'ansible' in config:
+        pkg_list.add("python3")
+
     # TODO - figure out if needed based on disk layout
-    pkg_list.add('lvm2')
-    pkg_list.add('grub2-efi-image')
+    pkg_list.add("lvm2")
+    pkg_list.add("grub2-efi-image")
 
     # needed for ISO
     pkg_list.add("photon-iso-config")
