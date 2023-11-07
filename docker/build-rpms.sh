@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 PACKAGE=$1
 
@@ -11,10 +12,19 @@ ARCH=$(uname -m)
 RPM_BUILD_DIR="/usr/src/photon"
 DIST=.ph5
 
-# https://github.com/actions/checkout/issues/760
-git config --global --add safe.directory $(pwd)
+# if checked out as a submodule .git is a file, pointing to the parent
+# if pwd is mounted the parent is not accessible
+# if checked out as sub module it's presumably clean so we can just pack all files
+if [ -d .git ] ; then
+    # https://github.com/actions/checkout/issues/760
+    git config --global --add safe.directory $(pwd)
 
-tar zcf ${TARBALL} --transform "s,^,${FULLNAME}/," $(git ls-files)
+    tar zcf ${TARBALL} --transform "s,^,${FULLNAME}/," $(git ls-files)
+else
+    # prevent "tar: .: file changed as we read it"
+    touch ${TARBALL}
+    tar zcf ${TARBALL} --exclude=${TARBALL} --transform "s,^./,${FULLNAME}/," .
+fi
 
 tdnf install -y ${BUILD_REQUIRES}
 
