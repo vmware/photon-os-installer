@@ -26,7 +26,7 @@ else
     tar zcf ${TARBALL} --exclude=${TARBALL} --transform "s,^./,${FULLNAME}/," .
 fi
 
-tdnf install -y ${BUILD_REQUIRES}
+tdnf install -y ${TDNF_OPTIONS} ${BUILD_REQUIRES}
 
 mkdir -p ${RPM_BUILD_DIR}
 mkdir -p ${RPM_BUILD_DIR}/{SOURCES,BUILD,RPMS,SRPMS}

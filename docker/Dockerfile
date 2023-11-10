@@ -9,13 +9,12 @@
 
 # stage to clone poi
 ARG DOCKER_PROXY
+ARG TDNF_OPTIONS
 FROM ${DOCKER_PROXY}library/photon:5.0 AS builder
 
-ARG TARGETARCH
-
-RUN tdnf makecache && \
-    tdnf -y update && \
-    tdnf -y install \
+RUN tdnf ${TDNF_OPTIONS} makecache && \
+    tdnf ${TDNF_OPTIONS} -y update && \
+    tdnf ${TDNF_OPTIONS} -y install \
     git && \
     rm -rf /var/cache/tdnf
 
@@ -32,9 +31,10 @@ COPY --from=builder /photon-os-installer /
 # be installed into the final image and into the initrd
 ARG DOCKER_PROXY
 FROM ${DOCKER_PROXY}library/photon:5.0 as poi-rpm-builder
+ARG TDNF_OPTIONS
 
-RUN tdnf makecache && \
-    tdnf -y install git rpm-build python3
+RUN tdnf ${TDNF_OPTIONS} makecache && \
+    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3
 
 COPY --from=poi-helper / /photon-os-installer
 
@@ -46,12 +46,12 @@ RUN cd /photon-os-installer && build-rpms.sh photon-os-installer
 # final image
 ARG DOCKER_PROXY
 FROM ${DOCKER_PROXY}library/photon:5.0
-
+ARG TDNF_OPTIONS
 ARG TARGETARCH
 
-RUN tdnf makecache && \
-    tdnf -y update && \
-    tdnf -y install \
+RUN tdnf ${TDNF_OPTIONS} makecache && \
+    tdnf ${TDNF_OPTIONS} -y update && \
+    tdnf ${TDNF_OPTIONS} -y install \
     zlib tar \
     util-linux coreutils findutils binutils cdrkit \
     gptfdisk grub2 \
@@ -68,7 +68,7 @@ COPY --from=poi-rpm-builder /usr/src/photon /poi
 RUN createrepo /poi
 
 # install directly from path to make sure we are using current source
-RUN tdnf -y install /poi/RPMS/*/photon-os-installer-*.rpm
+RUN tdnf ${TDNF_OPTIONS} -y install /poi/RPMS/*/photon-os-installer-*.rpm
 
 COPY create-image \
      create-ova \
