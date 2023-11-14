@@ -66,6 +66,7 @@ class Installer(object):
         'linux_flavor',
         'live',
         'log_level',
+        'manifest_file',
         'ostree',
         'packages',
         'packagelist_file',
@@ -652,13 +653,15 @@ class Installer(object):
             self._enable_network_in_chroot()
             self._setup_network()
             self._finalize_system()
-            self._cleanup_install_repo()
+            self._cleanup_tdnf_cache()
             self._setup_grub()
             self._create_fstab()
             self._update_abupdate()
         self._ansible_run()
         self._execute_modules(modules.commons.POST_INSTALL)
         self._deactivate_network_in_chroot()
+        self._write_manifest()
+        self._cleanup_install_repo()
         self._unmount_all()
 
 
@@ -755,6 +758,20 @@ class Installer(object):
             assert process.returncode == 0, f"ansible run for playbook {playbook} failed"
             if logf is not None:
                 shutil.copy(ans_cfg['logfile'], os.path.join(self.photon_root, "var/log"))
+
+
+    def _write_manifest(self):
+        mf_file = self.install_config.get('manifest_file', "poi-manifest.json")
+        manifest = {}
+
+        if 'ostree' not in self.install_config:
+            retval, pkg_list = self.tdnf.run(["list", "--installed", "--disablerepo=*"])
+            manifest['packages'] = pkg_list
+
+        manifest['install_config'] = self.install_config
+
+        with open(mf_file, "wt") as f:
+            f.write(json.dumps(manifest))
 
 
     def _unmount_all(self):
@@ -1088,18 +1105,22 @@ class Installer(object):
         self.cmd.run_in_chroot(self.photon_root, "rpm --import /etc/pki/rpm-gpg/*")
 
 
-    def _cleanup_install_repo(self):
+    def _cleanup_tdnf_cache(self):
         # remove the tdnf cache directory
         cache_dir = os.path.join(self.photon_root, 'var/cache/tdnf')
         if (os.path.isdir(cache_dir)):
             shutil.rmtree(cache_dir)
+
+
+    def _cleanup_install_repo(self):
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
-        for repo in self.install_config['repos']:
-            try:
-                os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
-            except FileNotFoundError:
-                pass
+        if 'repos' in self.install_config:
+            for repo in self.install_config['repos']:
+                try:
+                    os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
+                except FileNotFoundError:
+                    pass
 
 
     def _setup_grub(self):

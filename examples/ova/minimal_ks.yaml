@@ -33,6 +33,8 @@ linux_flavor: linux
 
 eject_cdrom: false
 
+manifest_file: minimal_mf.json
+
 network:
     version: "2"
     nameservers:
