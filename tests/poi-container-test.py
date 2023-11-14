@@ -29,16 +29,16 @@ def remove_build_images(directory):
     for file in files:
         try:
             os.remove(file)
-        except PermissionError as e:
-            print("could not remove {file}: {e}")
+        except PermissionError:
+            subprocess.run(["sudo", "rm", file])
 
 
 def setup_cleanup():
-    try:
-        if (os.path.exists(LOCAL_REPO_PATH)):
+    if (os.path.exists(LOCAL_REPO_PATH)):
+        try:
             shutil.rmtree(LOCAL_REPO_PATH)
-    except PermissionError as e:
-        subprocess.run(["sudo", "rm", "-rf", LOCAL_REPO_PATH])
+        except PermissionError:
+            subprocess.run(["sudo", "rm", "-rf", LOCAL_REPO_PATH])
 
     for flavor in IMAGE_FLAVOR:
         remove_build_images(os.path.join(POI_PATH, "examples", flavor))
@@ -49,10 +49,10 @@ def image_exist(flavor, image_name):
 
 
 class TestBuildPh5ImageWithLocalRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph5_local_azure_image(self):
@@ -102,10 +102,10 @@ class TestBuildPh5ImageWithLocalRepo:
 
 
 class TestBuildPh4ImageWithLocalRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph4_local_azure_image(self):
@@ -150,10 +150,10 @@ class TestBuildPh4ImageWithLocalRepo:
 
 
 class TestBuildPh5ImageWithRemoteRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph5_remote_azure_image(self):
@@ -203,10 +203,10 @@ class TestBuildPh5ImageWithRemoteRepo:
 
 
 class TestBuildPh4ImageWithRemoteRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph4_remote_azure_image(self):
