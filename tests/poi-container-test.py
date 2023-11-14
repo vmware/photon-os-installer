@@ -3,15 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import sys
 import subprocess
-import time
 import shutil
-import configparser
-import pytest
-import collections
-import unittest
 import glob
+
 
 POI_TEST_PATH = os.path.dirname(os.path.abspath(__file__))
 POI_PATH = os.path.dirname(POI_TEST_PATH)
@@ -22,31 +17,42 @@ LOCAL_REPO_PATH = POI_TEST_PATH + "/repo"
 BASE_COMMAND = f"{POI_PATH}/create-image-util --poi-path {POI_PATH} --local-repo-path"
 IMAGE_FLAVOR = ["azure", "ova", "rpi", "ami"]
 
+
 def create_repo_path():
-    os.makedirs(LOCAL_REPO_PATH)
+    os.makedirs(LOCAL_REPO_PATH, exist_ok=True)
+
 
 def remove_build_images(directory):
     extensions = ["*.vhd.tar.gz", "*.ova", "*.ovf", "*.mf", "*.raw", "*.img"]
 
     files = [file for ext in extensions for file in glob.glob(f"{directory}/{ext}")]
     for file in files:
-        os.remove(file)
+        try:
+            os.remove(file)
+        except PermissionError:
+            subprocess.run(["sudo", "rm", file])
+
 
 def setup_cleanup():
     if (os.path.exists(LOCAL_REPO_PATH)):
-        shutil.rmtree(LOCAL_REPO_PATH)
+        try:
+            shutil.rmtree(LOCAL_REPO_PATH)
+        except PermissionError:
+            subprocess.run(["sudo", "rm", "-rf", LOCAL_REPO_PATH])
 
     for flavor in IMAGE_FLAVOR:
         remove_build_images(os.path.join(POI_PATH, "examples", flavor))
 
+
 def image_exist(flavor, image_name):
     return os.path.exists(os.path.join(POI_PATH, "examples", flavor, image_name))
 
+
 class TestBuildPh5ImageWithLocalRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph5_local_azure_image(self):
@@ -94,11 +100,12 @@ class TestBuildPh5ImageWithLocalRepo:
         assert(image_exist("rmi", "rpi.img") == True)
     '''
 
+
 class TestBuildPh4ImageWithLocalRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph4_local_azure_image(self):
@@ -141,11 +148,12 @@ class TestBuildPh4ImageWithLocalRepo:
         assert(image_exist("rmi", "rpi.img") == True)
     '''
 
+
 class TestBuildPh5ImageWithRemoteRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph5_remote_azure_image(self):
@@ -193,11 +201,12 @@ class TestBuildPh5ImageWithRemoteRepo:
         assert(image_exist("rmi", "rpi.img") == True)
     '''
 
+
 class TestBuildPh4ImageWithRemoteRepo:
-    def setup_method(self):
+    def setup_class(self):
         create_repo_path()
 
-    def teardown_method(self):
+    def teardown_class(self):
         setup_cleanup()
 
     def test_build_ph4_remote_azure_image(self):
