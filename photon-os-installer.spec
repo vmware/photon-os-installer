@@ -17,6 +17,7 @@ BuildRequires: python3-pyinstaller
 BuildRequires: python3-requests
 BuildRequires: python3-cracklib
 BuildRequires: python3-curses
+BuildRequires: python3-jc
 
 Requires: dosfstools
 Requires: efibootmgr
@@ -37,6 +38,7 @@ Requires: python3-requests
 Requires: python3-cracklib
 Requires: python3-curses
 Requires: python3-PyYAML
+Requires: python3-jc
 
 %description
 Installer to build Photon images
