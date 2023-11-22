@@ -1,0 +1,29 @@
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        device: /dev/sda
+
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /root
+      sizepercent: 5
+      filesystem: ext4
+    - sizepercent: 5
+      filesystem: swap
+
+packagelist_file: packages_minimal.json
+
+additional_packages:
+    - vim
+
+public_key: <ssh-key-here>
+
+linux_flavor: linux
