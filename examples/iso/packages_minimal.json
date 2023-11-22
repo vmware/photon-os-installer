@@ -1,0 +1,19 @@
+{
+    "packages": [
+        "Linux-PAM","bc","bridge-utils", "bzip2","cpio",
+        "docker","e2fsprogs","file",
+        "filesystem","findutils","gdbm","grep","grub2-efi-image",
+        "grub2-theme","gzip","iana-etc","iproute2","iptables",
+        "iputils","net-tools","open-vm-tools",
+        "openssh","photon-release","photon-repos","pkg-config",
+        "procps-ng","rpm","rpm-plugin-systemd-inhibit","sed",
+        "systemd","systemd-libs","systemd-pam","systemd-rpm-macros",
+        "systemd-udev","tdnf","tzdata","util-linux","vim","which",
+        "linux",
+        "initramfs",
+        "less",
+        "sudo",
+        "lvm2"
+    ],
+    "packages_x86_64": ["linux-esx"]
+}
