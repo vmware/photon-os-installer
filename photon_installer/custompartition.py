@@ -41,7 +41,7 @@ class CustomPartition(object):
         Device.refresh_devices()
 
     def initialize_devices(self):
-        self.devices = Device.refresh_devices_bytes()
+        self.devices = Device.refresh_devices(bytes=True)
 
         # Subtract BIOS&ESP SIZE from the disk_size since this much is hardcoded for bios
         # and efi partition in installer.py
