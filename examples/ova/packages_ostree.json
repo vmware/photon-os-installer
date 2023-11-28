@@ -3,7 +3,7 @@
                  "cloud-init", "cpio", "cracklib-dicts", "dbus", "e2fsprogs",
                  "file", "findutils", "gdbm", "grep", "gzip", "iana-etc",
                  "iptables", "iproute2", "iputils", "libtool", "linux", "motd",
-                 "net-tools", "open-vm-tools", "pkg-config", "photon-release", "photon-repos",
+                 "net-tools", "open-vm-tools", "photon-release", "photon-repos",
                  "procps-ng", "rpm", "sed", "sudo", "tzdata", "util-linux",
                  "vim", "which", "dracut-tools", "rpm-ostree", "nss-altfiles",
                  "openssh", "systemd", "systemd-udev", "openssl", "grub2", "grub2-efi",

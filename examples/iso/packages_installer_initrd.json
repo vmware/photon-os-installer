@@ -46,7 +46,6 @@
     "ostree-grub2",
     "ostree-libs",
     "pcre",
-    "pkg-config",
     "/poi/RPMS/x86_64/photon-os-installer-2.3-2.ph5.x86_64.rpm",
     "popt",
     "python3",
