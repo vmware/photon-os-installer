@@ -40,11 +40,11 @@ init_env()
         echo "using exported POI_IMAGE_NAME: $POI_IMAGE_NAME"
     fi
 
-    #check POI_IMAGE_NAME container is already running or not
-    if [ $ARCH = $SYSTEM_ARCH ]; then
-        sudo docker images | grep -w "$POI_IMAGE_NAME" | grep -v "arm64"
+    #check POI_IMAGE_NAME if already exists
+    if [ "$ARCH" = "$SYSTEM_ARCH" ]; then
+        sudo docker inspect "$POI_IMAGE_NAME" > /dev/null
     else
-        sudo docker images | grep -w "$ARCH/$POI_IMAGE_NAME"
+        sudo docker inspect "$ARCH/$POI_IMAGE_NAME" > /dev/null
     fi
 
     if [ $? -ne 0 ]; then
@@ -56,6 +56,7 @@ init_env()
         else
             sudo docker buildx build --build-context poi-helper=${POI_PATH} --platform=linux/$ARCH -t $ARCH/$POI_IMAGE_NAME .
         fi
+        echo "...done"
     else
         echo "$POI_IMAGE_NAME container image already exists"
     fi
