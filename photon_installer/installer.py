@@ -206,7 +206,7 @@ class Installer(object):
             if not 'device' in disk:
                 filename = disk['filename']
                 size = disk['size']
-                retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}"])
+                retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
                 if retval != 0:
                     raise Exception(f"failed to create disk image '{filename}'")
                 device = subprocess.check_output(["losetup", "--show", "-f", filename], text=True).strip()
