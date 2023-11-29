@@ -656,9 +656,9 @@ class Installer(object):
             self._setup_grub()
             self._create_fstab()
             self._update_abupdate()
+        self._ansible_run()
         self._execute_modules(modules.commons.POST_INSTALL)
         self._deactivate_network_in_chroot()
-        self._ansible_run()
         self._unmount_all()
 
 
