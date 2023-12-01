@@ -323,7 +323,14 @@ class Installer(object):
                 plf = os.path.join(os.getcwd(), plf)
 
             with open(plf, "rt") as f:
-                plf_json = json.load(f)
+                try:
+                    plf_json = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    print(f"failed to read json file {plf}")
+                    print(f"json decode failed at line {e.lineno}, at:")
+                    print(f"'{e.doc[e.pos:]}'")
+                    raise e
+
             if 'packages' in plf_json:
                 packages.extend(plf_json['packages'])
             if f'packages_{arch}' in plf_json:
