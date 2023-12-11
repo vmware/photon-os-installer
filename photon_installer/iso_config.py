@@ -24,6 +24,8 @@ from ostreewindowstringreader import OSTreeWindowStringReader
 from commandutils import CommandUtils
 from filedownloader import FileDownloader
 from netconfig import NetworkConfigure
+from stigenable import StigEnable
+
 
 class IsoConfig(object):
     g_ostree_repo_url = None
@@ -246,8 +248,8 @@ class IsoConfig(object):
                                       'Start installation? All data on the selected disk will be lost.\n\n'
                                       'Press <Yes> to confirm, or <No> to quit')
 
-        # This represents the installer screens, the bool indicated if
-        # I can go back to this window or not
+        # This represents the installer screens, the bool indicates if
+        # we can go back to this window or not
         items.append((license_agreement.display, False))
         items.append((select_disk.display, True))
         items.append((custom_partition.display, False))
@@ -258,12 +260,16 @@ class IsoConfig(object):
         if 'download_screen' in ui_config:
             title = ui_config['download_screen'].get('title', None)
             intro = ui_config['download_screen'].get('intro', None)
-            dest  = ui_config['download_screen'].get('destination', None)
+            dest = ui_config['download_screen'].get('destination', None)
             fd = FileDownloader(maxy, maxx, install_config, title, intro, dest, True, root_dir=self.root_dir)
             items.append((fd.display, True))
 
         linux_selector = LinuxSelector(maxy, maxx, install_config)
         items.append((linux_selector.display, True))
+
+        stig_enable = StigEnable(maxy, maxx, install_config)
+        items.append((stig_enable.display, True))
+
         items.append((hostname_reader.get_user_string, True))
         items.append((root_password_reader.get_user_string, True))
         items.append((confirm_password_reader.get_user_string, False))
