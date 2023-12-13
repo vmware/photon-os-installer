@@ -708,6 +708,9 @@ class Installer(object):
         if 'ansible' not in self.install_config:
             return
 
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Running ansible scripts')
+
         ansibles = self.install_config['ansible']
         for ans_cfg in ansibles:
             playbook = ans_cfg['playbook']
@@ -1135,12 +1138,18 @@ class Installer(object):
 
     def _cleanup_tdnf_cache(self):
         # remove the tdnf cache directory
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Cleaning up tdnf cache')
+
         cache_dir = os.path.join(self.photon_root, 'var/cache/tdnf')
         if (os.path.isdir(cache_dir)):
             shutil.rmtree(cache_dir)
 
 
     def _cleanup_install_repo(self):
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Cleaning up tdnf install repo configs')
+
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
         if 'repos' in self.install_config:
@@ -1153,6 +1162,9 @@ class Installer(object):
 
     def _setup_grub(self):
         bootmode = self.install_config['bootmode']
+
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Setting up GRUB')
 
         device = self.install_config['disks']['default']['device']
         # Setup bios grub
@@ -1226,6 +1238,10 @@ class Installer(object):
                 self.logger.error("Error: not able to execute module {}".format(module))
                 continue
             self.logger.info("Executing: " + module)
+
+            if self.install_config.get('ui', False):
+                self.progress_bar.update_message('Setting up GRUB')
+
             mod.execute(self)
 
     def _adjust_packages_based_on_selected_flavor(self):
