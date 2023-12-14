@@ -32,6 +32,8 @@ Requires: lvm2
 Requires: zlib
 Requires: cdrkit
 Requires: findutils
+# needed for --rpmdefine option
+Requires: tdnf >= 3.5.6
 
 Requires: python3-pyOpenSSL
 Requires: python3-requests
