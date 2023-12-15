@@ -77,6 +77,7 @@ class Installer(object):
         'partitions',
         'network',
         'no_unmount',
+        'no_clean',
         'password',
         'postinstall',
         'postinstallscripts',
@@ -1137,6 +1138,9 @@ class Installer(object):
 
 
     def _cleanup_tdnf_cache(self):
+        if self.install_config.get('no_clean', False):
+            return
+
         # remove the tdnf cache directory
         if self.install_config['ui']:
             self.progress_bar.update_message('Cleaning up tdnf cache')
@@ -1147,6 +1151,9 @@ class Installer(object):
 
 
     def _cleanup_install_repo(self):
+        if self.install_config.get('no_clean', False):
+            return
+
         if self.install_config['ui']:
             self.progress_bar.update_message('Cleaning up tdnf install repo configs')
 
