@@ -638,6 +638,8 @@ class Installer(object):
                                .format(self.progress_bar.time_elapsed))
             if self.interactive:
                 self.window.content_window().getch()
+        else:
+            self.logger.info("creating image was successful")
 
         if self.install_config.get('live', True):
             self._eject_cdrom()
@@ -776,6 +778,8 @@ class Installer(object):
     def _write_manifest(self):
         mf_file = self.install_config.get('manifest_file', "poi-manifest.json")
         manifest = {}
+
+        self.logger.info(f"writing manifest file {mf_file}")
 
         manifest['install_time'] = str(datetime.datetime.now())
 

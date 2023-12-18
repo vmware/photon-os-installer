@@ -95,6 +95,12 @@ class Tdnf:
             else:
                 raise Exception("No usable tdnf or docker binary found")
 
+    def get_rpm_dbpath(self):
+        if self.releasever == "4.0":
+            return "/var/lib/rpm"
+        else:
+            return "/usr/lib/sysimage/rpm"
+
     def default_args(self):
         args = []
         if self.config_file:
@@ -105,6 +111,8 @@ class Tdnf:
             args += ["--releasever", self.releasever]
         if self.installroot:
             args += ["--installroot", self.installroot]
+        if self.releasever != "5.0":
+            args += ["--rpmdefine", f"_dbpath {self.get_rpm_dbpath()}"]
         return args
 
     def get_command(self, args=[], directories=[], repos={}):
