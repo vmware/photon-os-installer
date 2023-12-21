@@ -559,10 +559,6 @@ class Installer(object):
             if install_config['password']['age'] < -1:
                 return "Password age should be -1, 0 or positive"
 
-        if 'linux_flavor' in install_config:
-            if install_config['linux_flavor'] not in self.all_linux_flavors:
-                return "linux_flavor is not in allowed list"
-
         return None
 
 
