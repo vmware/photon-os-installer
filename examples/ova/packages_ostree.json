@@ -1,0 +1,13 @@
+{
+    "packages": ["bash", "bc", "bridge-utils", "bzip2","ca-certificates",
+                 "cloud-init", "cpio", "cracklib-dicts", "dbus", "e2fsprogs",
+                 "file", "findutils", "gdbm", "grep", "gzip", "iana-etc",
+                 "iptables", "iproute2", "iputils", "libtool", "linux", "motd",
+                 "net-tools", "open-vm-tools", "pkg-config", "photon-release", "photon-repos",
+                 "procps-ng", "rpm", "sed", "sudo", "tzdata", "util-linux",
+                 "vim", "which", "dracut-tools", "rpm-ostree", "nss-altfiles",
+                 "openssh", "systemd", "systemd-udev", "openssl", "grub2", "grub2-efi",
+                 "grub2-efi-image", "shadow", "ncurses", "grub2-theme-ostree",
+                 "selinux-policy"],
+    "packages_x86_64": ["grub2-pc"]
+}

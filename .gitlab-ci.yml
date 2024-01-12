@@ -1,0 +1,17 @@
+stages:
+- build
+- test
+
+build-container:
+  stage: build
+  tags:
+    - docker
+  script:
+    - cd docker && docker build -t photon/installer --build-arg DOCKER_PROXY=harbor-repo.vmware.com/dockerhub-proxy-cache/ --build-context poi-helper=$(realpath $(pwd)/..) .
+
+pytest:
+  stage: test
+  tags:
+    - shell
+  script:
+    - pytest-3 -x tests/poi-container-test.py

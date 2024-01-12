@@ -1,0 +1,42 @@
+live: False
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: minimal-stig.img
+        size: 10240
+
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /root
+      sizepercent: 5
+      filesystem: ext4
+    - sizepercent: 5
+      filesystem: swap
+
+packagelist_file: packages_stig.json
+
+additional_packages:
+    - vim
+
+public_key: <ssh-key-here>
+
+linux_flavor: linux
+
+eject_cdrom: false
+
+ansible:
+    - playbook: /usr/share/ansible/stig-hardening/playbook.yml
+      logfile: ansible-stig-skip.log
+      verbosity: 2
+      extra-vars: "@/usr/share/ansible/stig-hardening/vars-chroot.yml"
+      skip-tags:
+          - PHTN-50-000245

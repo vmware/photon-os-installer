@@ -4,3 +4,10 @@ build
 
 ._*
 *.egg-info/
+
+*.img
+*.raw
+*.ova
+*.tar.gz
+*.tgz
+*.xz

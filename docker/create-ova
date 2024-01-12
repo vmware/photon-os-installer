@@ -1,0 +1,113 @@
+#!/bin/bash
+
+CREATE_OVF="false"
+CREATE_MF="false"
+
+create_ova()
+{
+    img_list=(${RAW_IMAGES})
+    if [ "${CREATE_OVF}" != "true" ] ; then
+        # TODO: tools version
+        for img in ${img_list[@]} ; do
+            name=${img%.*} # remove extension
+            vmdk-convert ${img} ${name}.vmdk
+        done
+    fi
+
+    if [ "${VMDK_ONLY}" != "true" ] ; then
+        img0=${img_list[0]}
+        name0=${img0%.*}
+
+        if [ "${CREATE_OVF}" == "true" ] ; then
+            output_file=${OVA_NAME}.ovf
+        else
+            output_file=${OVA_NAME}.ova
+        fi
+
+        if [ "${CREATE_MF}" == "true" ] ; then
+            opt_mf="--manifest"
+        fi
+
+        ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf} ${PARAMS}
+
+        # don't nuke the vmdk files if we haven't created them
+        if [ "${CREATE_OVF}" != "true" ] ; then
+            for img in ${img_list[@]} ; do
+                name=${img%.*}
+                rm -f ${name}.vmdk
+            done
+        fi
+    fi
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [--installer-config <config-file>] (ks file used for create-image)"
+    echo "          [--installer-param key=val [...]] (params for parsing the ks file)"
+    echo "          [--mf]"
+    echo "          [--raw-image <image-file>]"
+    echo "          [--ova-name <name>]"
+    echo "          [--ova-config <ova-config-file>] (required)"
+    echo "          [--ovf]"
+    echo "          [--param key=val [...]] (for ova-compose)"
+    echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
+}
+
+OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -h) usage ; exit 0;;
+        --installer-config) CFG_FILE=${2} ; shift 2 ;;
+        --installer-param)  INSTALLER_PARAMS="${INSTALLER_PARAMS} --param ${2}"; shift 2 ;;
+        --mf)               CREATE_MF="true"; shift ;;
+        --raw-images)       RAW_IMAGES=${2} ; shift 2 ;;
+        --ova-config)       OVA_CFG_FILE=${2} ; shift 2 ;;
+        --ova-name)         OVA_NAME=${2} ; shift 2 ;;
+        --ovf)              CREATE_OVF="true"; shift ;;
+        --param)            PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
+        --vmdk-only)        VMDK_ONLY="true"; shift ;;
+        --)                 shift; break ;;
+        *)                  break ;;
+    esac
+done
+
+echo  "${OVA_CFG_FILE}"
+
+if [ -z "${OVA_CFG_FILE}" ] ; then
+    echo "need an OVA config file" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${OVA_NAME}" ] ; then
+    OVA_NAME=$(yjson < ${OVA_CFG_FILE} | jq -r '.system.name')
+fi
+
+if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
+    echo "need a config file or image" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+if [ -z "${RAW_IMAGES}" ] ; then
+    RAW_IMAGES=$(yjson ${INSTALLER_PARAMS} < ${CFG_FILE} | jq -r '.disks|values[].filename')
+fi
+
+if [ -z "${RAW_IMAGES}" ] ; then
+    echo "no suitable image found" >&2
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+create_ova

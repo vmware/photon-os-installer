@@ -1,0 +1,38 @@
+arch: aarch64
+live: false
+
+bootmode: efi
+
+hostname: photon-machine
+
+packagelist_file: packages_rpi.json
+
+disks:
+    default:
+        filename: rpi.img
+        size: 768
+
+partition_type: msdos
+
+partitions:
+    - mountpoint: /boot/efi
+      size: 30
+      filesystem: vfat
+      type: 0c01
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+
+password:
+    age: 0
+    crypted: false
+    text: changeme
+
+additional_files:
+    - resizefs.sh: /usr/local/bin/resizefs.sh
+    - resizefs.service: /lib/systemd/system/resizefs.service
+
+postinstallscripts:
+    - rpi-custom-patch.sh
+
+linux_flavor: linux
