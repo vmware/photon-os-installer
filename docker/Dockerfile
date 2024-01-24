@@ -55,7 +55,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     zlib tar \
     util-linux coreutils findutils binutils cdrkit \
     gptfdisk grub2 \
-    e2fsprogs kpartx lvm2 dosfstools \
+    e2fsprogs btrfs-progs xfsprogs kpartx lvm2 dosfstools \
     createrepo rpm jq jc \
     python3-PyYAML \
     qemu-img \
