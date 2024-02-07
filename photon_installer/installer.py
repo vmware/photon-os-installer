@@ -189,6 +189,7 @@ class Installer(object):
         self._add_shadow_partitions()
         self._check_disk_space()
         self._get_vg_names()
+        self._clear_vgs()
 
 
     # collect LVM Volume Group names
@@ -203,6 +204,7 @@ class Installer(object):
                     # creating a VG with the same name as on the host will cause trouble
                     raise Exception(f"vg name {vg_name} is in use by the host - if left over from a previous install remove it with 'vgremove'")
                 self.vg_names.add(vg_name)
+        self.logger.info(f"using VG names: {self.vg_names}")
 
 
     def _prepare_devices(self):
@@ -1783,9 +1785,6 @@ class Installer(object):
         # Partitioning disks
         for device, l2entries in ptv.items():
             self._check_device(device)
-
-            #clear VolumeGroups and associated LVM's if exist any before clearing the disk
-            self._clear_vgs()
 
             # Clear the disk first
             retval = self.cmd.run(["sgdisk", "-Z", device])
