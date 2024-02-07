@@ -25,7 +25,7 @@ class CommandUtils(object):
         self.hostRpmIsNotUsable = -1
 
     def run(self, cmd, update_env=False):
-        self.logger.debug(cmd)
+        self.logger.info(f"running {cmd}")
         use_shell = not isinstance(cmd, list)
         process = subprocess.Popen(
             cmd, shell=use_shell, text=True,
