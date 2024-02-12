@@ -53,7 +53,7 @@ usage() {
     echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
 }
 
-OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
+OPTS=$(getopt -o h --long installer-config:,installer-param:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
