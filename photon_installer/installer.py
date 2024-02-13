@@ -920,9 +920,18 @@ class Installer(object):
                 dump = 1
                 fsck = 2
 
+                if 'fs_options' in partition:
+                    if type(partition['fs_options']) is str:
+                        options += f",{partition['fs_options']}"
+                    elif type(partition['fs_options']) is list:
+                        options += "," + ",".join(partition['fs_options'])
+                    else:
+                        self.logger.error("fs_options must be of type str or list")
+                        self.exit_gracefully()
+
                 # Add supported options according to partition filesystem
                 if partition.get('mountpoint', '') == '/':
-                    part_fstype = partition.get('filesystem','')
+                    part_fstype = partition.get('filesystem', '')
                     if part_fstype in ['ext4', 'ext3', 'swap', 'vfat']:
                         options += ',barrier,noatime,data=ordered'
                     elif part_fstype == 'btrfs':
