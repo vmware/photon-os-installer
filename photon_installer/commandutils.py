@@ -207,12 +207,16 @@ class CommandUtils(object):
 
         assert type(key) is str, f"param name must be a string"
 
-        if "=" in key:
-            key, default = [t.strip() for t in key.split("=")]
-            default = yaml.safe_load(default)
-        value = params.get(key, default)
+        if '=' in key:
+            key, default = [t.strip() for t in key.split('=', maxsplit=1)]
 
-        assert value is not None, f"no param set for '{key}', and there is no default"
+            if key in params:
+                value = params[key]
+            else:
+                value = yaml.safe_load(default)
+        else:
+            assert key in params, f"no param set for '{key}', and there is no default"
+            value = params[key]
 
         return value
 
