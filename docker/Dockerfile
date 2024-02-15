@@ -58,6 +58,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     e2fsprogs btrfs-progs xfsprogs kpartx lvm2 dosfstools \
     createrepo rpm jq jc \
     python3-PyYAML \
+    python3-rpm \
     qemu-img \
     open-vmdk ostree rpm-ostree \
     stig-hardening \
