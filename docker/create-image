@@ -5,7 +5,12 @@ REPO_PATHS=/repo
 RELEASE_VER=5.0
 
 create_image() {
-    photon-installer -i ova -v ${RELEASE_VER} --repo-paths=${REPO_PATHS} -c ${CFG_FILE} -w ${WORKDIR} ${PARAMS}
+    params=()
+    for p in "${PARAMS[@]}" ; do
+        params+=("--param")
+        params+=("$p")
+    done
+    printf "%s\n" "${params[@]}" | xargs photon-installer -i ova -v ${RELEASE_VER} --repo-paths=${REPO_PATHS} -c ${CFG_FILE} -w ${WORKDIR}
 }
 
 usage() {
@@ -29,7 +34,7 @@ while true; do
     case "$1" in
         -c | --config)     CFG_FILE=${2} ; shift 2 ;;
         -h)                usage ; exit 0;;
-        --param)           PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
+        --param)           PARAMS+=("${2}"); shift 2 ;;
         --repo-paths)      REPO_PATHS=${2} ; shift 2 ;;
         -v | --releasever) RELEASE_VER=${2} ; shift 2 ;;
         --) shift; break ;;

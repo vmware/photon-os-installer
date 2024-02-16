@@ -39,9 +39,10 @@ def yaml_param(loader, node):
 def main():
     config_file = None
     params = {}
+    input_file = None
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h', longopts=['param='])
+        opts, args = getopt.getopt(sys.argv[1:], 'hi:', longopts=['param='])
     except:
         print (f"{sys.argv[0]}: invalid option")
         sys.exit(2)
@@ -50,13 +51,18 @@ def main():
         if o in ['-h']:
             usage()
             sys.exit(0)
+        elif o in ['-i']:
+            input_file = a
         elif o in ['--param']:
             k,v = a.split('=')
             params[k] = yaml.safe_load(v)
         else:
             assert False, f"unhandled option {o}"
 
-    f = sys.stdin
+    if input_file is None:
+        f = sys.stdin
+    else:
+        f = open(input_file, "rt")
 
     yaml_loader = yaml.SafeLoader
     yaml_loader.app_params = params
