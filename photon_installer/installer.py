@@ -1118,6 +1118,9 @@ class Installer(object):
         for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
             self._mount(d, d, bind=True)
 
+        for d in ["/sys/fs/cgroup"]:
+            self._mount(d, d, bind=True)
+
         for d in ["/tmp", "/run"]:
             self._mount('tmpfs', d, fstype='tmpfs')
 
