@@ -1118,7 +1118,14 @@ class Installer(object):
         for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
             self._mount(d, d, bind=True)
 
+        # device cgroup for docker
         for d in ["/sys/fs/cgroup"]:
+            os.makedirs(os.path.join(self.photon_root, d), exist_ok=True)
+            self._mount(d, d, bind=True)
+        # the following is neded on CentOS8, but not on Ubuntu 22.04
+        for dev in ["hugetlb", "memory", "blkio", "cpu,cpuacct", "devices", "freezer", "cpuset"]:
+            d = f"/sys/fs/cgroup/{dev}"
+            os.makedirs(os.path.join(self.photon_root, d), exist_ok=True)
             self._mount(d, d, bind=True)
 
         for d in ["/tmp", "/run"]:
