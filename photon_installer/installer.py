@@ -33,7 +33,8 @@ from window import Window
 from networkmanager import NetworkManager
 from enum import Enum
 from collections import abc
-from tdnf import Tdnf
+import tdnf
+
 
 BIOSSIZE = 4
 ESPSIZE = 10
@@ -90,6 +91,7 @@ class Installer(object):
         'search_path',
         'setup_grub_script',
         'shadow_password',
+        'tdnf_cachedir',
         'type',
         'ui'
     }
@@ -166,12 +168,12 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
-        self.tdnf = Tdnf(logger=self.logger,
-                         config_file=self.tdnf_conf_path,
-                         reposdir=self.working_directory,
-                         releasever=self.photon_release_version,
-                         installroot=self.photon_root,
-                         docker_image=install_config.get('photon_docker_image', None))
+        self.tdnf = tdnf.Tdnf(logger=self.logger,
+                              config_file=self.tdnf_conf_path,
+                              reposdir=self.working_directory,
+                              releasever=self.photon_release_version,
+                              installroot=self.photon_root,
+                              docker_image=install_config.get('photon_docker_image', None))
 
         issue = self._check_install_config(install_config)
         if issue:
@@ -1171,7 +1173,7 @@ class Installer(object):
 
 
     def _cleanup_tdnf_cache(self):
-        if self.install_config.get('no_clean', False):
+        if self.install_config.get('no_clean', False) or self.install_config.get('tdnf_cachedir', None) is not None:
             return
 
         # remove the tdnf cache directory
@@ -1326,21 +1328,33 @@ class Installer(object):
         Setup the tdnf repo for installation
         """
         repos = self.install_config['repos']
-        for repo in repos:
-            if self.insecure_installation:
-                repos[repo]["sslverify"] =  0
-            with open(os.path.join(self.working_directory, f"{repo}.repo"), "w") as repo_file:
-                repo_file.write(f"[{repo}]\n")
-                for key,value in repos[repo].items():
-                    repo_file.write(f"{key}={value}\n")
 
-        with open(self.tdnf_conf_path, "w") as conf_file:
-            conf_file.writelines([
-                "[main]\n",
-                "gpgcheck=0\n",
-                "installonly_limit=3\n",
-                "clean_requirements_on_remove=true\n",
-                "keepcache=0\n"])
+        self.logger.info(json.dumps(repos, indent=4))
+
+        tdnf.create_repo_conf(repos, reposdir=self.working_directory, insecure=self.insecure_installation)
+
+        tdnf_conf = {
+            'gpgcheck': 0,
+            'installonly_limit': 3,
+            'clean_requirements_on_remove': 1,
+            'keepcache': 0
+        }
+
+        tdnf_chachedir = self.install_config.get('tdnf_cachedir', None)
+
+        if tdnf_chachedir is not None:
+            if not tdnf_chachedir.startswith("/"):
+                tdnf_chachedir = os.path.join(os.getcwd(), tdnf_chachedir)
+            tdnf_conf['keepcache'] = 1
+            os.makedirs(tdnf_chachedir, exist_ok=True)
+            self._mount(tdnf_chachedir, "/var/cache/tdnf", bind=True, create=True)
+
+        self.logger.info(json.dumps(tdnf_conf, indent=4))
+
+        with open(self.tdnf_conf_path, "w") as f:
+            f.write("[main]\n")
+            for key,value in tdnf_conf.items():
+                f.write(f"{key}={value}\n")
 
 
     def _install_additional_rpms(self):

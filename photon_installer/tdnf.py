@@ -20,7 +20,8 @@ def find_binary_in_path(binary_name):
 
     return None
 
-def create_repo_conf(repos, reposdir="/etc/yum.repos.d"):
+
+def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False):
     """
     Create .repo file as per configurations passed.
     Parameters:
@@ -32,6 +33,8 @@ def create_repo_conf(repos, reposdir="/etc/yum.repos.d"):
     """
     os.makedirs(reposdir, exist_ok=True)
     for repo in repos:
+        if insecure:
+            repos[repo]["sslverify"] =  0
         with open(os.path.join(reposdir, f"{repo}.repo"), "w", encoding="utf-8") as repo_file:
             repo_file.write(f"[{repo}]\n")
             for key,value in repos[repo].items():
