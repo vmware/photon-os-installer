@@ -73,6 +73,7 @@ class Installer(object):
         'ostree',
         'packages',
         'packagelist_file',
+        'packagelist_files',
         'partition_type',
         'partitions',
         'network',
@@ -318,14 +319,18 @@ class Installer(object):
             else:
                 install_config['bootmode'] = 'efi'
 
-        # extend 'packages' by 'packagelist_file' and 'additional_packages'
+        # extend 'packages' by 'packagelist_file(s)' and 'additional_packages'
         packages = install_config.get('packages', [])
         if 'additional_packages' in install_config:
             packages.extend(install_config['additional_packages'])
         if f'packages_{arch}' in install_config:
             packages.extend(install_config[f'packages_{arch}'])
-        if 'packagelist_file' in install_config:
-            plf = install_config['packagelist_file']
+
+        pkglist_files = install_config.get('packagelist_files', [])
+        if install_config.get('packagelist_file', None) is not None:
+            pkglist_files.append(install_config['packagelist_file'])
+
+        for plf in pkglist_files:
             if not plf.startswith('/'):
                 plf = os.path.join(os.getcwd(), plf)
 
