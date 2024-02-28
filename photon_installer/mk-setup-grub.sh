@@ -54,7 +54,7 @@ terminal_output gfxterm
 
 set theme=${BOOT_DIRECTORY}grub2/themes/photon/theme.txt
 load_env -f ${BOOT_DIRECTORY}photon.cfg
-if [ -f  ${BOOT_DIRECTORY}systemd.cfg ]; then
+if [ -f ${BOOT_DIRECTORY}systemd.cfg ]; then
     load_env -f ${BOOT_DIRECTORY}systemd.cfg
 else
     set systemd_cmdline=net.ifnames=0
