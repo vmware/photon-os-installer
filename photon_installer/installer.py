@@ -19,6 +19,7 @@ import secrets
 import curses
 import stat
 import tempfile
+import time
 import copy
 import jc
 import json
@@ -65,6 +66,7 @@ class Installer(object):
         'bootmode',
         'disk',
         'disks',
+        'docker',
         'eject_cdrom',
         'hostname',
         'linux_flavor',
@@ -358,6 +360,10 @@ class Installer(object):
         if 'ansible' in install_config:
             packages.append("python3")
 
+        # docker images need docker in the target
+        if 'docker' in install_config:
+            packages.append("docker")
+
         install_config['packages'] = list(set(packages))
 
         # live means online system, and it's True be default. When you create an image for
@@ -569,6 +575,21 @@ class Installer(object):
             if install_config['password']['age'] < -1:
                 return "Password age should be -1, 0 or positive"
 
+        if 'docker' in install_config:
+            images = install_config['docker'].get('images', [])
+            for image in images:
+                if 'method' not in image:
+                    return "no 'method' set for docker image"
+                method = image['method']
+                if method not in ["pull", "load"]:
+                    return f"unknown method '{method}' for docker image"
+                if method == "pull":
+                    if 'name' not in image:
+                        return "no 'name' set for docker image with 'pull' method"
+                elif method == "load":
+                    if 'filename' not in image:
+                        return "no 'filename' set for docker image with 'load' method"
+
         return None
 
 
@@ -676,6 +697,7 @@ class Installer(object):
             self._create_fstab()
             self._update_abupdate()
         self._ansible_run()
+        self._docker_images()
         self._execute_modules(modules.commons.POST_INSTALL)
         self._deactivate_network_in_chroot()
         self._write_manifest()
@@ -779,6 +801,41 @@ class Installer(object):
             assert process.returncode == 0, f"ansible run for playbook {playbook} failed"
             if logf is not None:
                 shutil.copy(ans_cfg['logfile'], os.path.join(self.photon_root, "var/log"))
+
+
+    def _docker_images(self):
+        if 'docker' not in self.install_config:
+            return
+
+        if self.install_config['ui']:
+            self.progress_bar.update_message("Installing docker images")
+
+        socket_file = os.path.join(self.photon_root, "var/run/docker.sock")
+        if os.path.exists(socket_file):
+            os.remove(socket_file)
+        docker_process = subprocess.Popen(["chroot", self.photon_root, "dockerd"], text=True)
+        for timeout in range(15, 0, -1):
+            if os.path.exists(socket_file):
+                mode = os.stat(socket_file).st_mode
+                if stat.S_ISSOCK(mode):
+                    break
+            time.sleep(1)
+        else:
+            raise Exception("timed out waiting for docker")
+
+        images = self.install_config['docker'].get('images', [])
+        for image in images:
+            method = image['method']
+            if method == "pull":
+                name = image['name']
+                subprocess.run(["chroot", self.photon_root, "docker", "pull", name], check=True)
+            elif method == "load":
+                filename = image['filename']
+                with open(filename, "rb") as fin:
+                    subprocess.run(["chroot", self.photon_root, "docker", "load"], stdin=fin, check=True)
+
+        docker_process.terminate()
+        docker_process.wait()
 
 
     def _write_manifest(self):
