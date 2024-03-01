@@ -377,13 +377,7 @@ class Installer(object):
                 versioned_pkgs.add(name)
 
         # remove packages with name only if there is a versioned one
-        packages_pruned = []
-        for p in packages:
-            if "=" in p:
-                packages_pruned.append(p)
-            else:
-                if p not in versioned_pkgs:
-                    packages_pruned.append(p)
+        packages_pruned = [p for p in packages if p not in versioned_pkgs]
 
         install_config['packages'] = packages_pruned
 
