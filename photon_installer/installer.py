@@ -364,7 +364,28 @@ class Installer(object):
         if 'docker' in install_config:
             packages.append("docker")
 
-        install_config['packages'] = list(set(packages))
+        packages = list(set(packages))
+
+        versioned_pkgs = set()
+        for p in packages:
+            if "=" in p:
+                name, version = p.split("=")
+                if name in versioned_pkgs:
+                    # let tdnf deal with this - there are exceptions where this is allowed (like install_only packages)
+                    # also, one of the versions may be incomplete: vim=9.0.2142 vs vim=9.0.2142-1.ph5 , which does not conflict
+                    self.logger.warn(f"versioned package name '{name}' occurs multiple times in the package list")
+                versioned_pkgs.add(name)
+
+        # remove packages with name only if there is a versioned one
+        packages_pruned = []
+        for p in packages:
+            if "=" in p:
+                packages_pruned.append(p)
+            else:
+                if p not in versioned_pkgs:
+                    packages_pruned.append(p)
+
+        install_config['packages'] = packages_pruned
 
         # live means online system, and it's True be default. When you create an image for
         # target system, live should be set to False.
