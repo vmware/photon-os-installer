@@ -13,7 +13,7 @@ def usage():
     print(
 f"""Usage: {sys.argv[0]}
        -p <package_list.json> (required)
-       -s <source repo URL> (required)
+       -s <source repo URL> (optional if "upstream-repos" is set in <package_list.json>, otherwise required)
        -d <destination repo dir> (default is 'cherry-picks')
 """
     )
@@ -42,9 +42,8 @@ def main():
         else:
             assert False, f"unhandled option {o}"
 
-    assert pkglist_file is not None, f"need to specify pacvkage list file ({sys.argv[0]} -p <file>)"
+    assert pkglist_file is not None, f"need to specify package list file ({sys.argv[0]} -p <file>)"
     assert dst_repo_dir is not None, f"need to specify output directory ({sys.argv[0]} -d <directory>)"
-    assert src_repo_url is not None, f"need to specify source repo ({sys.argv[0]} -s <repo>)"
 
     if not pkglist_file.startswith('/'):
         pkglist_file = os.path.join(os.getcwd(), pkglist_file)
@@ -58,6 +57,12 @@ def main():
             print(f"'{e.doc[e.pos:]}'")
             raise e
 
+    upstream_repos = plf_json.get('upstream-repos', {})
+    if src_repo_url is not None:
+        upstream_repos['_src_repo'] = {'baseurl' : src_repo_url, 'enabled': 1, 'gpgcheck': 0}
+
+    assert upstream_repos, "no upstream repository specified - use `-s <source repo URL>` or add in the packages file"
+
     packages = []
     if 'packages' in plf_json:
         packages.extend(plf_json['packages'])
@@ -69,7 +74,7 @@ def main():
         assert "-" in v, f"package {p} does not have a full version/release"
 
     repos_dir = tempfile.mkdtemp(prefix="reposdir-")
-    tdnf.create_repo_conf({'upstream':{'baseurl' : src_repo_url, 'enabled': 1, 'gpgcheck': 0}}, reposdir=repos_dir)
+    tdnf.create_repo_conf(upstream_repos, reposdir=repos_dir)
 
     os.makedirs(dst_repo_dir, exist_ok=True)
 
