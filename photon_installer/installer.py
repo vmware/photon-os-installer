@@ -1204,6 +1204,7 @@ class Installer(object):
                         temp_file = tempfile.mktemp()
                         result, msg = CommandUtils.wget(src, temp_file, False)
                         if result:
+                            os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(temp_file, self.photon_root + dest)
                         else:
                             self.logger.error("Download failed URL: {} got error: {}".format(src, msg))
@@ -1212,6 +1213,7 @@ class Installer(object):
                         if (os.path.isdir(srcpath)):
                             shutil.copytree(srcpath, self.photon_root + dest, True)
                         else:
+                            os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(srcpath, self.photon_root + dest)
 
     def _finalize_system(self):
