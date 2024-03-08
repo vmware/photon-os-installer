@@ -1226,7 +1226,7 @@ class Installer(object):
                     else:
                         srcpath = self.getfile(src)
                         if (os.path.isdir(srcpath)):
-                            shutil.copytree(srcpath, self.photon_root + dest, True)
+                            shutil.copytree(srcpath, self.photon_root + dest, dirs_exist_ok=True)
                         else:
                             os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(srcpath, self.photon_root + dest)
