@@ -76,6 +76,7 @@ COPY create-image \
      create-repo \
      create-azure \
      create-ostree \
+     create-cherrypicks-repo \
      poi-pkglist yjson \
      /usr/bin
 
