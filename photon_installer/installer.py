@@ -19,8 +19,12 @@ import secrets
 import curses
 import stat
 import tempfile
+import time
 import copy
+import jc
 import json
+import datetime
+
 from defaults import Defaults
 from logger import Logger
 from commandutils import CommandUtils
@@ -30,7 +34,8 @@ from window import Window
 from networkmanager import NetworkManager
 from enum import Enum
 from collections import abc
-from tdnf import Tdnf
+import tdnf
+
 
 BIOSSIZE = 4
 ESPSIZE = 10
@@ -61,18 +66,22 @@ class Installer(object):
         'bootmode',
         'disk',
         'disks',
+        'docker',
         'eject_cdrom',
         'hostname',
         'linux_flavor',
         'live',
         'log_level',
+        'manifest_file',
         'ostree',
         'packages',
         'packagelist_file',
+        'packagelist_files',
         'partition_type',
         'partitions',
         'network',
         'no_unmount',
+        'no_clean',
         'password',
         'postinstall',
         'postinstallscripts',
@@ -84,6 +93,7 @@ class Installer(object):
         'search_path',
         'setup_grub_script',
         'shadow_password',
+        'tdnf_cachedir',
         'type',
         'ui'
     }
@@ -160,12 +170,12 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
-        self.tdnf = Tdnf(logger=self.logger,
-                         config_file=self.tdnf_conf_path,
-                         reposdir=self.working_directory,
-                         releasever=self.photon_release_version,
-                         installroot=self.photon_root,
-                         docker_image=install_config.get('photon_docker_image', None))
+        self.tdnf = tdnf.Tdnf(logger=self.logger,
+                              config_file=self.tdnf_conf_path,
+                              reposdir=self.working_directory,
+                              releasever=self.photon_release_version,
+                              installroot=self.photon_root,
+                              docker_image=install_config.get('photon_docker_image', None))
 
         issue = self._check_install_config(install_config)
         if issue:
@@ -184,6 +194,7 @@ class Installer(object):
         self._add_shadow_partitions()
         self._check_disk_space()
         self._get_vg_names()
+        self._clear_vgs()
 
 
     # collect LVM Volume Group names
@@ -198,6 +209,7 @@ class Installer(object):
                     # creating a VG with the same name as on the host will cause trouble
                     raise Exception(f"vg name {vg_name} is in use by the host - if left over from a previous install remove it with 'vgremove'")
                 self.vg_names.add(vg_name)
+        self.logger.info(f"using VG names: {self.vg_names}")
 
 
     def _prepare_devices(self):
@@ -206,7 +218,7 @@ class Installer(object):
             if not 'device' in disk:
                 filename = disk['filename']
                 size = disk['size']
-                retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}"])
+                retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
                 if retval != 0:
                     raise Exception(f"failed to create disk image '{filename}'")
                 device = subprocess.check_output(["losetup", "--show", "-f", filename], text=True).strip()
@@ -311,19 +323,30 @@ class Installer(object):
             else:
                 install_config['bootmode'] = 'efi'
 
-        # extend 'packages' by 'packagelist_file' and 'additional_packages'
+        # extend 'packages' by 'packagelist_file(s)' and 'additional_packages'
         packages = install_config.get('packages', [])
         if 'additional_packages' in install_config:
             packages.extend(install_config['additional_packages'])
         if f'packages_{arch}' in install_config:
             packages.extend(install_config[f'packages_{arch}'])
-        if 'packagelist_file' in install_config:
-            plf = install_config['packagelist_file']
+
+        pkglist_files = install_config.get('packagelist_files', [])
+        if install_config.get('packagelist_file', None) is not None:
+            pkglist_files.append(install_config['packagelist_file'])
+
+        for plf in pkglist_files:
             if not plf.startswith('/'):
                 plf = os.path.join(os.getcwd(), plf)
 
             with open(plf, "rt") as f:
-                plf_json = json.load(f)
+                try:
+                    plf_json = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    print(f"failed to read json file {plf}")
+                    print(f"json decode failed at line {e.lineno}, at:")
+                    print(f"'{e.doc[e.pos:]}'")
+                    raise e
+
             if 'packages' in plf_json:
                 packages.extend(plf_json['packages'])
             if f'packages_{arch}' in plf_json:
@@ -337,7 +360,26 @@ class Installer(object):
         if 'ansible' in install_config:
             packages.append("python3")
 
-        install_config['packages'] = list(set(packages))
+        # docker images need docker in the target
+        if 'docker' in install_config:
+            packages.append("docker")
+
+        packages = list(set(packages))
+
+        versioned_pkgs = set()
+        for p in packages:
+            if "=" in p:
+                name, version = p.split("=")
+                if name in versioned_pkgs:
+                    # let tdnf deal with this - there are exceptions where this is allowed (like install_only packages)
+                    # also, one of the versions may be incomplete: vim=9.0.2142 vs vim=9.0.2142-1.ph5 , which does not conflict
+                    self.logger.warn(f"versioned package name '{name}' occurs multiple times in the package list")
+                versioned_pkgs.add(name)
+
+        # remove packages with name only if there is a versioned one
+        packages_pruned = [p for p in packages if p not in versioned_pkgs]
+
+        install_config['packages'] = packages_pruned
 
         # live means online system, and it's True be default. When you create an image for
         # target system, live should be set to False.
@@ -548,9 +590,20 @@ class Installer(object):
             if install_config['password']['age'] < -1:
                 return "Password age should be -1, 0 or positive"
 
-        if 'linux_flavor' in install_config:
-            if install_config['linux_flavor'] not in self.all_linux_flavors:
-                return "linux_flavor is not in allowed list"
+        if 'docker' in install_config:
+            images = install_config['docker'].get('images', [])
+            for image in images:
+                if 'method' not in image:
+                    return "no 'method' set for docker image"
+                method = image['method']
+                if method not in ["pull", "load"]:
+                    return f"unknown method '{method}' for docker image"
+                if method == "pull":
+                    if 'name' not in image:
+                        return "no 'name' set for docker image with 'pull' method"
+                elif method == "load":
+                    if 'filename' not in image:
+                        return "no 'filename' set for docker image with 'load' method"
 
         return None
 
@@ -627,6 +680,8 @@ class Installer(object):
                                .format(self.progress_bar.time_elapsed))
             if self.interactive:
                 self.window.content_window().getch()
+        else:
+            self.logger.info("creating image was successful")
 
         if self.install_config.get('live', True):
             self._eject_cdrom()
@@ -652,13 +707,16 @@ class Installer(object):
             self._enable_network_in_chroot()
             self._setup_network()
             self._finalize_system()
-            self._cleanup_install_repo()
+            self._cleanup_tdnf_cache()
             self._setup_grub()
             self._create_fstab()
             self._update_abupdate()
+        self._ansible_run()
+        self._docker_images()
         self._execute_modules(modules.commons.POST_INSTALL)
         self._deactivate_network_in_chroot()
-        self._ansible_run()
+        self._write_manifest()
+        self._cleanup_install_repo()
         self._unmount_all()
 
 
@@ -701,6 +759,9 @@ class Installer(object):
     def _ansible_run(self):
         if 'ansible' not in self.install_config:
             return
+
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Running ansible scripts')
 
         ansibles = self.install_config['ansible']
         for ans_cfg in ansibles:
@@ -755,6 +816,82 @@ class Installer(object):
             assert process.returncode == 0, f"ansible run for playbook {playbook} failed"
             if logf is not None:
                 shutil.copy(ans_cfg['logfile'], os.path.join(self.photon_root, "var/log"))
+
+
+    def _docker_images(self):
+        if 'docker' not in self.install_config:
+            return
+
+        if self.install_config['ui']:
+            self.progress_bar.update_message("Installing docker images")
+
+        socket_file = os.path.join(self.photon_root, "var/run/docker.sock")
+        if os.path.exists(socket_file):
+            os.remove(socket_file)
+        docker_process = subprocess.Popen(["chroot", self.photon_root, "dockerd"], text=True)
+        for timeout in range(15, 0, -1):
+            if os.path.exists(socket_file):
+                mode = os.stat(socket_file).st_mode
+                if stat.S_ISSOCK(mode):
+                    break
+            time.sleep(1)
+        else:
+            raise Exception("timed out waiting for docker")
+
+        images = self.install_config['docker'].get('images', [])
+        for image in images:
+            method = image['method']
+            if method == "pull":
+                name = image['name']
+                subprocess.run(["chroot", self.photon_root, "docker", "pull", name], check=True)
+            elif method == "load":
+                filename = image['filename']
+                with open(filename, "rb") as fin:
+                    subprocess.run(["chroot", self.photon_root, "docker", "load"], stdin=fin, check=True)
+
+        docker_process.terminate()
+        docker_process.wait()
+
+
+    def _write_manifest(self):
+        mf_file = self.install_config.get('manifest_file', "poi-manifest.json")
+        manifest = {}
+
+        self.logger.info(f"writing manifest file {mf_file}")
+
+        manifest['install_time'] = str(datetime.datetime.now())
+
+        manifest['install_config'] = self.install_config
+
+        if 'ostree' not in self.install_config:
+            retval, pkg_list = self.tdnf.run(["list", "--installed", "--disablerepo=*"])
+            manifest['packages'] = pkg_list
+
+        with open(os.path.join(self.photon_root, "etc/fstab"), "rt") as f:
+            manifest['fstab'] = jc.parse("fstab", f.read())
+
+        df = jc.parse("df", subprocess.check_output(["df"], text=True))
+        df = [d for d in df if d['mounted_on'].startswith(self.photon_root)]
+        for d in df:
+            d['mounted_on'] = d['mounted_on'][len(self.photon_root):]
+        manifest['df'] = df
+
+        mount = jc.parse("mount", subprocess.check_output(["mount"], text=True))
+        mount = [m for m in mount if m['mount_point'].startswith(self.photon_root)]
+        for m in mount:
+            m['mount_point'] = m['mount_point'][len(self.photon_root):]
+        manifest['mount'] = mount
+
+        with open(mf_file, "wt") as f:
+            f.write(json.dumps(manifest))
+
+        # write a copy to the image itself
+        mf_dir = os.path.join(self.photon_root, "var", "log", "poi")
+        os.makedirs(mf_dir, exist_ok=True)
+        mf_file = os.path.join(mf_dir, "manifest.json")
+        with open(mf_file, "wt") as f:
+            f.write(json.dumps(manifest))
+        subprocess.run(["gzip", mf_file])
 
 
     def _unmount_all(self):
@@ -862,9 +999,18 @@ class Installer(object):
                 dump = 1
                 fsck = 2
 
+                if 'fs_options' in partition:
+                    if type(partition['fs_options']) is str:
+                        options += f",{partition['fs_options']}"
+                    elif type(partition['fs_options']) is list:
+                        options += "," + ",".join(partition['fs_options'])
+                    else:
+                        self.logger.error("fs_options must be of type str or list")
+                        self.exit_gracefully()
+
                 # Add supported options according to partition filesystem
                 if partition.get('mountpoint', '') == '/':
-                    part_fstype = partition.get('filesystem','')
+                    part_fstype = partition.get('filesystem', '')
                     if part_fstype in ['ext4', 'ext3', 'swap', 'vfat']:
                         options += ',barrier,noatime,data=ordered'
                     elif part_fstype == 'btrfs':
@@ -1051,6 +1197,16 @@ class Installer(object):
         for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
             self._mount(d, d, bind=True)
 
+        # device cgroup for docker
+        for d in ["/sys/fs/cgroup"]:
+            os.makedirs(os.path.join(self.photon_root, d), exist_ok=True)
+            self._mount(d, d, bind=True)
+        # the following is neded on CentOS8, but not on Ubuntu 22.04
+        for dev in ["hugetlb", "memory", "blkio", "cpu,cpuacct", "devices", "freezer", "cpuset"]:
+            d = f"/sys/fs/cgroup/{dev}"
+            os.makedirs(os.path.join(self.photon_root, d), exist_ok=True)
+            self._mount(d, d, bind=True)
+
         for d in ["/tmp", "/run"]:
             self._mount('tmpfs', d, fstype='tmpfs')
 
@@ -1063,14 +1219,16 @@ class Installer(object):
                         temp_file = tempfile.mktemp()
                         result, msg = CommandUtils.wget(src, temp_file, False)
                         if result:
+                            os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(temp_file, self.photon_root + dest)
                         else:
                             self.logger.error("Download failed URL: {} got error: {}".format(src, msg))
                     else:
                         srcpath = self.getfile(src)
                         if (os.path.isdir(srcpath)):
-                            shutil.copytree(srcpath, self.photon_root + dest, True)
+                            shutil.copytree(srcpath, self.photon_root + dest, dirs_exist_ok=True)
                         else:
+                            os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(srcpath, self.photon_root + dest)
 
     def _finalize_system(self):
@@ -1088,22 +1246,41 @@ class Installer(object):
         self.cmd.run_in_chroot(self.photon_root, "rpm --import /etc/pki/rpm-gpg/*")
 
 
-    def _cleanup_install_repo(self):
+    def _cleanup_tdnf_cache(self):
+        if self.install_config.get('no_clean', False) or self.install_config.get('tdnf_cachedir', None) is not None:
+            return
+
         # remove the tdnf cache directory
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Cleaning up tdnf cache')
+
         cache_dir = os.path.join(self.photon_root, 'var/cache/tdnf')
         if (os.path.isdir(cache_dir)):
             shutil.rmtree(cache_dir)
+
+
+    def _cleanup_install_repo(self):
+        if self.install_config.get('no_clean', False):
+            return
+
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Cleaning up tdnf install repo configs')
+
         if os.path.exists(self.tdnf_conf_path):
             os.remove(self.tdnf_conf_path)
-        for repo in self.install_config['repos']:
-            try:
-                os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
-            except FileNotFoundError:
-                pass
+        if 'repos' in self.install_config:
+            for repo in self.install_config['repos']:
+                try:
+                    os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
+                except FileNotFoundError:
+                    pass
 
 
     def _setup_grub(self):
         bootmode = self.install_config['bootmode']
+
+        if self.install_config['ui']:
+            self.progress_bar.update_message('Setting up GRUB')
 
         device = self.install_config['disks']['default']['device']
         # Setup bios grub
@@ -1177,6 +1354,10 @@ class Installer(object):
                 self.logger.error("Error: not able to execute module {}".format(module))
                 continue
             self.logger.info("Executing: " + module)
+
+            if self.install_config.get('ui', False):
+                self.progress_bar.update_message('Setting up GRUB')
+
             mod.execute(self)
 
     def _adjust_packages_based_on_selected_flavor(self):
@@ -1221,21 +1402,33 @@ class Installer(object):
         Setup the tdnf repo for installation
         """
         repos = self.install_config['repos']
-        for repo in repos:
-            if self.insecure_installation:
-                repos[repo]["sslverify"] =  0
-            with open(os.path.join(self.working_directory, f"{repo}.repo"), "w") as repo_file:
-                repo_file.write(f"[{repo}]\n")
-                for key,value in repos[repo].items():
-                    repo_file.write(f"{key}={value}\n")
 
-        with open(self.tdnf_conf_path, "w") as conf_file:
-            conf_file.writelines([
-                "[main]\n",
-                "gpgcheck=0\n",
-                "installonly_limit=3\n",
-                "clean_requirements_on_remove=true\n",
-                "keepcache=0\n"])
+        self.logger.info(json.dumps(repos, indent=4))
+
+        tdnf.create_repo_conf(repos, reposdir=self.working_directory, insecure=self.insecure_installation)
+
+        tdnf_conf = {
+            'gpgcheck': 0,
+            'installonly_limit': 3,
+            'clean_requirements_on_remove': 1,
+            'keepcache': 0
+        }
+
+        tdnf_chachedir = self.install_config.get('tdnf_cachedir', None)
+
+        if tdnf_chachedir is not None:
+            if not tdnf_chachedir.startswith("/"):
+                tdnf_chachedir = os.path.join(os.getcwd(), tdnf_chachedir)
+            tdnf_conf['keepcache'] = 1
+            os.makedirs(tdnf_chachedir, exist_ok=True)
+            self._mount(tdnf_chachedir, "/var/cache/tdnf", bind=True, create=True)
+
+        self.logger.info(json.dumps(tdnf_conf, indent=4))
+
+        with open(self.tdnf_conf_path, "w") as f:
+            f.write("[main]\n")
+            for key,value in tdnf_conf.items():
+                f.write(f"{key}={value}\n")
 
 
     def _install_additional_rpms(self):
@@ -1704,9 +1897,6 @@ class Installer(object):
         # Partitioning disks
         for device, l2entries in ptv.items():
             self._check_device(device)
-
-            #clear VolumeGroups and associated LVM's if exist any before clearing the disk
-            self._clear_vgs()
 
             # Clear the disk first
             retval = self.cmd.run(["sgdisk", "-Z", device])

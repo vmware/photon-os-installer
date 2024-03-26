@@ -23,11 +23,15 @@ def yaml_param(loader, node):
     assert type(key) is str, f"param name must be a string"
 
     if '=' in key:
-        key, default = [t.strip() for t in key.split('=')]
-        default = yaml.safe_load(default)
-    value = params.get(key, default)
+        key, default = [t.strip() for t in key.split('=', maxsplit=1)]
 
-    assert value is not None, f"no param set for '{key}', and there is no default"
+        if key in params:
+            value = params[key]
+        else:
+            value = yaml.safe_load(default)
+    else:
+        assert key in params, f"no param set for '{key}', and there is no default"
+        value = params[key]
 
     return value
 
@@ -35,9 +39,10 @@ def yaml_param(loader, node):
 def main():
     config_file = None
     params = {}
+    input_file = None
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h', longopts=['param='])
+        opts, args = getopt.getopt(sys.argv[1:], 'hi:', longopts=['param='])
     except:
         print (f"{sys.argv[0]}: invalid option")
         sys.exit(2)
@@ -46,13 +51,18 @@ def main():
         if o in ['-h']:
             usage()
             sys.exit(0)
+        elif o in ['-i']:
+            input_file = a
         elif o in ['--param']:
             k,v = a.split('=')
             params[k] = yaml.safe_load(v)
         else:
             assert False, f"unhandled option {o}"
 
-    f = sys.stdin
+    if input_file is None:
+        f = sys.stdin
+    else:
+        f = open(input_file, "rt")
 
     yaml_loader = yaml.SafeLoader
     yaml_loader.app_params = params

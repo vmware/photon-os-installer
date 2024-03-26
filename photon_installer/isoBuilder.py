@@ -290,10 +290,17 @@ class IsoBuilder(object):
             f"dd if=/dev/zero of={self.working_dir}/{self.efi_img} bs=3K count=1024"
         )
         self.runCmd(f"mkdosfs {self.working_dir}/{self.efi_img}")
+
+        try:
+            shutil.rmtree(efi_dir)
+        except FileNotFoundError:
+            pass
         os.makedirs(efi_dir)
+
         self.runCmd(f"mount -o loop {self.working_dir}/{self.efi_img} {efi_dir}")
         shutil.move(f"{self.working_dir}/boot/efi/EFI", efi_dir)
         self.runCmd(f"umount {efi_dir}")
+
         self.cmdUtil.remove_files([efi_dir])
 
     def createIsolinux(self):
@@ -353,10 +360,17 @@ class IsoBuilder(object):
             shutil.copy(f"{self.kickstart_path}", f"{self.working_dir}/isolinux")
 
         if self.boot_cmdline_param:
-            self.logger.info("Adding Boot command line parameters to isolinux menu...")
-            self.runCmd(
-                f"sed -i '/photon.media=cdrom/ s#$# {self.boot_cmdline_param}#' {self.working_dir}/isolinux/menu.cfg"
-            )
+            self.logger.info("adding Boot command line parameters to isolinux menu")
+            with open(f"{self.working_dir}/isolinux/menu.cfg", "rt") as fin:
+                with open(f"{self.working_dir}/isolinux/menu.cfg.tmp", "wt") as fout:
+                    for line in fin:
+                        if line.lstrip().startswith("append"):
+                            append = f"{line.rstrip()} {self.boot_cmdline_param}\n"
+                            self.logger.info(f"boot cmdline: {append}")
+                            fout.write(append)
+                        else:
+                            fout.write(line)
+            os.rename(f"{self.working_dir}/isolinux/menu.cfg.tmp", f"{self.working_dir}/isolinux/menu.cfg")
 
     def copyAdditionalFiles(self):
         for file in self.additional_files:

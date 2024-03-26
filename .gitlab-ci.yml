@@ -1,3 +1,6 @@
+variables:
+    POI_IMAGE_NAME: photon/installer:$CI_COMMIT_SHORT_SHA
+
 stages:
 - build
 - test
@@ -7,7 +10,8 @@ build-container:
   tags:
     - docker
   script:
-    - cd docker && docker build -t photon/installer --build-arg DOCKER_PROXY=harbor-repo.vmware.com/dockerhub-proxy-cache/ --build-context poi-helper=$(realpath $(pwd)/..) .
+    - cd docker && docker build -t ${POI_IMAGE_NAME} --build-arg DOCKER_PROXY=harbor-repo.vmware.com/dockerhub-proxy-cache/ --build-context poi-helper=$(realpath $(pwd)/..) .
+    - docker system prune -f
 
 pytest:
   stage: test

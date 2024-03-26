@@ -1,13 +1,10 @@
-live: False
-
 password:
     crypted: false
     text: changeme
 
 disks:
     default:
-        filename: minimal.img
-        size: 2048
+        device: /dev/sda
 
 partitions:
     - mountpoint: /
@@ -30,19 +27,3 @@ additional_packages:
 public_key: <ssh-key-here>
 
 linux_flavor: linux
-
-eject_cdrom: false
-
-manifest_file: minimal_mf.json
-
-network:
-    version: "2"
-    nameservers:
-        addresses:
-            - 8.8.8.8
-            - 8.8.4.4
-    ethernets:
-        id0:
-            match:
-                name: eth0
-            dhcp4: "yes"

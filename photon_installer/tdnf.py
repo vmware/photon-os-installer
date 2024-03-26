@@ -20,7 +20,8 @@ def find_binary_in_path(binary_name):
 
     return None
 
-def create_repo_conf(repos, reposdir="/etc/yum.repos.d"):
+
+def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False):
     """
     Create .repo file as per configurations passed.
     Parameters:
@@ -32,6 +33,8 @@ def create_repo_conf(repos, reposdir="/etc/yum.repos.d"):
     """
     os.makedirs(reposdir, exist_ok=True)
     for repo in repos:
+        if insecure:
+            repos[repo]["sslverify"] =  0
         with open(os.path.join(reposdir, f"{repo}.repo"), "w", encoding="utf-8") as repo_file:
             repo_file.write(f"[{repo}]\n")
             for key,value in repos[repo].items():
@@ -95,6 +98,12 @@ class Tdnf:
             else:
                 raise Exception("No usable tdnf or docker binary found")
 
+    def get_rpm_dbpath(self):
+        if self.releasever == "4.0":
+            return "/var/lib/rpm"
+        else:
+            return "/usr/lib/sysimage/rpm"
+
     def default_args(self):
         args = []
         if self.config_file:
@@ -105,6 +114,8 @@ class Tdnf:
             args += ["--releasever", self.releasever]
         if self.installroot:
             args += ["--installroot", self.installroot]
+        if self.releasever != "5.0":
+            args += ["--rpmdefine", f"_dbpath {self.get_rpm_dbpath()}"]
         return args
 
     def get_command(self, args=[], directories=[], repos={}):
@@ -159,8 +170,12 @@ class Tdnf:
         if retval != 0:
             self.logger.info(f"Command failed: {args}")
             self.logger.error(err.decode())
-            self.logger.info(f"Error code: {out_json['Error']}")
-            self.logger.error(out_json['ErrorMessage'])
+            if 'Error' in out_json:
+                self.logger.info(f"Error code: {out_json['Error']}")
+            if 'ErrorMessage' in out_json:
+                self.logger.error(out_json['ErrorMessage'])
+            else:
+                print(out_json)
 
         return retval, out_json
 

@@ -28,7 +28,13 @@ create_ova()
             opt_mf="--manifest"
         fi
 
-        ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf} ${PARAMS}
+        params=()
+        for p in "${PARAMS[@]}" ; do
+            params+=("--param")
+            params+=("$p")
+        done
+
+        printf "%s\n" "${params[@]}" | xargs ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf}
 
         # don't nuke the vmdk files if we haven't created them
         if [ "${CREATE_OVF}" != "true" ] ; then
@@ -53,7 +59,7 @@ usage() {
     echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
 }
 
-OPTS=$(getopt -o h --long installer-config:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
+OPTS=$(getopt -o h --long installer-config:,installer-param:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -66,13 +72,13 @@ while true; do
     case "$1" in
         -h) usage ; exit 0;;
         --installer-config) CFG_FILE=${2} ; shift 2 ;;
-        --installer-param)  INSTALLER_PARAMS="${INSTALLER_PARAMS} --param ${2}"; shift 2 ;;
+        --installer-param)  INSTALLER_PARAMS+=("${2}"); shift 2 ;;
         --mf)               CREATE_MF="true"; shift ;;
         --raw-images)       RAW_IMAGES=${2} ; shift 2 ;;
         --ova-config)       OVA_CFG_FILE=${2} ; shift 2 ;;
         --ova-name)         OVA_NAME=${2} ; shift 2 ;;
         --ovf)              CREATE_OVF="true"; shift ;;
-        --param)            PARAMS="${PARAMS} --param ${2}"; shift 2 ;;
+        --param)            PARAMS+=("${2}"); shift 2 ;;
         --vmdk-only)        VMDK_ONLY="true"; shift ;;
         --)                 shift; break ;;
         *)                  break ;;
@@ -100,7 +106,12 @@ if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then
-    RAW_IMAGES=$(yjson ${INSTALLER_PARAMS} < ${CFG_FILE} | jq -r '.disks|values[].filename')
+    params=()
+    for p in "${INSTALLER_PARAMS[@]}" ; do
+        params+=("--param")
+        params+=("$p")
+    done
+    RAW_IMAGES=$(printf "%s\n" "${params[@]}" | xargs yjson -i ${CFG_FILE} | jq -r '.disks|values[].filename')
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then

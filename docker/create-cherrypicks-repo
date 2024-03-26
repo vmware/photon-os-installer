@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+
+import getopt
+import json
+import os
+import sys
+import tempfile
+import subprocess
+from photon_installer import tdnf
+
+
+def usage():
+    print(
+f"""Usage: {sys.argv[0]}
+       -p <package_list.json> (required)
+       -s <source repo URL> (optional if "upstream-repos" is set in <package_list.json>, otherwise required)
+       -d <destination repo dir> (default is 'cherry-picks')
+"""
+    )
+
+def main():
+    src_repo_url = None
+    dst_repo_dir = "cherry-picks"
+    pkglist_file = None
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'd:hs:p:')
+    except:
+        print (f"{sys.argv[0]}: invalid option")
+        sys.exit(2)
+
+    for o, a in opts:
+        if o in ["-p"]:
+            pkglist_file = a
+        elif o in ["-d"]:
+            dst_repo_dir = a
+        elif o in ["-s"]:
+            src_repo_url = a
+        elif o in ["-h"]:
+            usage()
+            sys.exit(0)
+        else:
+            assert False, f"unhandled option {o}"
+
+    assert pkglist_file is not None, f"need to specify package list file ({sys.argv[0]} -p <file>)"
+    assert dst_repo_dir is not None, f"need to specify output directory ({sys.argv[0]} -d <directory>)"
+
+    if not pkglist_file.startswith('/'):
+        pkglist_file = os.path.join(os.getcwd(), pkglist_file)
+
+    with open(pkglist_file, "rt") as f:
+        try:
+            plf_json = json.load(f)
+        except json.decoder.JSONDecodeError as e:
+            print(f"failed to read json file {pkglist_file}")
+            print(f"json decode failed at line {e.lineno}, at:")
+            print(f"'{e.doc[e.pos:]}'")
+            raise e
+
+    upstream_repos = plf_json.get('upstream-repos', {})
+    if src_repo_url is not None:
+        upstream_repos['_src_repo'] = {'baseurl' : src_repo_url, 'enabled': 1, 'gpgcheck': 0}
+
+    assert upstream_repos, "no upstream repository specified - use `-s <source repo URL>` or add in the packages file"
+
+    packages = []
+    if 'packages' in plf_json:
+        packages.extend(plf_json['packages'])
+
+    # enforce full nevr
+    for p in packages:
+        assert "=" in p, f"package {p} does not have a version"
+        n, v = p.split("=")
+        assert "-" in v, f"package {p} does not have a full version/release"
+
+    repos_dir = tempfile.mkdtemp(prefix="reposdir-")
+    tdnf.create_repo_conf(upstream_repos, reposdir=repos_dir)
+
+    os.makedirs(dst_repo_dir, exist_ok=True)
+
+    # setting installroot is a hack to make it fetch already installed packages,
+    # packages will be downloaded to --downloaddir
+    install_root = tempfile.mkdtemp(prefix="installroot-")
+    tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
+
+    tdnf_inst.run([f"--downloadonly", f"--downloaddir={dst_repo_dir}", "--nodeps", "install"] + packages)
+
+    subprocess.run(["createrepo", dst_repo_dir], check=True)
+
+
+if __name__ == "__main__":
+    main()

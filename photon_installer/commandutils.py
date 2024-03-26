@@ -25,28 +25,30 @@ class CommandUtils(object):
         self.hostRpmIsNotUsable = -1
 
     def run(self, cmd, update_env=False):
-        self.logger.debug(cmd)
+        self.logger.info(f"running {cmd}")
         use_shell = not isinstance(cmd, list)
         process = subprocess.Popen(
-            cmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            cmd, shell=use_shell, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         out, err = process.communicate()
-        retval = process.returncode
-        if out != b"":
-            self.logger.info(out.decode())
+        if out != "":
+            self.logger.info(out)
             if update_env:
                 os.environ.clear()
                 os.environ.update(
                     dict(
                         line.partition("=")[::2]
-                        for line in out.decode("utf8").split("\0")
+                        for line in out.split("\0")
                         if line
                     )
                 )
+        process.wait()
+        retval = process.returncode
         if retval != 0:
             self.logger.info("Command failed: {}".format(cmd))
             self.logger.info("Error code: {}".format(retval))
-            self.logger.error(err.decode())
+            self.logger.error(err)
         return retval
 
     def run_in_chroot(self, chroot_path, cmd, update_env=False):
@@ -205,12 +207,16 @@ class CommandUtils(object):
 
         assert type(key) is str, f"param name must be a string"
 
-        if "=" in key:
-            key, default = [t.strip() for t in key.split("=")]
-            default = yaml.safe_load(default)
-        value = params.get(key, default)
+        if '=' in key:
+            key, default = [t.strip() for t in key.split('=', maxsplit=1)]
 
-        assert value is not None, f"no param set for '{key}', and there is no default"
+            if key in params:
+                value = params[key]
+            else:
+                value = yaml.safe_load(default)
+        else:
+            assert key in params, f"no param set for '{key}', and there is no default"
+            value = params[key]
 
         return value
 

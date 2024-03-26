@@ -157,6 +157,51 @@ sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v ${REPO_PA
 ```
 This will result in a azure image with  `azure_ks.yaml` with `disks.default.filename`.vhd.tar.gz.
 
+## Create an ISO Image
+
+Example:
+
+```
+sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/5.0:/repo photon/installer photon-iso-builder -f build-iso -v 5.0 -p packages_minimal.json
+```
+Or using a config file:
+```
+function: build-iso
+
+photon_release_version: "5.0"
+
+packageslist_file: packages_minimal.json
+
+initrd_pkgs_list_file: packages_installer_initrd.json
+
+kickstart_path: minimal_ks.yaml
+
+# uncomment for non-interactive install
+#boot_cmdline_param: ks=minimal_ks.yaml
+
+repo_paths:
+    - /repo
+    - /poi
+
+iso_files:
+    minimal_ks.yaml: isolinux/
+    "https://raw.githubusercontent.com/vmware/photon/5.0/support/image-builder/iso/sample_ks.cfg": isolinux/
+    "https://raw.githubusercontent.com/vmware/photon/5.0/EULA.txt": ""
+    "https://raw.githubusercontent.com/vmware/photon/5.0/NOTICE-Apachev2": ""
+    "https://raw.githubusercontent.com/vmware/photon/5.0/NOTICE-GPL2.0": ""
+    "https://github.com/vmware/photon/raw/5.0/support/image-builder/iso/open_source_license.tar.gz": ""
+
+initrd_files:
+    minimal_ks.yaml: installer/
+    packages_minimal.json: installer/
+    "https://raw.githubusercontent.com/vmware/photon/5.0/support/image-builder/iso/sample_ui.cfg": installer/
+    "https://raw.githubusercontent.com/vmware/photon/5.0/EULA.txt": installer/
+```
+Use the config file as (`iso.yaml`) with:
+```
+sudo docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/5.0:/repo photon/installer photon-iso-builder -y iso.yaml
+```
+
 ## create-image-util tool
 
 This is an alternative tool to build images using single command instead of running multiple commands. This tool is a wrapper for all the commands need to trigger in a sequence to build an image on container.
