@@ -1,12 +1,19 @@
 #!/bin/bash
 
+# create OVA by default
+CREATE_OVA="true"
+
+# create components individually
+# if CREATE_OVA is true these will be created implicitely
 CREATE_OVF="false"
 CREATE_MF="false"
+CREATE_VMDK="false"
+
 
 create_ova()
 {
     img_list=(${RAW_IMAGES})
-    if [ "${CREATE_OVF}" != "true" ] ; then
+    if [ "${CREATE_VMDK}" == "true" -o "${CREATE_OVA}" == "true" ] ; then
         # TODO: tools version
         for img in ${img_list[@]} ; do
             name=${img%.*} # remove extension
@@ -14,14 +21,14 @@ create_ova()
         done
     fi
 
-    if [ "${VMDK_ONLY}" != "true" ] ; then
+    if [ "${CREATE_OVA}" == "true" -o "${CREATE_OVF}" == "true" ] ; then
         img0=${img_list[0]}
         name0=${img0%.*}
 
-        if [ "${CREATE_OVF}" == "true" ] ; then
-            output_file=${OVA_NAME}.ovf
-        else
+        if [ "${CREATE_OVA}" == "true" ] ; then
             output_file=${OVA_NAME}.ova
+        else
+            output_file=${OVA_NAME}.ovf
         fi
 
         if [ "${CREATE_MF}" == "true" ] ; then
@@ -36,8 +43,8 @@ create_ova()
 
         printf "%s\n" "${params[@]}" | xargs ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf}
 
-        # don't nuke the vmdk files if we haven't created them
-        if [ "${CREATE_OVF}" != "true" ] ; then
+        # nuke vmdk's if we created an OVA
+        if [ "${CREATE_OVA}" == "true" ] ; then
             for img in ${img_list[@]} ; do
                 name=${img%.*}
                 rm -f ${name}.vmdk
@@ -54,9 +61,10 @@ usage() {
     echo "          [--raw-image <image-file>]"
     echo "          [--ova-name <name>]"
     echo "          [--ova-config <ova-config-file>] (required)"
-    echo "          [--ovf]"
+    echo "          [--ovf] (create OVF, do not create OVA)"
     echo "          [--param key=val [...]] (for ova-compose)"
-    echo "          [--vmdk-only] (convert raw image(s) to vmdk only, no OVF or OVA will be generated)"
+    echo "          [--vmdk-only] (don't use, use --vmdk)"
+    echo "          [--vmdk] (convert raw image(s) to vmdk, do not create OVA)"
 }
 
 OPTS=$(getopt -o h --long installer-config:,installer-param:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only -n $0 -- "$@")
@@ -77,9 +85,10 @@ while true; do
         --raw-images)       RAW_IMAGES=${2} ; shift 2 ;;
         --ova-config)       OVA_CFG_FILE=${2} ; shift 2 ;;
         --ova-name)         OVA_NAME=${2} ; shift 2 ;;
-        --ovf)              CREATE_OVF="true"; shift ;;
+        --ovf)              CREATE_OVF="true"; CREATE_OVA="false"; shift ;;
         --param)            PARAMS+=("${2}"); shift 2 ;;
-        --vmdk-only)        VMDK_ONLY="true"; shift ;;
+        --vmdk)             CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
+        --vmdk-only)        CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
         --)                 shift; break ;;
         *)                  break ;;
     esac
