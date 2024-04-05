@@ -78,12 +78,15 @@ def main():
 
     os.makedirs(dst_repo_dir, exist_ok=True)
 
-    # setting installroot is a hack to make it fetch already installed packages,
-    # packages will be downloaded to --downloaddir
-    install_root = tempfile.mkdtemp(prefix="installroot-")
-    tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
+    # if the list is empty skip tdnf download to prevent failure,
+    # and create just an empty repository
+    if packages:
+        # setting installroot is a hack to make it fetch already installed packages,
+        # packages will be downloaded to --downloaddir
+        install_root = tempfile.mkdtemp(prefix="installroot-")
+        tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
 
-    tdnf_inst.run([f"--downloadonly", f"--downloaddir={dst_repo_dir}", "--nodeps", "install"] + packages)
+        tdnf_inst.run(["--downloadonly", f"--downloaddir={dst_repo_dir}", "--nodeps", "install"] + packages)
 
     subprocess.run(["createrepo", dst_repo_dir], check=True)
 
