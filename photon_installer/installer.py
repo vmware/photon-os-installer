@@ -95,7 +95,8 @@ class Installer(object):
         'shadow_password',
         'tdnf_cachedir',
         'type',
-        'ui'
+        'ui',
+        'user_grub_cfg_file',
     }
 
     default_partitions = [{"mountpoint": "/", "size": 0, "filesystem": "ext4"}]
@@ -119,6 +120,7 @@ class Installer(object):
         self.photon_release_version = photon_release_version
         self.ab_present = False
         self.mounts = []
+        self.cwd = os.getcwd()
 
         # some keys can have arch specific variations
         for key in ['packages', 'linux_flavor']:
@@ -135,7 +137,9 @@ class Installer(object):
         self.photon_root = os.path.join(self.working_directory, "photon-chroot")
         self.tdnf_conf_path = os.path.join(self.working_directory, "tdnf.conf")
 
-        self.setup_grub_command = os.path.join(os.path.dirname(__file__), "mk-setup-grub.sh")
+        self.setup_grub_command = os.path.join(self.installer_path, "mk-setup-grub.sh")
+
+        self.user_grub_cfg_fn = os.path.join(self.installer_path, "user.cfg")
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
         self.lvs_to_detach = {'vgs': [], 'pvs': []}
@@ -336,7 +340,7 @@ class Installer(object):
 
         for plf in pkglist_files:
             if not plf.startswith('/'):
-                plf = os.path.join(os.getcwd(), plf)
+                plf = os.path.join(self.cwd, plf)
 
             with open(plf, "rt") as f:
                 try:
@@ -447,7 +451,7 @@ class Installer(object):
         # Extend search_path by current dir and script dir
         if 'search_path' not in install_config:
             install_config['search_path'] = []
-        for dirname in [os.getcwd(), os.path.abspath(os.path.dirname(__file__))]:
+        for dirname in [self.cwd, self.installer_path]:
             if dirname not in install_config['search_path']:
                 install_config['search_path'].append(dirname)
 
@@ -484,8 +488,14 @@ class Installer(object):
             script = install_config['setup_grub_script']
             # expect script in current working dir, unless path is absolute
             if not script.startswith("/"):
-                script = os.path.join(os.getcwd(), script)
+                script = os.path.join(self.cwd, script)
             self.setup_grub_command = script
+
+        if "user_grub_cfg_file" in install_config:
+            script = install_config["user_grub_cfg_file"]
+            if not script.startswith("/"):
+                script = os.path.join(self.cwd, script)
+            self.user_grub_cfg_fn = script
 
 
     def _check_install_config(self, install_config):
@@ -1315,11 +1325,15 @@ class Installer(object):
                               '--part', esp_pn, '--loader', '/EFI/BOOT/' + exe_name, '--label', 'Photon'])
 
         # Create custom grub.cfg
-        retval = self.cmd.run(
-            [self.setup_grub_command, self.photon_root,
-             self.install_config['partitions_data']['root'],
-             self.install_config['partitions_data']['boot'],
-             self.install_config['partitions_data']['bootdirectory']])
+        partitions_data = self.install_config['partitions_data']
+        retval = self.cmd.run([
+                    self.setup_grub_command,
+                    self.photon_root,
+                    partitions_data['root'],
+                    partitions_data['boot'],
+                    partitions_data['bootdirectory'],
+                    self.user_grub_cfg_fn
+                ])
 
         if retval != 0:
             raise Exception("Bootloader (grub2) setup failed")
@@ -1328,8 +1342,8 @@ class Installer(object):
         """
         Execute the scripts in the modules folder
         """
-        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "modules")))
-        modules_paths = glob.glob(os.path.abspath(os.path.join(os.path.dirname(__file__), 'modules')) + '/m_*.py')
+        sys.path.append(os.path.abspath(os.path.join(self.installer_path, "modules")))
+        modules_paths = glob.glob(os.path.join(self.installer_path, 'modules') + '/m_*.py')
         for mod_path in modules_paths:
             module = os.path.splitext(os.path.basename(mod_path))[0]
             try:
