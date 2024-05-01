@@ -12,6 +12,7 @@ import shlex
 import requests
 import time
 import json
+import base64
 from device import Device
 from argparse import ArgumentParser
 from installer import Installer
@@ -33,7 +34,7 @@ class IsoInstaller(object):
         # if not provided - use /RPMS path from photon_media,
         # exit otherwise.
         repo_paths = options.repo_paths
-        self.insecure_installation = Defaults.INSECURE_INSTALLATION
+        insecure_installation = Defaults.INSECURE_INSTALLATION
         # On Baremetal, time to emulate /dev/cdrom on different
         # servers varies. So, adding a commandline parameter
         # for retry count.
@@ -56,7 +57,7 @@ class IsoInstaller(object):
             elif arg.startswith("photon.media="):
                 photon_media = arg[len("photon.media="):]
             elif arg.startswith("insecure_installation="):
-                self.insecure_installation = bool(int(arg[len("insecure_installation="):]))
+                insecure_installation = bool(int(arg[len("insecure_installation="):]))
             elif arg.startswith("photon.media.mount_retry="):
                 self.retry_mount_media = int(arg[len("photon.media.mount_retry="):])
 
@@ -71,7 +72,15 @@ class IsoInstaller(object):
                 return
 
         if ks_path:
-            install_config = self._load_ks_config(ks_path)
+            if ks_path.startswith("http://") and not insecure_installation:
+                raise Exception("Refusing to download kick start configuration from non-https URLs. \
+                                \nPass insecure_installation=1 as a parameter when giving http url in ks.")
+            install_config = self._load_ks_config_url(ks_path, verify=not insecure_installation)
+        else:
+            install_config = self._load_ks_config_platform(verify=not insecure_installation)
+
+        if insecure_installation and install_config is not None:
+            install_config['insecure_repo'] = True
 
         if options.ui_config_file:
             ui_config = (JsonWrapper(options.ui_config_file)).read()
@@ -88,7 +97,6 @@ class IsoInstaller(object):
         try:
             # Run installer
             installer = Installer(repo_paths=repo_paths, log_path="/var/log",
-                                insecure_installation=self.insecure_installation,
                                 photon_release_version=options.photon_release_version)
 
             installer.configure(install_config, ui_config)
@@ -96,38 +104,36 @@ class IsoInstaller(object):
         except Exception as err:
             raise Exception(f"Failed with error: {err}")
 
-    def _load_ks_config(self, path):
+    def _load_ks_config_http(self, url, retries=5, timeout=3, verify=True):
+        # Do 5 trials to get the kick start
+        # TODO: make sure the installer runs after network is up
+        wait = 1
+        while True:
+            try:
+                response = requests.get(url, timeout=3, verify=verify)
+                response.raise_for_status()
+                break
+            except Exception as e:
+                if retries > 0:
+                    print(f"error msg: {e} Retry after {wait} seconds")
+                    time.sleep(wait)
+                    wait *= 2
+                    retries -= 1
+                else:
+                    print(f"Failed to get the kickstart file at {url}")
+                    raise
+
+        return CommandUtils.readConfig(response.text, params=self.params)
+
+    def _load_ks_config_url(self, path, verify=True):
         """kick start configuration"""
-
-        if path.startswith("http://") and not self.insecure_installation:
-            raise Exception("Refusing to download kick start configuration from non-https URLs. \
-                            \nPass insecure_installation=1 as a parameter when giving http url in ks.")
-
+        if path.startswith("https+insecure://"):
+            verify = False
+            path = "https://" + path[len("https+insecure://"):]
         if path.startswith("https://") or path.startswith("http://"):
-            # Do 5 trials to get the kick start
-            # TODO: make sure the installer runs after network is up
-            wait = 1
-            retries = 5
-            while True:
-                try:
-                    response = requests.get(path, timeout=3, verify=not self.insecure_installation)
-                    response.raise_for_status()
-                    break
-                except Exception as e:
-                    if retries > 0:
-                        print(f"error msg: {e} Retry after {wait} seconds")
-                        time.sleep(wait)
-                        wait *= 2
-                        retries -= 1
-                    else:
-                        print(f"Failed to get the kickstart file at {path}")
-                        raise
-
-            return CommandUtils.readConfig(response.text, params=self.params)
-
+            return self._load_ks_config_http(path, verify=verify)
         else:
             mnt_path = None
-
             if path.startswith("cdrom:/"):
                 if self.media_mount_path is None:
                     raise Exception("cannot read ks config from cdrom, no cdrom specified")
@@ -150,6 +156,24 @@ class IsoInstaller(object):
 
             return config
 
+    def _load_ks_config_platform(self, verify=True):
+        if CommandUtils.is_vmware_virtualization():
+            return self._load_ks_config_vmware(verify=verify)
+        else:
+            return None
+
+    def _load_ks_config_vmware(self, verify=True):
+        try:
+            result = subprocess.run(['vmtoolsd', '--cmd', 'info-get guestinfo.kickstart.data'],
+                    universal_newlines=True, stdout=subprocess.PIPE)
+            if result.returncode == 0:
+                return CommandUtils.readConfig(base64.b64decode(result.stdout.rstrip('\n')), params=self.params)
+            result = subprocess.run(['vmtoolsd', '--cmd', 'info-get guestinfo.kickstart.url'],
+                    universal_newlines=True, stdout=subprocess.PIPE)
+            if result.returncode == 0:
+                return self._load_ks_config_url(result.stdout.rstrip('\n'), verify=verify)
+        except OSError as e:
+            print(f"Failed to run vmtoolsd, do you have open-vm-tools installed? Error: {e}")
 
     def mount_media(self, photon_media, mount_path=Defaults.MOUNT_PATH):
         """Mount the external media"""
