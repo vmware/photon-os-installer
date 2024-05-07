@@ -343,18 +343,12 @@ class Installer(object):
                 plf = os.path.join(self.cwd, plf)
 
             with open(plf, "rt") as f:
-                try:
-                    plf_json = json.load(f)
-                except json.decoder.JSONDecodeError as e:
-                    print(f"failed to read json file {plf}")
-                    print(f"json decode failed at line {e.lineno}, at:")
-                    print(f"'{e.doc[e.pos:]}'")
-                    raise e
+                plf_content = CommandUtils.readConfig(f)
 
-            if 'packages' in plf_json:
-                packages.extend(plf_json['packages'])
-            if f'packages_{arch}' in plf_json:
-                packages.extend(plf_json[f'packages_{arch}'])
+            if 'packages' in plf_content:
+                packages.extend(plf_content['packages'])
+            if f'packages_{arch}' in plf_content:
+                packages.extend(plf_content[f'packages_{arch}'])
 
         # add bootloader packages after bootmode set
         if install_config['bootmode'] in ['dualboot', 'efi']:
