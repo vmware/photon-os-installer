@@ -1,0 +1,130 @@
+#!/bin/bash
+
+OVA_NAME=
+RELEASE_VER=5.0
+POI_IMAGE="${POI_IMAGE:-photon/installer}"
+PARAMS=()
+
+
+build_image() {
+
+    params=()
+    for p in "${KS_PARAMS[@]}" ; do
+        params+=("--param")
+        params+=("$p")
+    done
+    for p in "${COMMON_PARAMS[@]}" ; do
+        params+=("--param")
+        params+=("$p")
+    done
+
+    volumes=()
+    for v in "${VOLUMES[@]}" ; do
+        volumes+=("-v")
+        volumes+=("$v")
+    done
+
+    printf "%s\n" "${params[@]}" | xargs \
+        docker run --rm --privileged \
+        -v /dev:/dev \
+        -v $(pwd):/workdir \
+        "${volumes[@]}" \
+        --network=host \
+        ${POI_IMAGE} \
+        create-image -c ${KS_CFG_FILE} -v ${RELEASE_VER} --repo-paths=
+}
+
+build_ovf() {
+
+    params=()
+    for p in "${OVA_PARAMS[@]}" ; do
+        params+=("--param")
+        params+=("$p")
+    done
+    for p in "${COMMON_PARAMS[@]}" ; do
+        params+=("--param")
+        params+=("$p")
+    done
+
+    for p in "${KS_PARAMS[@]}" ; do
+        params+=("--installer-param")
+        params+=("$p")
+    done
+    for p in "${COMMON_PARAMS[@]}" ; do
+        params+=("--installer-param")
+        params+=("$p")
+    done
+
+    ovf_args="--ovf --mf --vmdk"
+    if [ "${CREATE_OVA}" == "true" ] ; then
+        ovf_args=""
+    fi
+
+    ova_name=
+    [ -z "${OVA_NAME}" ] || ova_name="--ova-name=${OVA_NAME}"
+
+    docker run --rm \
+        -v $(pwd):/workdir \
+        --network=none \
+        ${POI_IMAGE} \
+        create-ova \
+            ${ovf_args} \
+            --installer-config ${KS_CFG_FILE} \
+            --ova-config ${OVA_CFG_FILE} \
+            ${ova_name} "${params[@]}"
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [--ks-config <config-file>] ks (kickstart) config file that describes the raw image (required)"
+    echo "          [--ks-param <key=value>] set parameters in the ks config (optional, can be given multiple times)"
+    echo "          [--ova] build OVA, no OVF with vmdk and manifest file"
+    echo "          [--ova-config <config-file>] ova config file that describes the hardware and OVF (required)"
+    echo "          [--ova-param <key=value>] set parameters in the ova config (optional, can be given multiple times)"
+    echo "          [--param <key=value>] set parameters for both ks and ova config (optional, can be given multiple times)"
+    echo "          [--poi-image] docker image to use. Default: ${POI_IMAGE}"
+    echo "          [--step] optional - build steps to do, one of 'image' or 'ovf'. Can be given multiple times."
+    echo "          [-v|--releasever <version>] (Photon release version, default is ${RELEASE_VER})"
+    echo "          [--volume src:dst] additional volumes to be mounted to the docker container"
+}
+
+OPTS=$(getopt -o hc:v: --long ks-config:,ova,ova-config:,ks-param:,ova-param:,param:,ova-name:,poi-image:,releasever:,step:,volume: -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -h)                usage ; exit 0;;
+        --ks-config)       KS_CFG_FILE=${2} ; shift 2 ;;
+        --ks-param)        KS_PARAMS+=("${2}"); shift 2 ;;
+        --ova)             CREATE_OVA="true"; shift ;;
+        --ova-config)      OVA_CFG_FILE=${2} ; shift 2 ;;
+        --ova-name)        OVA_NAME=${2} ; shift 2 ;;
+        --ova-param)       OVA_PARAMS+=("${2}"); shift 2 ;;
+        --poi-image)       POI_IMAGE=${2} ; shift 2 ;;
+        --step)            STEPS+=("${2}"); shift 2 ;;
+        -v | --releasever) RELEASE_VER=${2} ; shift 2 ;;
+        --param)           COMMON_PARAMS+=("${2}"); shift 2 ;;
+        --volume)          VOLUMES+=("${2}"); shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+if [ ${#STEPS[@]} -eq 0 ]; then
+    STEPS=("image" "ovf")
+fi
+
+for step in "${STEPS[@]}" ; do
+    case "$step" in
+        image)  build_image || exit 1 ;;
+        ovf)    build_ovf || exit 1 ;;
+        *)      echo "unknown step $step" >&2 ; exit 1 ;;
+    esac
+done
+

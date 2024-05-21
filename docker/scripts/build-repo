@@ -1,0 +1,55 @@
+#!/bin/bash
+
+REPO_DIR=appl-pkgs
+POI_IMAGE="${POI_IMAGE:-photon/installer}"
+
+create_repo() {
+
+    volumes=()
+    for v in "${VOLUMES[@]}" ; do
+        volumes+=("-v")
+        volumes+=("$v")
+    done
+
+    mkdir -p ${REPO_DIR}
+
+    volumes+=("-v")
+    volumes+=("${REPO_DIR}:/repo")
+
+    docker run --rm --privileged \
+        -v /dev:/dev \
+        "${volumes[@]}" \
+        -w /repo \
+        --network=none \
+        ${POI_IMAGE} \
+            createrepo .
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [-d|--dir|--directory <dir>] (default is ${REPO_DIR})"
+    echo "          [--poi-image] docker image to use. Default: ${POI_IMAGE}"
+    echo "          [--volume src:dst] addtional volumes to be mounted to docker container"
+}
+
+OPTS=$(getopt -o d:h --long dir:,directory:,poi-image:,volume: -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -d | --dir | --directory) REPO_DIR=${2} ; shift 2 ;;
+        -h)                       usage ; shift; exit 0;;
+        --poi-image)              POI_IMAGE=${2} ; shift 2 ;;
+        --volume)                 VOLUMES+=("${2}"); shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+create_repo
