@@ -164,6 +164,23 @@ Multiple disks:
     "hostname": "photon-machine"
   }
   ```
+### _"insecure_repo":_ (optional)
+- Set `sslverify=0` to the tdnf configuration of all installer
+ packages repos. If not specified, or set as false, https server
+ certificates will be validated, if downloading from https. If
+ booting the installer from ISO, the `insecure_installation=1`
+ kernel command line option has the same effect, except that it
+ also allows insecure kickstart URLs such as http:// and https://
+ w/o server cert validation.
+  - **Boolean:** _true_ or _false_
+  - **Default value:** false
+
+  Example:
+  ```json
+  {
+    "insecure_repo": true
+  }
+  ```
 ### _"live":_ (optional)
 - Should be set to false if target system will not be run on
  host machine. When it set to false, installer will not add EFI boot

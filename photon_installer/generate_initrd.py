@@ -319,6 +319,8 @@ class IsoInitrd:
             "root:.*",
             "root:x:0:0:root:/root:/bin/bootphotoninstaller",
         )
+        os.symlink("/dev/null", f"{self.initrd_path}/etc/systemd/system/vmtoolsd.service")
+        os.symlink("/dev/null", f"{self.initrd_path}/etc/systemd/system/vgauthd.service")
 
         os.makedirs(f"{self.initrd_path}/mnt/photon-root/photon-chroot", exist_ok=True)
         self.process_files()
