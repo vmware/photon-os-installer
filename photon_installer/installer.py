@@ -69,6 +69,7 @@ class Installer(object):
         'docker',
         'eject_cdrom',
         'hostname',
+        'insecure_repo',
         'linux_flavor',
         'live',
         'log_level',
@@ -105,7 +106,6 @@ class Installer(object):
 
     def __init__(self, working_directory=Defaults.WORKING_DIRECTORY, rpm_path=None,
                  repo_paths=Defaults.REPO_PATHS, log_path=Defaults.LOG_PATH,
-                 insecure_installation=Defaults.INSECURE_INSTALLATION,
                  photon_release_version=Defaults.PHOTON_RELEASE_VERSION):
         self.exiting = False
         self.interactive = False
@@ -116,7 +116,6 @@ class Installer(object):
         self.logger = None
         self.cmd = None
         self.working_directory = working_directory
-        self.insecure_installation = insecure_installation
         self.photon_release_version = photon_release_version
         self.ab_present = False
         self.mounts = []
@@ -1413,7 +1412,7 @@ class Installer(object):
 
         self.logger.info(json.dumps(repos, indent=4))
 
-        tdnf.create_repo_conf(repos, reposdir=self.working_directory, insecure=self.insecure_installation)
+        tdnf.create_repo_conf(repos, reposdir=self.working_directory, insecure=self.install_config.get('insecure_repo', False))
 
         tdnf_conf = {
             'gpgcheck': 0,

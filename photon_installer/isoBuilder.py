@@ -21,7 +21,8 @@ from commandutils import CommandUtils
 from tdnf import Tdnf, create_repo_conf
 
 DEFAULT_INSTALL_OPTIONS_FILE = "build_install_options_custom.json"
-
+SUPPORTED_RELEASES = [ "4.0", "5.0" ]
+DEV_RELEASES = [ "6.0" ]
 
 class IsoBuilder(object):
     def __init__(self, **kwargs):
@@ -437,11 +438,10 @@ class IsoBuilder(object):
         self.runCmd(build_iso_cmd)
 
     def validate_options(self):
-        supported_releases = ["4.0", "5.0"]
         assert self.photon_release_version is not None, "the Photon release version is required"
         assert type(self.photon_release_version) is str, "the Photon relase version must be a string"
         assert type(self.photon_release_version) != "", "the Photon release version must not be empty"
-        assert self.photon_release_version in supported_releases, f"Photon release {self.photon_release_version} is not supported"
+        assert self.photon_release_version in (SUPPORTED_RELEASES + DEV_RELEASES), f"Photon release {self.photon_release_version} is not supported"
 
         if self.function == "build-rpm-ostree-iso":
             if not self.ostree_tar_path:
