@@ -844,13 +844,32 @@ class Installer(object):
         images = self.install_config['docker'].get('images', [])
         for image in images:
             method = image['method']
+
             if method == "pull":
                 name = image['name']
                 subprocess.run(["chroot", self.photon_root, "docker", "pull", name], check=True)
             elif method == "load":
                 filename = image['filename']
                 with open(filename, "rb") as fin:
-                    subprocess.run(["chroot", self.photon_root, "docker", "load"], stdin=fin, check=True)
+                    output = subprocess.check_output(["chroot", self.photon_root, "docker", "load"], stdin=fin, text=True)
+                prefix = "Loaded image: "
+                if (output.startswith(prefix)):
+                    name = output[len(prefix):].strip()
+                    image['name'] = name
+                    self.logger.info(f"loaded image {name}")
+                else:
+                    self.logger.warn("could not determine name of loaded docker image, 'tags' option will be ignored")
+
+            if 'name' in image:
+                name = image['name']
+                for tag in image.get('tags', []):
+                    subprocess.run(["chroot", self.photon_root, "docker", "tag", name, tag], check=True)
+                    self.logger.info(f"image {name} has been tagged with {tag}")
+                if image.get('drop-tag', False):
+                    if 'tags' not in image:
+                        self.logger.warn("image has no 'tags' option, untagging it with no tags will remove it")
+                    subprocess.run(["chroot", self.photon_root, "docker", "rmi", name], check=True)
+                    self.logger.info(f"image {name} has been untagged")
 
         docker_process.terminate()
         docker_process.wait()
