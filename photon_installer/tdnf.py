@@ -118,11 +118,15 @@ class Tdnf:
             args += ["--rpmdefine", f"_dbpath {self.get_rpm_dbpath()}"]
         return args
 
-    def get_command(self, args=[], directories=[], repos={}):
-        tdnf_args = ["-j"]
+    def get_command(self, args=[], directories=[], repos={}, do_json=True):
+
+        tdnf_args = []
+        if do_json:
+            tdnf_args.append("-j")
         if "--assumeno" not in args:
             tdnf_args.append("-y")
         tdnf_args += self.default_args() + args
+
         if self.tdnf_bin:
             return [self.tdnf_bin] + tdnf_args
         elif self.docker_bin:
@@ -153,38 +157,42 @@ class Tdnf:
         else:
             raise Exception("no usable tdnf or docker binary found")
 
-    def execute(self, args):
+    def execute(self, args, do_json=True):
         self.logger.info(f"running {' '.join(args)}")
-        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
-        retval = process.returncode
 
-        out_json = None
-        try:
-            out_json = json.loads(out)
-        except json.decoder.JSONDecodeError as e:
-            # try again, stopping at the pos where error happened
-            # happens when packages print output from scripts
-            out_json = json.loads(out[: e.pos])
-            self.logger.info(
-                f"json decode failed at line {e.lineno}, at: '{e.doc[e.pos:]}'"
-            )
+        if do_json:
+            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = process.communicate()
+            retval = process.returncode
 
-        if retval != 0:
-            self.logger.info(f"Command failed: {args}")
-            self.logger.error(err.decode())
-            if 'Error' in out_json:
-                self.logger.info(f"Error code: {out_json['Error']}")
-            if 'ErrorMessage' in out_json:
-                self.logger.error(out_json['ErrorMessage'])
-            else:
-                print(out_json)
+            out_json = None
+            try:
+                out_json = json.loads(out)
+            except json.decoder.JSONDecodeError as e:
+                # try again, stopping at the pos where error happened
+                # happens when packages print output from scripts
+                out_json = json.loads(out[: e.pos])
+                self.logger.info(
+                    f"json decode failed at line {e.lineno}, at: '{e.doc[e.pos:]}'"
+                )
 
-        return retval, out_json
+            if retval != 0:
+                self.logger.info(f"Command failed: {args}")
+                self.logger.error(err.decode())
+                if 'Error' in out_json:
+                    self.logger.info(f"Error code: {out_json['Error']}")
+                if 'ErrorMessage' in out_json:
+                    self.logger.error(out_json['ErrorMessage'])
+                else:
+                    print(out_json)
 
-    def run(self, args=[], directories=[], repos={}):
-        args = self.get_command(args, directories, repos)
-        return self.execute(args)
+            return retval, out_json
+        else:
+            return subprocess.check_call(args)
+
+    def run(self, args=[], directories=[], repos={}, do_json=True):
+        args = self.get_command(args, directories, repos, do_json=do_json)
+        return self.execute(args, do_json=do_json)
 
 
 def main():

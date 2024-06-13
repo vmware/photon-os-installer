@@ -1222,8 +1222,8 @@ class Installer(object):
             self.logger.error("Failed to initialize rpm DB")
             self.exit_gracefully()
 
-        retval, tdnf_out = self.tdnf.run(['install', 'filesystem'],
-                                         repos=self.install_config['repos'])
+        retval = self.tdnf.run(['install', 'filesystem'],
+                               repos=self.install_config['repos'], do_json=False)
         if retval != 0:
             self.logger.error("Failed to install filesystem rpm")
             self.exit_gracefully()
@@ -1492,9 +1492,9 @@ class Installer(object):
             raise Exception(f"additional rpms path '{rpms_path}' not found")
 
         pkgs = glob.glob(os.path.join(rpms_path, "*.rpm"))
-        retval, tdnf_out = self.tdnf.run(['install'] + pkgs,
-                                         directories=[rpms_path],
-                                         repos=self.install_config['repos'])
+        retval = self.tdnf.run(['install'] + pkgs,
+                               directories=[rpms_path],
+                               repos=self.install_config['repos'], do_json=False)
 
         if retval != 0:
             raise Exception(f"failed to install additional rpms from '{rpms_path}'")
@@ -1561,7 +1561,7 @@ class Installer(object):
 
                     self.progress_bar.update_message(output)
         else:
-            retval, tdnf_out = self.tdnf.run(['install'] + selected_packages, repos=self.install_config['repos'])
+            retval = self.tdnf.run(['install'] + selected_packages, repos=self.install_config['repos'], do_json=False)
 
         # 0 : succeed; 137 : package already installed; 65 : package not found in repo.
         if retval != 0 and retval != 137:
