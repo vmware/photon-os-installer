@@ -365,6 +365,10 @@ class Installer(object):
 
         versioned_pkgs = set()
         for p in packages:
+            # do this check here and not in _check_install_config()
+            # because now we have a complete list
+            assert p.strip(), "package name must not be empty"
+
             if "=" in p:
                 name, version = p.split("=")
                 if name in versioned_pkgs:
