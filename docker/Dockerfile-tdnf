@@ -1,0 +1,27 @@
+# Dockerfile to enhance base POI image with tdnf changes
+# for testing.
+
+# sudo docker buildx build --build-context tdnf=/home/okurth/projects/tdnf/ --build-arg POI_IMAGE=$POI_IMAGE -t $POI_IMAGE-tdnf -f Dockerfile-tdnf .
+
+ARG DOCKER_PROXY
+ARG POI_IMAGE=photon/installer
+
+FROM ${DOCKER_PROXY}library/photon:5.0 as tdnf-rpm-builder
+ARG TDNF_OPTIONS
+
+RUN tdnf ${TDNF_OPTIONS} makecache && \
+    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 build-essential createrepo_c
+
+COPY --from=tdnf / /tdnf
+
+COPY build-rpms.sh /usr/bin/
+
+RUN cd /tdnf && build-rpms.sh tdnf
+
+
+FROM ${POI_IMAGE}
+
+COPY --from=tdnf-rpm-builder /usr/src/photon /tdnf
+
+# install directly from path to make sure we are using current source
+RUN tdnf --repofrompath=tdnf,file:///tdnf/RPMS -y install tdnf
