@@ -326,8 +326,20 @@ class Installer(object):
             else:
                 install_config['bootmode'] = 'efi'
 
-        # extend 'packages' by 'packagelist_file(s)' and 'additional_packages'
+        # arch specific setting takes precedence
+        if f'linux_flavor_{arch}' in install_config:
+            install_config['linux_flavor'] = install_config[f'linux_flavor_{arch}']
+
+        if 'linux_flavor' not in install_config:
+            install_config['linux_flavor'] = 'linux'
+
+        # extend 'packages' by 'packagelist_file(s)', 'additional_packages' and linux_flavor
         packages = install_config.get('packages', [])
+
+        flavor = install_config['linux_flavor']
+        if flavor not in packages:
+            packages.append(flavor)
+
         if 'additional_packages' in install_config:
             packages.extend(install_config['additional_packages'])
         if f'packages_{arch}' in install_config:
@@ -451,17 +463,6 @@ class Installer(object):
         for dirname in [self.cwd, self.installer_path]:
             if dirname not in install_config['search_path']:
                 install_config['search_path'].append(dirname)
-
-        # arch specific setting takes precedence
-        if f'linux_flavor_{arch}' in install_config:
-            install_config['linux_flavor'] = install_config[f'linux_flavor_{arch}']
-
-        if 'linux_flavor' not in install_config:
-            install_config['linux_flavor'] = 'linux'
-
-        flavor = install_config['linux_flavor']
-        if flavor not in install_config['packages']:
-            install_config['packages'].append(flavor)
 
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
