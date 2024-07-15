@@ -119,7 +119,10 @@ class Tdnf:
         return args
 
     def get_command(self, args=[], directories=[], repos={}):
-        tdnf_args = ["-j", "-y"] + self.default_args() + args
+        tdnf_args = ["-j"]
+        if "--assumeno" not in args:
+            tdnf_args.append("-y")
+        tdnf_args += self.default_args() + args
         if self.tdnf_bin:
             return [self.tdnf_bin] + tdnf_args
         elif self.docker_bin:
