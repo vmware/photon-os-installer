@@ -34,7 +34,7 @@ FROM ${DOCKER_PROXY}library/photon:5.0 as poi-rpm-builder
 ARG TDNF_OPTIONS
 
 RUN tdnf ${TDNF_OPTIONS} makecache && \
-    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3
+    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 createrepo
 
 COPY --from=poi-helper / /photon-os-installer
 
