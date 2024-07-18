@@ -235,7 +235,6 @@ class Installer(object):
             disk_id = p['disk_id']
             p['device'] = disks[disk_id]['device']
 
-
     def _get_disk_sizes(self):
         partitions = self.install_config['partitions']
         disk_sizes = {}
@@ -427,9 +426,16 @@ class Installer(object):
         if 'partitions' not in install_config:
             install_config['partitions'] = Installer.default_partitions
 
-        for p in install_config['partitions']:
+        for p in install_config['partitions'].copy():
             if not 'disk_id' in p:
                 p['disk_id'] = 'default'
+            if p.get('all_disk', False):
+                self.logger.info(f"Using full disk for {p['disk_id']}")
+                p['size'] = 0
+                # Don't do any operation on disk if p.keys is subset of below keys
+                if set(p.keys()) <= {'size', 'all_disk', 'disk_id', 'sizepercent'}:
+                    install_config['partitions'].remove(p)
+                    continue
             if not 'filesystem' in p:
                 p['filesystem'] = 'ext4'
 
@@ -532,8 +538,10 @@ class Installer(object):
             # 3) / must present
             # 4) Duplicate mountpoints should not be present
             has_extensible = {}
+            has_nopartition = {}
             has_root = False
             mountpoints = []
+
             for partition in install_config['partitions']:
                 if 'disk' in partition and 'disks' in install_config:
                     return "cannot use 'disk' for partitions, use 'disk_id' from 'disks'"
@@ -544,7 +552,19 @@ class Installer(object):
                 if disk_id not in has_extensible:
                     has_extensible[disk_id] = False
 
-                if 'size' not in partition and 'sizepercent' not in partition:
+                if disk_id not in has_nopartition:
+                    has_nopartition[disk_id] = False
+                elif partition.get('all_disk', False) or has_nopartition[disk_id]:
+                    return f"Cannot have multiple partitions for disk '{disk_id}', 'all_disk' is enabled"
+
+                if partition.get('all_disk', False):
+                    if disk_id == 'default':
+                         return "Default disk needs to partitioned. Define default disk configuration under 'partitions'"
+                    if partition.get('ab', False):
+                        return f"ab requires disk to be partitioned but 'all_disk' was defined for {disk_id}"
+                    has_nopartition[disk_id] = True
+
+                if 'size' not in partition and 'sizepercent' not in partition and not partition.get('all_disk', False):
                     return "Need to specify 'size' or 'sizepercent'"
 
                 if 'size' in partition:
@@ -1784,6 +1804,9 @@ class Installer(object):
                         'lvs': [],
                         'vg_name': vg_name
                     }
+                if 'all_disk' in partition:
+                    vg_partitions[device][vg_name]['all_disk'] = partition['all_disk']
+                    vg_partitions[device][vg_name]['path'] = partition['device']
                 vg_partitions[device][vg_name]['lvs'].append(partition)
                 if partition['size'] == 0:
                     vg_partitions[device][vg_name]['extensible'] = True
@@ -1802,6 +1825,9 @@ class Installer(object):
                     'type': ptype_code,
                     'partition': partition
                 }
+                if 'all_disk' in partition:
+                    l2entry['all_disk'] = partition['all_disk']
+                    l2entry['partition']['path'] = partition['device']
                 ptv[device].append(l2entry)
 
         # Add accumulated VG partitions
@@ -1920,7 +1946,6 @@ class Installer(object):
         self.__ptv_update_partition_sizes(ptv)
 
         self.logger.info(json.dumps(ptv, indent=4))
-
         partitions = self.install_config['partitions']
         partitions_data = {}
         lvm_present = False
@@ -1934,53 +1959,54 @@ class Installer(object):
             if retval != 0:
                 raise Exception(f"failed clearing disk '{device}'")
 
-            # Build partition command and insert 'part' into 'partitions'
-            part_idx = 1
-            partition_cmd = ['sgdisk']
-            # command option for extensible partition
-            last_partition = None
+            if not l2entries[0].get('all_disk', False):
+                # Build partition command and insert 'part' into 'partitions'
+                part_idx = 1
+                partition_cmd = ['sgdisk']
+                # command option for extensible partition
+                last_partition = None
 
-            for l2 in l2entries:
-                if 'lvs' in l2:
-                    # will be used for _create_logical_volumes() invocation
-                    l2['path'] = self._get_partition_path(device, part_idx)
-                else:
-                    l2['partition']['path'] = self._get_partition_path(device, part_idx)
+                for l2 in l2entries:
+                    if 'lvs' in l2:
+                        # will be used for _create_logical_volumes() invocation
+                        l2['path'] = self._get_partition_path(device, part_idx)
+                    else:
+                        l2['partition']['path'] = self._get_partition_path(device, part_idx)
 
-                if l2['size'] == 0:
-                    last_partition = []
-                    last_partition.extend(['-n{}'.format(part_idx)])
-                    last_partition.extend(['-t{}:{}'.format(part_idx, l2['type'])])
-                else:
-                    partition_cmd.extend(['-n{}::+{}M'.format(part_idx, l2['size'])])
-                    partition_cmd.extend(['-t{}:{}'.format(part_idx, l2['type'])])
-                part_idx += 1
+                    if l2['size'] == 0:
+                        last_partition = []
+                        last_partition.extend(['-n{}'.format(part_idx)])
+                        last_partition.extend(['-t{}:{}'.format(part_idx, l2['type'])])
+                    else:
+                        partition_cmd.extend(['-n{}::+{}M'.format(part_idx, l2['size'])])
+                        partition_cmd.extend(['-t{}:{}'.format(part_idx, l2['type'])])
+                    part_idx += 1
 
-            # if extensible partition present, add it to the end of the disk
-            if last_partition:
-                partition_cmd.extend(last_partition)
-            partition_cmd.extend(['-p', device])
+                # if extensible partition present, add it to the end of the disk
+                if last_partition:
+                    partition_cmd.extend(last_partition)
+                partition_cmd.extend(['-p', device])
 
-            # Run the partitioning command (all physical partitions in one shot)
-            retval = self.cmd.run(partition_cmd)
-            if retval != 0:
-                raise Exception(f"failed partition disk, command: {partition_cmd}")
-
-            # For RPi image we used 'parted' instead of 'sgdisk':
-            # parted -s $IMAGE_NAME mklabel msdos mkpart primary fat32 1M 30M mkpart primary ext4 30M 100%
-            # Try to use 'sgdisk -m' to convert GPT to MBR and see whether it works.
-            if self.install_config.get('partition_type', 'gpt') == 'msdos':
-                # m - colon separated partitions list
-                m = ":".join([str(i) for i in range(1, part_idx)])
-                retval = self.cmd.run(['sgdisk', '-m', m, device])
+                # Run the partitioning command (all physical partitions in one shot)
+                retval = self.cmd.run(partition_cmd)
                 if retval != 0:
-                    raise Exception("Failed to setup efi partition")
+                    raise Exception(f"failed partition disk, command: {partition_cmd}")
 
-            # Make loop disk partitions available
-            if 'loop' in device:
-                retval = self.cmd.run(['kpartx', '-avs', device])
-                if retval != 0:
-                    raise Exception(f"failed to rescan partitions of the disk image {device}")
+                # For RPi image we used 'parted' instead of 'sgdisk':
+                # parted -s $IMAGE_NAME mklabel msdos mkpart primary fat32 1M 30M mkpart primary ext4 30M 100%
+                # Try to use 'sgdisk -m' to convert GPT to MBR and see whether it works.
+                if self.install_config.get('partition_type', 'gpt') == 'msdos':
+                    # m - colon separated partitions list
+                    m = ":".join([str(i) for i in range(1, part_idx)])
+                    retval = self.cmd.run(['sgdisk', '-m', m, device])
+                    if retval != 0:
+                        raise Exception("Failed to setup efi partition")
+
+                # Make loop disk partitions available
+                if 'loop' in device:
+                    retval = self.cmd.run(['kpartx', '-avs', device])
+                    if retval != 0:
+                        raise Exception(f"failed to rescan partitions of the disk image {device}")
 
             # Go through l2 entries again and create logical partitions
             for l2 in l2entries:
