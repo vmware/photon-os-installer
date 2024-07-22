@@ -10,7 +10,7 @@ FROM ${DOCKER_PROXY}library/photon:5.0 as open-vmdk-rpm-builder
 ARG TDNF_OPTIONS
 
 RUN tdnf ${TDNF_OPTIONS} makecache && \
-    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 build-essential
+    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 build-essential createrepo
 
 COPY --from=open-vmdk / /open-vmdk
 
