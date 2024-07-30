@@ -102,6 +102,10 @@ def main():
         tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
 
         if do_requires:
+            # get list of all available packages
+            retval, pkginfo_available = tdnf_inst.run(["list", "--available"])
+            assert retval == 0, "tdnf failed while listing packages"
+
             pkgs_all = []
             # "tdnf install" command but with "--asumeno", will show all
             # packages that are required in json output, but not
@@ -117,7 +121,42 @@ def main():
                 if pkginfo['Repo'] in upstream_repos:
                     name = pkginfo['Name']
                     evr = pkginfo['Evr']
-                    pkgs_all.append(f"{name}={evr}")
+                    nevr = f"{name}={evr}"
+                    pkgs_all.append(nevr)
+
+                    if nevr not in packages:
+                        # additional package, check if in a base repo
+
+                        """
+                        There is a scenario where the recent change to the
+                        cherry picks logic which pulls requirements can break
+                        reproducibility. Example: we cherry pick package foo
+                        at version 1.2.3. It has an unversioned requirement
+                        on package bar. Current version of bar in the
+                        upstreamrepo is 2.3.4, and there is no package bar in
+                        a base repo (which means that the dependency on bar was
+                        added to foo some time between the version that is
+                        in a base repo and 1.2.3). So version 2.3.4 will be
+                        downloaded to the cherry pick repo in a build, and
+                        installed.
+
+                        Now package bar will be updated to version 2.3.5 in
+                        the upstream repo. We create another build, with no
+                        changes to the previous one. Since the requirement
+                        on bar by foo is unversioned, and there is no version
+                        in a base repo which would have a higher priority,
+                        version 2.3.5 will be downloaded and installed.
+
+                        This could be avoided by also cherry picking bar at
+                        version 2.3.4, but this is easy to miss. Therefore, we
+                        detect this case and fail if found, with a suggestion
+                        on fixing it.
+                        """
+
+                        # note that this test also triggers if the requirement
+                        # is versioned, but this is much harder to detect
+                        assert next((item for item in pkginfo_available if item['Name'] == name and item['Repo'] in base_repos), False), \
+                            f"package {name} is not in a base repository. This may cause non-reproducible build results. To ensure reproducibility, add '{nevr}' to the packages in {pkglist_file}."
 
             # make list unique, also account for corner case where cherry
             # picked package is in base repo and therefore filtered out
