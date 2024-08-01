@@ -1456,7 +1456,6 @@ class Installer(object):
         repos = self.install_config['repos']
 
         self.logger.info(json.dumps(repos, indent=4))
-
         tdnf.create_repo_conf(repos, reposdir=self.working_directory, insecure=self.install_config.get('insecure_repo', False))
 
         tdnf_conf = {
@@ -1466,18 +1465,18 @@ class Installer(object):
             'keepcache': 0
         }
 
-        tdnf_chachedir = self.install_config.get('tdnf_cachedir', None)
+        tdnf_cachedir = self.install_config.get('tdnf_cachedir', None)
 
-        if tdnf_chachedir is not None:
-            if not tdnf_chachedir.startswith("/"):
-                tdnf_chachedir = os.path.join(os.getcwd(), tdnf_chachedir)
+        if tdnf_cachedir is not None:
+            if not tdnf_cachedir.startswith("/"):
+                tdnf_cachedir = os.path.join(os.getcwd(), tdnf_cachedir)
             tdnf_conf['keepcache'] = 1
-            os.makedirs(tdnf_chachedir, exist_ok=True)
-            self._mount(tdnf_chachedir, "/var/cache/tdnf", bind=True, create=True)
+            os.makedirs(tdnf_cachedir, exist_ok=True)
+            self._mount(tdnf_cachedir, "/var/cache/tdnf", bind=True, create=True)
 
         self.logger.info(json.dumps(tdnf_conf, indent=4))
 
-        with open(self.tdnf_conf_path, "w") as f:
+        with open(self.tdnf_conf_path, "wt") as f:
             f.write("[main]\n")
             for key,value in tdnf_conf.items():
                 f.write(f"{key}={value}\n")
