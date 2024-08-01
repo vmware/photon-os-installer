@@ -3,11 +3,27 @@
 # * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 # */
 
-import os
 import commons
+import os
+import shutil
+
 
 install_phase = commons.POST_INSTALL
 enabled = True
+
+
+def replace_passwd(filepath, passwd, user="root"):
+
+    filepath_tmp = f"{filepath}.tmp"
+    with open(filepath, "rt") as fin:
+        with open(filepath_tmp, "wt") as fout:
+            for line in fin:
+                l = line.split(":")
+                if l[0] == user:
+                    l[1] = passwd
+                fout.write(":".join(l))
+    shutil.copystat(filepath, filepath_tmp)
+    os.rename(filepath_tmp, filepath)
 
 
 def execute(installer):
@@ -18,19 +34,13 @@ def execute(installer):
     shadow_filename = os.path.join(installer.photon_root, 'etc/shadow')
 
     # replace root blank password in passwd file to point to shadow file
-    commons.replace_string_in_file(passwd_filename, "root::", "root:x:")
+    replace_passwd(passwd_filename, "x")
 
     if not os.path.isfile(shadow_filename):
         with open(shadow_filename, "w") as destination:
-            destination.write("root:" + shadow_password + ":")
+            destination.write(f"root:{shadow_password}:")
     else:
-        # add password hash in shadow file
-        commons.replace_string_in_file(
-            shadow_filename, "root::", f"root:{shadow_password}:"
-        )
-        commons.replace_string_in_file(
-            shadow_filename, "root:x:", f"root:{shadow_password}:"
-        )
+        replace_passwd(shadow_filename, shadow_password)
 
     installer.cmd.run_in_chroot(installer.photon_root, "/usr/sbin/pwconv")
     installer.cmd.run_in_chroot(installer.photon_root, "/usr/sbin/grpconv")
