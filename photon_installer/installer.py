@@ -67,6 +67,7 @@ class Installer(object):
         'disk',
         'disks',
         'docker',
+        'dps',
         'eject_cdrom',
         'hostname',
         'insecure_repo',
@@ -1622,6 +1623,30 @@ class Installer(object):
             return PartitionType.LVM
         return PartitionType.LINUX
 
+
+    def _partition_type(self, partition):
+        ptype = self._get_partition_type(partition)
+        if self.install_config.get('dps', False):
+            if self.install_config.get('partition_type', 'gpt') == 'gpt' and ptype == PartitionType.LINUX:
+                # See https://uapi-group.org/specifications/specs/discoverable_partitions_specification/
+                self.logger.info("using discoverable partition types")
+
+                # see output of "sgdisk -L"
+                ptype_map = {
+                    'x86_64':
+                        {'/': '8304', '/home': "8302", '/usr': "8314", '/var': "8310", '/srv': "8306", '/var/tmp': "8311"},
+                    'aarch64':
+                        {'/': '8305', '/home': "8302", '/usr': "8316", '/var': "8310", '/srv': "8306", '/var/tmp': "8311"}
+                }
+                mntpoint = partition.get('mountpoint', None)
+                arch = self.install_config['arch']
+                if mntpoint is not None and arch in ptype_map:
+                    if mntpoint in ptype_map[arch]:
+                        return ptype_map[arch][mntpoint]
+
+        return self._partition_type_to_string(ptype)
+
+
     def _partition_type_to_string(self, ptype):
         if ptype == PartitionType.BIOS:
             return 'ef02'
@@ -1818,7 +1843,7 @@ class Installer(object):
                 if 'type' in partition:
                     ptype_code = partition['type']
                 else:
-                    ptype_code = self._partition_type_to_string(self._get_partition_type(partition))
+                    ptype_code = self._partition_type(partition)
 
                 l2entry = {
                     'size': partition['size'],
