@@ -7,15 +7,11 @@ stages:
 
 build-container:
   stage: build
-  tags:
-    - docker
   script:
     - cd docker && docker build -t ${POI_IMAGE_NAME} --build-arg DOCKER_PROXY=harbor-repo.vmware.com/dockerhub-proxy-cache/ --build-context poi-helper=$(realpath $(pwd)/..) .
     - docker system prune -f
 
 pytest:
   stage: test
-  tags:
-    - shell
   script:
     - pytest-3 -x tests/poi-container-test.py
