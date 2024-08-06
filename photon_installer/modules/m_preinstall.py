@@ -47,10 +47,10 @@ def execute(installer):
                 "Skipping execution of script."
             )
             continue
-        installer.logger.info("Running script {}".format(script))
+        installer.logger.info(f"Running script {script}")
         cmd = ["/bin/bash"]
         cmd.append("-c")
-        cmd.append("set -a && source {}/{} && env -0".format(tempdir, script))
+        cmd.append(f"set -a && source {tempdir}/{script} && env -0")
         installer.cmd.run(cmd, True)
 
     shutil.rmtree(tempdir, ignore_errors=True)

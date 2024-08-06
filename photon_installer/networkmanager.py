@@ -367,7 +367,7 @@ class NetworkManager:
             # append to file:
             if not found:
                 with open(hosts_file, 'a') as fout:
-                    fout.write('\n127.0.0.1 {}\n'.format(hostname))
+                    fout.write(f'\n127.0.0.1 {hostname}\n')
 
             hostname_file = os.path.join(self.root_dir, HOSTNAME_FILE)
             with open(hostname_file, 'w') as fout:
