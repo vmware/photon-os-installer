@@ -129,8 +129,7 @@ class Installer(object):
 
         if os.path.exists(self.working_directory) and os.path.isdir(self.working_directory) and working_directory == Defaults.WORKING_DIRECTORY:
             shutil.rmtree(self.working_directory)
-        if not os.path.exists(self.working_directory):
-            os.mkdir(self.working_directory)
+        os.makedirs(self.working_directory, exist_ok=True)
 
         self.installer_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -1207,7 +1206,7 @@ class Installer(object):
             self.logger.error("Rpm db path empty...")
             self.exit_gracefully()
         # Initialize rpm DB
-        self.cmd.run(['mkdir', '-p', os.path.join(self.photon_root, rpm_db_path[1:])])
+        os.makedirs(os.path.join(self.photon_root, rpm_db_path.lstrip("/")), exist_ok=True)
 
         rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath {rpm_db_path}"
         if self.cmd.checkIfHostRpmNotUsable():
@@ -1348,7 +1347,7 @@ class Installer(object):
             if bootmode == 'dualboot':
                 esp_pn = '2'
 
-            self.cmd.run(['mkdir', '-p', self.photon_root + '/boot/efi/boot/grub2'])
+            os.makedirs(os.path.join(self.photon_root, "boot/efi/boot/grub2"), exist_ok=True)
             with open(os.path.join(self.photon_root, 'boot/efi/boot/grub2/grub.cfg'), "w") as grub_cfg:
                 grub_cfg.write("search -n -u {} -s\n".format(self._get_uuid(self.install_config['partitions_data']['boot'])))
                 grub_cfg.write("set prefix=($root){}grub2\n".format(self.install_config['partitions_data']['bootdirectory']))
