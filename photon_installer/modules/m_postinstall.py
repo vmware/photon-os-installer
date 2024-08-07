@@ -49,9 +49,9 @@ def execute(installer):
                 "Skipping execution of script."
             )
             continue
-        installer.logger.info("Running script {}".format(script))
+        installer.logger.info(f"Running script {script}")
         installer.cmd.run_in_chroot(
-            installer.photon_root, "{}/{}".format(tempdir, script)
+            installer.photon_root, f"{tempdir}/{script}"
         )
 
     shutil.rmtree(tempdir_full, ignore_errors=True)

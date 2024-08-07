@@ -129,8 +129,7 @@ class Installer(object):
 
         if os.path.exists(self.working_directory) and os.path.isdir(self.working_directory) and working_directory == Defaults.WORKING_DIRECTORY:
             shutil.rmtree(self.working_directory)
-        if not os.path.exists(self.working_directory):
-            os.mkdir(self.working_directory)
+        os.makedirs(self.working_directory, exist_ok=True)
 
         self.installer_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -243,7 +242,7 @@ class Installer(object):
         for device in all_devices:
             retval, size = CommandUtils.get_disk_size_bytes(device)
             if retval != 0:
-                self.logger.info("Error code: {}".format(retval))
+                self.logger.info(f"Error code: {retval}")
                 raise Exception(f"Failed to get disk '{device}' size")
             disk_sizes[device] = int(size)
         self.disk_sizes = disk_sizes
@@ -442,7 +441,7 @@ class Installer(object):
 
         # define 'hostname' as 'photon-<RANDOM STRING>'
         if "hostname" not in install_config or install_config['hostname'] == "":
-            install_config['hostname'] = 'photon-%12x' % secrets.randbelow(16**12)
+            install_config['hostname'] = f'photon-{secrets.randbelow(16 ** 12):12x}'
 
         # Set password if needed.
         # Installer uses 'shadow_password' and optionally 'password'/'age'
@@ -609,7 +608,7 @@ class Installer(object):
 
         if 'arch' in install_config:
             if install_config['arch'] not in ["aarch64", "x86_64"]:
-                return "Unsupported target architecture {}".format(install_config['arch'])
+                return f"Unsupported target architecture {install_config['arch']}"
 
             # No BIOS for aarch64
             if install_config['arch'] == 'aarch64' and install_config['bootmode'] in ['dualboot', 'bios']:
@@ -973,13 +972,13 @@ class Installer(object):
         for vg in self.lvs_to_detach['vgs']:
             retval = self.cmd.run(["vgchange", "-v", "-an", vg])
             if retval != 0:
-                self.logger.error("Failed to deactivate LVM volume group: {}".format(vg))
+                self.logger.error(f"Failed to deactivate LVM volume group: {vg}")
 
         # Simulate partition hot remove to notify LVM
         for pv in self.lvs_to_detach['pvs']:
             retval = self.cmd.run(["dmsetup", "remove", pv])
             if retval != 0:
-                self.logger.error("Failed to detach LVM physical volume: {}".format(pv))
+                self.logger.error(f"Failed to detach LVM physical volume: {pv}")
 
         # Get the disks from partition table
         disk_ids = set(partition['disk_id'] for partition in self.install_config['partitions'])
@@ -1084,13 +1083,13 @@ class Installer(object):
                 mnt_src = None
                 partuuid = self._get_partuuid(path)
                 if partuuid != '':
-                    mnt_src = "PARTUUID={}".format(partuuid)
+                    mnt_src = f"PARTUUID={partuuid}"
                 else:
                     uuid = self._get_uuid(path)
                     if uuid != '':
-                        mnt_src = "UUID={}".format(uuid)
+                        mnt_src = f"UUID={uuid}"
                 if not mnt_src:
-                    raise RuntimeError("Cannot get PARTUUID/UUID of: {}".format(path))
+                    raise RuntimeError(f"Cannot get PARTUUID/UUID of: {path}")
 
                 fstab_file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
                     mnt_src,
@@ -1207,7 +1206,7 @@ class Installer(object):
             self.logger.error("Rpm db path empty...")
             self.exit_gracefully()
         # Initialize rpm DB
-        self.cmd.run(['mkdir', '-p', os.path.join(self.photon_root, rpm_db_path[1:])])
+        os.makedirs(os.path.join(self.photon_root, rpm_db_path.lstrip("/")), exist_ok=True)
 
         rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath {rpm_db_path}"
         if self.cmd.checkIfHostRpmNotUsable():
@@ -1270,7 +1269,7 @@ class Installer(object):
                             os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(temp_file, self.photon_root + dest)
                         else:
-                            self.logger.error("Download failed URL: {} got error: {}".format(src, msg))
+                            self.logger.error(f"Download failed URL: {src} got error: {msg}")
                     else:
                         srcpath = self.getfile(src)
                         if (os.path.isdir(srcpath)):
@@ -1348,11 +1347,11 @@ class Installer(object):
             if bootmode == 'dualboot':
                 esp_pn = '2'
 
-            self.cmd.run(['mkdir', '-p', self.photon_root + '/boot/efi/boot/grub2'])
+            os.makedirs(os.path.join(self.photon_root, "boot/efi/boot/grub2"), exist_ok=True)
             with open(os.path.join(self.photon_root, 'boot/efi/boot/grub2/grub.cfg'), "w") as grub_cfg:
-                grub_cfg.write("search -n -u {} -s\n".format(self._get_uuid(self.install_config['partitions_data']['boot'])))
-                grub_cfg.write("set prefix=($root){}grub2\n".format(self.install_config['partitions_data']['bootdirectory']))
-                grub_cfg.write("configfile {}grub2/grub.cfg\n".format(self.install_config['partitions_data']['bootdirectory']))
+                grub_cfg.write(f"search -n -u {self._get_uuid(self.install_config['partitions_data']['boot'])} -s\n")
+                grub_cfg.write(f"set prefix=($root){self.install_config['partitions_data']['bootdirectory']}grub2\n")
+                grub_cfg.write(f"configfile {self.install_config['partitions_data']['bootdirectory']}grub2/grub.cfg\n")
 
             if self.install_config.get('live', True):
                 arch = self.install_config['arch']
@@ -1388,22 +1387,22 @@ class Installer(object):
                 __import__(module)
                 mod = sys.modules[module]
             except ImportError:
-                self.logger.error('Error importing module {}'.format(module))
+                self.logger.error(f'Error importing module {module}')
                 continue
 
             # the module default is deactivate
             if not hasattr(mod, 'enabled') or mod.enabled is False:
-                self.logger.info("module {} is not enabled".format(module))
+                self.logger.info(f"module {module} is not enabled")
                 continue
             # check for the install phase
             if not hasattr(mod, 'install_phase'):
-                self.logger.error("Error: can not defind module {} phase".format(module))
+                self.logger.error(f"Error: can not defind module {module} phase")
                 continue
             if mod.install_phase != phase:
-                self.logger.info("Skipping module {0} for phase {1}".format(module, phase))
+                self.logger.info(f"Skipping module {module} for phase {phase}")
                 continue
             if not hasattr(mod, 'execute'):
-                self.logger.error("Error: not able to execute module {}".format(module))
+                self.logger.error(f"Error: not able to execute module {module}")
                 continue
             self.logger.info("Executing: " + module)
 
@@ -1539,7 +1538,7 @@ class Installer(object):
                         self.progress_bar.update_num_items(total_size)
                     else:
                         info = output.split()
-                        package = '{0}-{1}.{2}'.format(info[0], info[2], info[1])
+                        package = f'{info[0]}-{info[2]}.{info[1]}'
                         rpm_download_size = self.cmd.convertToBytes(info[5])
                         packages_to_install[package] = rpm_download_size
                         total_size += rpm_download_size
@@ -1553,7 +1552,7 @@ class Installer(object):
                     if output == 'Running transaction\n':
                         state = 4
                 else:
-                    self.logger.info("[tdnf] {0}".format(output))
+                    self.logger.info(f"[tdnf] {output}")
                     prefix = 'Installing/Updating: '
                     if output.startswith(prefix):
                         package = output[len(prefix):].rstrip('\n')
@@ -1657,7 +1656,7 @@ class Installer(object):
             return '8e00'
         if ptype == PartitionType.LINUX:
             return '8300'
-        raise Exception("Unknown partition type: {}".format(ptype))
+        raise Exception(f"Unknown partition type: {ptype}")
 
 
     def _mount(self, device, mntpoint, bind=False, options=None, fstype=None, create=False):
@@ -1698,7 +1697,7 @@ class Installer(object):
             options = fs_options.split(",")
         elif type(fs_options) is list:
             options = fs_options
-        options.append("subvol={}".format(os.path.join(parent_subvol, subvol_name)))
+        options.append(f"subvol={os.path.join(parent_subvol, subvol_name)}")
         self._mount(disk, mountpoint, options=options, create=True)
 
 
@@ -1734,12 +1733,12 @@ class Installer(object):
         # Remove LVM logical volumes and volume groups if already exists
         # Existing lvs & vg should be removed to continue re-installation
         # else pvcreate command fails to create physical volumes even if executes forcefully
-        retval = self.cmd.run(['bash', '-c', 'pvs | grep {}'. format(vg_name)])
+        retval = self.cmd.run(['bash', '-c', f'pvs | grep {vg_name}'])
         if retval == 0:
             # Remove LV's associated to VG and VG
             retval = self.cmd.run(["vgremove", "-f", vg_name])
             if retval != 0:
-                self.logger.error("Error: Failed to remove existing vg before installation {}". format(vg_name))
+                self.logger.error(f"Error: Failed to remove existing vg before installation {vg_name}")
         # if vg is not extensible (all lvs inside are known size) then make last lv
         # extensible, i.e. shrink it. Srinking last partition is important. We will
         # not be able to provide specified size because given physical partition is
@@ -1753,13 +1752,13 @@ class Installer(object):
         command = ['pvcreate', '-ff', '-y', physical_partition]
         retval = self.cmd.run(command)
         if retval != 0:
-            raise Exception("Error: Failed to create physical volume, command : {}".format(command))
+            raise Exception(f"Error: Failed to create physical volume, command : {command}")
 
         # create volume group
         command = ['vgcreate', vg_name, physical_partition]
         retval = self.cmd.run(command)
         if retval != 0:
-            raise Exception("Error: Failed to create volume group, command = {}".format(command))
+            raise Exception(f"Error: Failed to create volume group, command = {command}")
 
         # create logical volumes
         for partition in lv_partitions:
@@ -1771,10 +1770,10 @@ class Installer(object):
                 if not extensible_logical_volume:
                     extensible_logical_volume = partition
             else:
-                lv_cmd.extend(['-L', '{}M'.format(size), '-n', lv_name, vg_name])
+                lv_cmd.extend(['-L', f'{size}M', '-n', lv_name, vg_name])
                 retval = self.cmd.run(lv_cmd)
                 if retval != 0:
-                    raise Exception("Error: Failed to create logical volumes , command: {}".format(lv_cmd))
+                    raise Exception(f"Error: Failed to create logical volumes , command: {lv_cmd}")
             if not "loop" in  partition['device']:
                 partition['path'] = os.path.join("/dev", vg_name, lv_name)
             else:
@@ -1790,7 +1789,7 @@ class Installer(object):
 
         retval = self.cmd.run(lv_cmd)
         if retval != 0:
-            raise Exception("Error: Failed to create extensible logical volume, command = {}". format(lv_cmd))
+            raise Exception(f"Error: Failed to create extensible logical volume, command = {lv_cmd}")
 
         # remember pv/vg for detaching it later.
         self.lvs_to_detach['pvs'].append(os.path.basename(physical_partition))
@@ -1999,11 +1998,11 @@ class Installer(object):
 
                     if l2['size'] == 0:
                         last_partition = []
-                        last_partition.extend(['-n{}'.format(part_idx)])
-                        last_partition.extend(['-t{}:{}'.format(part_idx, l2['type'])])
+                        last_partition.extend([f'-n{part_idx}'])
+                        last_partition.extend([f"-t{part_idx}:{l2['type']}"])
                     else:
-                        partition_cmd.extend(['-n{}::+{}M'.format(part_idx, l2['size'])])
-                        partition_cmd.extend(['-t{}:{}'.format(part_idx, l2['type'])])
+                        partition_cmd.extend([f"-n{part_idx}::+{l2['size']}M"])
+                        partition_cmd.extend([f"-t{part_idx}:{l2['type']}"])
                     part_idx += 1
 
                 # if extensible partition present, add it to the end of the disk
@@ -2102,4 +2101,4 @@ class Installer(object):
             filepath = os.path.join(dirname, filename)
             if os.path.exists(filepath):
                 return filepath
-        raise Exception("File {} not found in the following directories {}".format(filename, self.install_config['search_path']))
+        raise Exception(f"File {filename} not found in the following directories {self.install_config['search_path']}")
