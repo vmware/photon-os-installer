@@ -11,6 +11,12 @@ build-container:
     - cd docker && docker build -t ${POI_IMAGE_NAME} --build-arg DOCKER_PROXY=dockerhub.artifactory.eng.vmware.com/ --build-context poi-helper=$(realpath $(pwd)/..) .
     - docker system prune -f
 
+cayman_poi:
+    stage: build
+    script:
+        - gitlab --private-token=$CAYMAN_POI_CICD_API_TOKEN project-branch create --project-id core-build/cayman_photon-os-installer --branch test/poi-submodule/$CI_COMMIT_SHORT_SHA --ref vmware-master
+        - gitlab --private-token=$CAYMAN_POI_CICD_API_TOKEN project update-submodule --id core-build/cayman_photon-os-installer --branch test/poi-submodule/$CI_COMMIT_SHORT_SHA --submodule poi/src --commit-sha $CI_COMMIT_SHA
+
 pytest:
   stage: test
   script:
