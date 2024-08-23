@@ -89,6 +89,8 @@ class Installer(object):
         'postinstallscripts',
         'preinstall',
         'preinstallscripts',
+        'prepkgsinstall',
+        'prepkgsinstallscripts',
         'public_key',
         'photon_docker_image',
         'repos',
@@ -730,6 +732,7 @@ class Installer(object):
             self._setup_install_repo()
             self._initialize_system()
             self._mount_special_folders()
+            self._execute_modules(modules.commons.PRE_PKGS_INSTALL)
             self._install_packages()
             self._install_additional_rpms()
             self._enable_network_in_chroot()

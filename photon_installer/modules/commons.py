@@ -6,6 +6,7 @@
 import re
 
 PRE_INSTALL = "pre-install"
+PRE_PKGS_INSTALL = "pre-pkgs-install"
 POST_INSTALL = "post-install"
 
 
