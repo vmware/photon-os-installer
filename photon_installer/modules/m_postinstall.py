@@ -1,5 +1,5 @@
 # /*
-# * Copyright © 2020 VMware, Inc.
+# * Copyright © 2020-2024 Broadcom, Inc.
 # * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 # */
 
@@ -7,8 +7,29 @@ import os
 import commons
 import shutil
 
+
 install_phase = commons.POST_INSTALL
 enabled = True
+
+
+def _execute_scripts(installer, scripts):
+    for script in scripts:
+        if not os.access(os.path.join(installer.photon_root, script.lstrip("/")), os.X_OK):
+            raise Exception(f"post install script {script} is not executable. ")
+        installer.logger.info(f"Running script {script}")
+        retval = installer.cmd.run_in_chroot(installer.photon_root, script)
+        if retval != 0:
+            raise Exception(f"script {script} failed")
+
+
+def _make_script(dir, script_name, lines):
+    script = os.path.join(dir, script_name)
+
+    with open(script, "wt") as f:
+        for l in lines:
+            f.write(f"{l}\n")
+
+    os.chmod(script, 0o700)
 
 
 def execute(installer):
@@ -18,40 +39,23 @@ def execute(installer):
     ):
         return
 
-    tempdir = "/tmp/tempscripts"
-    tempdir_full = installer.photon_root + tempdir
+    script = None
     scripts = []
-    if not os.path.exists(tempdir_full):
-        os.mkdir(tempdir_full)
+
+    tmpdir = os.path.join("/tmp", "post-install")
+    tmpdir_abs = os.path.join(installer.photon_root, tmpdir.lstrip("/"))
+    os.makedirs(tmpdir_abs, exist_ok=True)
 
     if 'postinstall' in installer.install_config:
-        installer.logger.info("Run postinstall script")
-        # run the script in the chroot environment
-        script = installer.install_config['postinstall']
+        script_name = "postinstall-tmp.sh"
+        script = _make_script(tmpdir_abs, script_name, installer.install_config['postinstall'])
+        scripts.append(os.path.join(tmpdir, script_name))
 
-        script_file = os.path.join(tempdir_full, 'builtin_postinstall.sh')
+    for script in installer.install_config.get('postinstallscripts', []):
+        script_file = installer.getfile(script)
+        shutil.copy(script_file, tmpdir_abs)
+        scripts.append(os.path.join(tmpdir, os.path.basename(script_file)))
 
-        with open(script_file, 'wb') as outfile:
-            outfile.write("\n".join(script).encode())
-        os.chmod(script_file, 0o700)
-        scripts.append('builtin_postinstall.sh')
+    _execute_scripts(installer, scripts)
 
-    if 'postinstallscripts' in installer.install_config:
-        for scriptname in installer.install_config['postinstallscripts']:
-            script_file = installer.getfile(scriptname)
-            shutil.copy(script_file, tempdir_full)
-            scripts.append(os.path.basename(scriptname))
-
-    for script in scripts:
-        if not os.access(os.path.join(tempdir_full, script), os.X_OK):
-            installer.logger.warning(
-                f"Post install script {script} is not executable. "
-                "Skipping execution of script."
-            )
-            continue
-        installer.logger.info(f"Running script {script}")
-        installer.cmd.run_in_chroot(
-            installer.photon_root, f"{tempdir}/{script}"
-        )
-
-    shutil.rmtree(tempdir_full, ignore_errors=True)
+    shutil.rmtree(tmpdir_abs, ignore_errors=True)
