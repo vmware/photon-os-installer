@@ -18,42 +18,23 @@ def execute(installer):
     ):
         return
 
-    tempdir = "/tmp/tempscripts"
-    scripts = []
-    if not os.path.exists(tempdir):
-        os.mkdir(tempdir)
-
     os.environ['POI_ROOT'] = installer.photon_root
 
+    scripts = []
+
+    tmpdir = os.path.join("/tmp", "prepkgs-install")
+    os.makedirs(tmpdir, exist_ok=True)
+
     if 'prepkgsinstall' in installer.install_config:
-        installer.logger.info("Run prepkgsinstall script")
-        script = installer.install_config['prepkgsinstall']
+        script_name = "prepkgsinstall-tmp.sh"
+        commons.make_script(tmpdir, script_name, installer.install_config['prepkgsinstall'])
+        scripts.append(os.path.join(tmpdir, script_name))
 
-        script_file = os.path.join(tempdir, 'builtin_prepkgsinstall.sh')
+    for script in installer.install_config.get('prepkgsinstallscripts', []):
+        script_file = installer.getfile(script)
+        shutil.copy(script_file, tmpdir)
+        scripts.append(os.path.join(tmpdir, os.path.basename(script_file)))
 
-        with open(script_file, "wt") as outfile:
-            for line in script:
-                outfile.write(f"{line}\n")
-        os.chmod(script_file, 0o700)
-        scripts.append('builtin_prepkgsinstall.sh')
+    commons.execute_scripts(installer, scripts)
 
-    if 'prepkgsinstallscripts' in installer.install_config:
-        for scriptname in installer.install_config['prepkgsinstallscripts']:
-            script_file = installer.getfile(scriptname)
-            shutil.copy(script_file, tempdir)
-            scripts.append(os.path.basename(scriptname))
-
-    for script in scripts:
-        if not os.access(os.path.join(tempdir, script), os.X_OK):
-            installer.logger.warning(
-                f"Pre install script {script} is not executable. "
-                "Skipping execution of script."
-            )
-            continue
-        installer.logger.info(f"Running script {script}")
-        cmd = ["/bin/bash"]
-        cmd.append("-c")
-        cmd.append(f"set -a && source {tempdir}/{script} && env -0")
-        installer.cmd.run(cmd, True)
-
-    shutil.rmtree(tempdir, ignore_errors=True)
+    shutil.rmtree(tmpdir, ignore_errors=True)
