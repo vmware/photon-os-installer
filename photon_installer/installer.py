@@ -166,6 +166,13 @@ class Installer(object):
             self.repo_paths = self.rpm_path
         # run preinstall scripts before installation begins
         if install_config:
+            # Extend search_path by current dir and script dir
+            if 'search_path' not in install_config:
+                install_config['search_path'] = []
+            for dirname in [self.cwd, self.installer_path]:
+                if dirname not in install_config['search_path']:
+                    install_config['search_path'].append(dirname)
+
             self._load_preinstall(install_config)
 
         # run UI configurator iff install_config param is None
@@ -464,13 +471,6 @@ class Installer(object):
         # Log level
         if 'log_level' not in install_config:
             install_config['log_level'] = 'info'
-
-        # Extend search_path by current dir and script dir
-        if 'search_path' not in install_config:
-            install_config['search_path'] = []
-        for dirname in [self.cwd, self.installer_path]:
-            if dirname not in install_config['search_path']:
-                install_config['search_path'].append(dirname)
 
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
