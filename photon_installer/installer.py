@@ -920,7 +920,7 @@ class Installer(object):
         with open(os.path.join(self.photon_root, "etc/fstab"), "rt") as f:
             manifest['fstab'] = jc.parse("fstab", f.read())
 
-        df = jc.parse("df", subprocess.check_output(["df"], text=True))
+        df = jc.parse("df", subprocess.check_output(["df", "-P"], text=True))
         df = [d for d in df if d['mounted_on'].startswith(self.photon_root)]
         for d in df:
             d['mounted_on'] = d['mounted_on'][len(self.photon_root):]
