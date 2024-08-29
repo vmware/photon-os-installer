@@ -460,6 +460,41 @@ Multiple disks:
         ]
     }
     ```
+  - _"all_disk":_ (optional)
+    - Provides option to create disk with no partition
+    - "size" key becomes irrelevant when this key is used and whole disk is used
+    - "lvm" if defined will be created on whole disk
+    - "ab" key conflicts as it expects the partition to be present
+    - Cannot be defined for default partition as default partition needs to be on partitioned disk
+    - **Acceptable values:** _true_, _false_
+    - **Default value:** _false_
+    - Example:
+    ```json
+    {
+        "partitions": [
+            {
+                "mountpoint": "/",
+                "size": 0,
+                "filesystem": "ext4",
+                "ab": true
+            },
+            {
+                "mountpoint": "/sda",
+                "size": 100,
+                "filesystem": "ext4"
+            },
+            {
+                "mountpoint": "/nopartition",
+                "all_disk": True,
+                "disk_id": "disk2",
+                "lvm": {
+                          "vg_name":"vg1",
+                          "lv_name":"lv1"
+                       }
+            }
+        ]
+    }
+    ```
 
 ### _"network":_ (optional)
 Used to configure the network.

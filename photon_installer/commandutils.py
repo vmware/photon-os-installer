@@ -46,8 +46,8 @@ class CommandUtils(object):
         process.wait()
         retval = process.returncode
         if retval != 0:
-            self.logger.info("Command failed: {}".format(cmd))
-            self.logger.info("Error code: {}".format(retval))
+            self.logger.info(f"Command failed: {cmd}")
+            self.logger.info(f"Error code: {retval}")
             self.logger.error(err)
         return retval
 

@@ -18,39 +18,21 @@ def execute(installer):
     ):
         return
 
-    tempdir = "/tmp/tempscripts"
     scripts = []
-    if not os.path.exists(tempdir):
-        os.mkdir(tempdir)
+
+    tmpdir = os.path.join("/tmp", "pre-install")
+    os.makedirs(tmpdir, exist_ok=True)
 
     if 'preinstall' in installer.install_config:
-        installer.logger.info("Run preinstall script")
-        script = installer.install_config['preinstall']
+        script_name = "preinstall-tmp.sh"
+        commons.make_script(tmpdir, script_name, installer.install_config['preinstall'])
+        scripts.append(os.path.join(tmpdir, script_name))
 
-        script_file = os.path.join(tempdir, 'builtin_preinstall.sh')
+    for script in installer.install_config.get('preinstallscripts', []):
+        script_file = installer.getfile(script)
+        shutil.copy(script_file, tmpdir)
+        scripts.append(os.path.join(tmpdir, os.path.basename(script_file)))
 
-        with open(script_file, 'wb') as outfile:
-            outfile.write("\n".join(script).encode())
-        os.chmod(script_file, 0o700)
-        scripts.append('builtin_preinstall.sh')
+    commons.execute_scripts(installer, scripts, update_env=True)
 
-    if 'preinstallscripts' in installer.install_config:
-        for scriptname in installer.install_config['preinstallscripts']:
-            script_file = installer.getfile(scriptname)
-            shutil.copy(script_file, tempdir)
-            scripts.append(os.path.basename(scriptname))
-
-    for script in scripts:
-        if not os.access(os.path.join(tempdir, script), os.X_OK):
-            installer.logger.warning(
-                f"Pre install script {script} is not executable. "
-                "Skipping execution of script."
-            )
-            continue
-        installer.logger.info("Running script {}".format(script))
-        cmd = ["/bin/bash"]
-        cmd.append("-c")
-        cmd.append("set -a && source {}/{} && env -0".format(tempdir, script))
-        installer.cmd.run(cmd, True)
-
-    shutil.rmtree(tempdir, ignore_errors=True)
+    shutil.rmtree(tmpdir, ignore_errors=True)

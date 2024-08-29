@@ -20,21 +20,27 @@ f"""Usage: {sys.argv[0]}
 
 def main():
     src_repo_url = None
+    base_repo_urls = []
     dst_repo_dir = "cherry-picks"
     pkglist_file = None
+    do_requires = False
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'd:hs:p:')
+        opts, args = getopt.getopt(sys.argv[1:], "d:hs:p:", longopts=["base-repo-url=", "requires", "source-repo-url="])
     except:
         print (f"{sys.argv[0]}: invalid option")
         sys.exit(2)
 
     for o, a in opts:
-        if o in ["-p"]:
+        if o in ["--base-repo-url"]:
+            base_repo_urls.append(a)
+        elif o in ["-p"]:
             pkglist_file = a
+        elif o in ["--requires"]:
+            do_requires = True
         elif o in ["-d"]:
             dst_repo_dir = a
-        elif o in ["-s"]:
+        elif o in ["-s", "--source-repo-url"]:
             src_repo_url = a
         elif o in ["-h"]:
             usage()
@@ -60,8 +66,16 @@ def main():
     upstream_repos = plf_json.get('upstream-repos', {})
     if src_repo_url is not None:
         upstream_repos['_src_repo'] = {'baseurl' : src_repo_url, 'enabled': 1, 'gpgcheck': 0}
+    for _, ur in upstream_repos.items():
+        if 'priority' not in ur:
+            ur['priority'] = 75
 
     assert upstream_repos, "no upstream repository specified - use `-s <source repo URL>` or add in the packages file"
+
+    base_repos = plf_json.get('base-repos', {})
+    for i, br_url in enumerate(base_repo_urls):
+        # make sure priority is higher (lower value), so this gets prefered over upstream_repos
+        base_repos[f'_base_repo_{i}'] = {'baseurl' : br_url, 'enabled': 1, 'gpgcheck': 0, 'priority': 25}
 
     packages = []
     if 'packages' in plf_json:
@@ -75,15 +89,81 @@ def main():
 
     repos_dir = tempfile.mkdtemp(prefix="reposdir-")
     tdnf.create_repo_conf(upstream_repos, reposdir=repos_dir)
+    tdnf.create_repo_conf(base_repos, reposdir=repos_dir)
 
     os.makedirs(dst_repo_dir, exist_ok=True)
 
-    # setting installroot is a hack to make it fetch already installed packages,
-    # packages will be downloaded to --downloaddir
-    install_root = tempfile.mkdtemp(prefix="installroot-")
-    tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
+    # if the list is empty skip tdnf download to prevent failure,
+    # and create just an empty repository
+    if packages:
+        # setting installroot is a hack to make it fetch already installed packages,
+        # packages will be downloaded to --downloaddir
+        install_root = tempfile.mkdtemp(prefix="installroot-")
+        tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
 
-    tdnf_inst.run([f"--downloadonly", f"--downloaddir={dst_repo_dir}", "--nodeps", "install"] + packages)
+        if do_requires:
+            # get list of all available packages
+            retval, pkginfo_available = tdnf_inst.run(["list", "--available"])
+            assert retval == 0, "tdnf failed while listing packages"
+
+            pkgs_all = []
+            # "tdnf install" command but with "--asumeno", will show all
+            # packages that are required in json output, but not
+            # install/download anything
+            retval, tdnf_out = tdnf_inst.run(["--assumeno", "--downloadonly", f"--downloaddir={dst_repo_dir}", "--alldeps", "install"] + packages)
+            assert retval == 0, "tdnf failed while getting requirements"
+
+            # we should only have 'Install' in json output because the installroot is empty
+            pkginfo_list = tdnf_out['Install']
+
+            # filter for packages that are from _src_repo
+            for pkginfo in pkginfo_list:
+                if pkginfo['Repo'] in upstream_repos:
+                    name = pkginfo['Name']
+                    evr = pkginfo['Evr']
+                    nevr = f"{name}={evr}"
+                    pkgs_all.append(nevr)
+
+                    if nevr not in packages:
+                        # additional package, check if in a base repo
+
+                        """
+                        There is a scenario where the recent change to the
+                        cherry picks logic which pulls requirements can break
+                        reproducibility. Example: we cherry pick package foo
+                        at version 1.2.3. It has an unversioned requirement
+                        on package bar. Current version of bar in the
+                        upstreamrepo is 2.3.4, and there is no package bar in
+                        a base repo (which means that the dependency on bar was
+                        added to foo some time between the version that is
+                        in a base repo and 1.2.3). So version 2.3.4 will be
+                        downloaded to the cherry pick repo in a build, and
+                        installed.
+
+                        Now package bar will be updated to version 2.3.5 in
+                        the upstream repo. We create another build, with no
+                        changes to the previous one. Since the requirement
+                        on bar by foo is unversioned, and there is no version
+                        in a base repo which would have a higher priority,
+                        version 2.3.5 will be downloaded and installed.
+
+                        This could be avoided by also cherry picking bar at
+                        version 2.3.4, but this is easy to miss. Therefore, we
+                        detect this case and fail if found, with a suggestion
+                        on fixing it.
+                        """
+
+                        # note that this test also triggers if the requirement
+                        # is versioned, but this is much harder to detect
+                        assert next((item for item in pkginfo_available if item['Name'] == name and item['Repo'] in base_repos), False), \
+                            f"package {name} is not in a base repository. This may cause non-reproducible build results. To ensure reproducibility, add '{nevr}' to the packages in {pkglist_file}."
+
+            # make list unique, also account for corner case where cherry
+            # picked package is in base repo and therefore filtered out
+            packages = list(set(pkgs_all + packages))
+
+        retval, tdnf_out = tdnf_inst.run(["--downloadonly", f"--downloaddir={dst_repo_dir}", "--nodeps", "install"] + packages)
+        assert retval == 0, "tdnf failed while downloading packages"
 
     subprocess.run(["createrepo", dst_repo_dir], check=True)
 

@@ -63,5 +63,5 @@ def execute(installer):
             commons.replace_string_in_file(
                 login_defs_filename,
                 r'(PASS_MAX_DAYS)\s+\d+\s*',
-                'PASS_MAX_DAYS\t{}\n'.format(age),
+                f'PASS_MAX_DAYS\t{age}\n',
             )

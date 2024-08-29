@@ -1,0 +1,40 @@
+live: false
+
+hostname: photon-machine
+
+disks:
+    default:
+        filename: photon1.img
+        size: 16384
+    disk2:
+        filename: photon2.img
+        size: 4096
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /root
+      sizepercent: 5
+      filesystem: ext4
+    - sizepercent: 5
+      filesystem: swap
+    - mountpoint: /nopartition
+      disk_id: disk2
+      lvm:
+         vg_name: vg3
+         lv_name: lv3
+      all_disk: True
+
+packagelist_file: packages_ova.json
+
+password:
+  age: 0
+  crypted: false
+  text: changeme
+
+public_key: ""
+
+linux_flavor: linux-esx

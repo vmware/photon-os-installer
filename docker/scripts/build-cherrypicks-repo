@@ -1,0 +1,68 @@
+#!/bin/bash
+
+BASE_REPO_URLS=()
+REPO_DIR=$(pwd)/cherrypick-repo
+CFG_FILE=cherrypicks.json
+POI_IMAGE="${POI_IMAGE:-photon/installer}"
+REQUIRES_ARG=
+
+create_repo() {
+    volumes=()
+    for v in "${VOLUMES[@]}" ; do
+        volumes+=("-v")
+        volumes+=("$v")
+    done
+
+    mkdir -p ${REPO_DIR}
+
+    volumes+=("-v")
+    volumes+=("${REPO_DIR}:/cherrypick-repo")
+
+    base_repo_urls=()
+    for b in "${BASE_REPO_URLS[@]}" ; do
+        base_repo_urls+=("--base-repo-url")
+        base_repo_urls+=("$b")
+    done
+
+    docker run --rm \
+        -v $(pwd):/workdir \
+        "${volumes[@]}" \
+        --network=host \
+        ${POI_IMAGE} \
+        create-cherrypicks-repo -p ${CFG_FILE} -d /cherrypick-repo ${REQUIRES_ARG} "${base_repo_urls[@]}"
+}
+
+usage() {
+    echo "Usage: $0"
+    echo "          [-b base-repo-url] base repo url. Can be given multiple times. No effect if --requires is not set"
+    echo "          [-p <config-file>] (default is ${CFG_FILE}))"
+    echo "          [-d|--dir|--directory <dir>] (default is ${REPO_DIR})"
+    echo "          [--poi-image] docker image to use. Default: ${POI_IMAGE}"
+    echo "          [--requires] download required packages if not in base repo(s)"
+    echo "          [--volume src:dst] addtional volumes to be mounted to docker container"
+}
+
+OPTS=$(getopt -o d:hp: --long base-repo-url:,dir:,directory:,poi-image:,requires,volume: -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        --base-repo-url)          BASE_REPO_URLS+=${2}; shift 2 ;;
+        -d | --dir | --directory) REPO_DIR=${2} ; shift 2 ;;
+        -h)                       usage ; shift; exit 0;;
+        -p )                      CFG_FILE=${2} ; shift 2 ;;
+        --poi-image)              POI_IMAGE=${2} ; shift 2 ;;
+        --requires)               REQUIRES_ARG="--requires" ; shift ;;
+        --volume)                 VOLUMES+=("${2}"); shift 2 ;;
+        --)                       shift; break ;;
+        *)                        break ;;
+    esac
+done
+
+create_repo
