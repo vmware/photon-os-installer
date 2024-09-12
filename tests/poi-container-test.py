@@ -60,6 +60,7 @@ class TestBuildPh5ImageWithLocalRepo:
 
         subprocess.check_call(exec_command, shell = True)
         assert(image_exist("azure", "photon-azure.vhd.tar.gz") == True)
+        print("workflow is working!!!")
 
     def test_build_ph5_local_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova"
