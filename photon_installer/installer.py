@@ -1409,9 +1409,6 @@ class Installer(object):
                 continue
             self.logger.info("Executing: " + module)
 
-            if self.install_config.get('ui', False):
-                self.progress_bar.update_message('Setting up GRUB')
-
             mod.execute(self)
 
     def _adjust_packages_based_on_selected_flavor(self):
