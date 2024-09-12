@@ -16,7 +16,7 @@ jobs:
       run: |
         POI_IMAGE_NAME=photon/installer:${{ github.sha }}
         cd docker
-        docker build -t $POI_IMAGE_NAME --build-arg DOCKER_PROXY=dockerhub.artifactory.eng.vmware.com/ --build-context poi-helper=$(realpath $(pwd)/..) .
+        docker build -t $POI_IMAGE_NAME --build-context poi-helper=$(realpath $(pwd)/..) .
         docker system prune -f
 
   test:
@@ -36,6 +36,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt  # Ensure this file lists the necessary dependencies
+
+    - name: install pytest
+      run: pip install pytest
 
     - name: Run Pytest
       run: |
