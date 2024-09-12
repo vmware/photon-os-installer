@@ -4,6 +4,7 @@ variables:
 stages:
 - build
 - test
+- github
 
 build-container:
   stage: build
@@ -21,3 +22,18 @@ pytest:
   stage: test
   script:
     - pytest-3 -x tests/poi-container-test.py
+
+github:
+    stage: github
+    rules:
+        # only for the master branch
+        - if: $CI_COMMIT_REF_NAME == $GITHUB_BRANCH
+    variables:
+        # need clone strategy or adding a remote will fail if it exists
+        GIT_STRATEGY: clone
+        GITHUB_BRANCH: $CI_DEFAULT_BRANCH
+        GITHUB_USER: gerrit-photon
+    script:
+        - git checkout $CI_COMMIT_REF_NAME
+        - git remote add github https://$GITHUB_USER:$GERRIT_PHOTON_GITHUB_TOKEN@github.com/vmware/photon-os-installer.git
+        - git push github
