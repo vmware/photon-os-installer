@@ -1,5 +1,6 @@
 variables:
     POI_IMAGE_NAME: photon/installer:$CI_COMMIT_SHORT_SHA
+    GITHUB_BRANCH: $CI_DEFAULT_BRANCH
 
 stages:
 - build
@@ -31,7 +32,6 @@ github:
     variables:
         # need clone strategy or adding a remote will fail if it exists
         GIT_STRATEGY: clone
-        GITHUB_BRANCH: $CI_DEFAULT_BRANCH
         GITHUB_USER: gerrit-photon
     script:
         - git checkout $CI_COMMIT_REF_NAME
