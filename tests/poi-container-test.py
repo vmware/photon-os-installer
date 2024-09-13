@@ -23,9 +23,9 @@ def create_repo_path():
 
 
 def remove_build_images(directory):
-    extensions = ["*.vhd.tar.gz", "*.ova", "*.ovf", "*.mf", "*.raw", "*.img"]
+    patterns = ["*.vhd.tar.gz", "*.ova", "*.ovf", "*.mf", "*.raw", "*.img", "poi-manifest.json"]
 
-    files = [file for ext in extensions for file in glob.glob(f"{directory}/{ext}")]
+    files = [file for pattern in patterns for file in glob.glob(f"{directory}/{pattern}")]
     for file in files:
         try:
             os.remove(file)
