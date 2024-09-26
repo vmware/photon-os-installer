@@ -15,7 +15,7 @@ REMOTE_REPO_PATH = "https://packages.vmware.com/photon"
 LOCAL_REPO_PATH = POI_TEST_PATH + "/repo"
 
 BASE_COMMAND = f"{POI_PATH}/create-image-util --poi-path {POI_PATH} --local-repo-path"
-IMAGE_FLAVOR = ["azure", "ova", "rpi", "ami"]
+IMAGE_FLAVOR = ["azure", "ova", "rpi", "ami", "iso"]
 
 
 def create_repo_path():
@@ -23,7 +23,7 @@ def create_repo_path():
 
 
 def remove_build_images(directory):
-    patterns = ["*.vhd.tar.gz", "*.ova", "*.ovf", "*.mf", "*.raw", "*.img", "poi-manifest.json"]
+    patterns = ["*.vhd.tar.gz", "*.ova", "*.ovf", "*.mf", "*.raw", "*.img"," *.iso", "poi-manifest.json"]
 
     files = [file for pattern in patterns for file in glob.glob(f"{directory}/{pattern}")]
     for file in files:
@@ -93,6 +93,11 @@ class TestBuildPh5ImageWithLocalRepo:
         subprocess.check_call(exec_command, shell = True)
         assert(image_exist("ami", "photon-ami.raw") == True)
 
+    def test_build_ph5_local_iso_image(self):
+        exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --config-file packages_minimal.json --flavor iso"
+
+        subprocess.check_call(exec_command, shell = True)
+        assert(image_exist("iso", "something.iso") == True)
     '''
     def test_build_ph5_local_rpi_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --config-file rpi_ks.yaml --flavor rpi --arch aarch64"
@@ -138,9 +143,15 @@ class TestBuildPh4ImageWithLocalRepo:
 
     def test_build_ph4_local_ami_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file ami_40_ks.yaml --flavor ami --releasever 4.0"
+
         subprocess.check_call(exec_command, shell = True)
         assert(image_exist("ami", "photon-ami-4.0.raw") == True)
 
+    def test_build_ph4_local_iso_image(self):
+        exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file packages_minimal.json --flavor iso --releasever 4.0"
+
+        subprocess.check_call(exec_command, shell = True)
+        assert(image_exist("iso", "something.iso") == True)
     '''
     def test_build_ph4_local_rpi_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file rpi_ks.yaml --flavor rpi --arch aarch64 --releasever 4.0"

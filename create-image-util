@@ -125,6 +125,10 @@ create_flavor_image()
     if [ $IMAGE_FLAVOR = "azure" ]; then
 	#build azure
         exec_docker_cmd="$exec_docker_cmd create-azure --raw-image ${RAW_IMAGE}"
+    elif [ $IMAGE_FLAVOR = "iso" ]; then
+        #build iso
+        cd ${POI_PATH}/examples/${IMAGE_FLAVOR}
+	exec_docker_cmd="$exec_docker_cmd photon-iso-builder -f build-iso -v ${RELEASE_VERSION} -p ${KS_CONFIG_FILE}"
     elif [ $IMAGE_FLAVOR = "ova" ]; then
         #build ova
 	exec_docker_cmd="$exec_docker_cmd create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}"
@@ -236,6 +240,17 @@ usage() {
     echo                     "create 4.0 RPI with remote repo"
     echo "$0 --config-file rpi_ks.yaml --local-repo-path /home/dbx/poi/repo/4.0 --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor rpi --arch aarch64 --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
     echo "============================================================"
+    echo         "           create ISO image              "
+    echo "============================================================"
+    echo                     "create 5.0 ISO"
+    echo "$0 --config-file packages_minimal.json  --local-repo-path /home/dbx/poi/repo/5.0 --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor iso"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 ISO"
+    echo "$0 --config-file packages_minimal.json --local-repo-path /home/dbx/poi/repo/4.0 --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor iso --releasever 4.0"
+    echo "-------------------------------------------------------------"
+    echo                     "create 4.0 ISO with remote repo"
+    echo "$0 --config-file packages_minimal.json --local-repo-path /home/dbx/poi/repo/4.0 --poi-path /home/dbx/workspace/poi_gitlab/photon-os-installer/ --flavor iso --releasever 4.0 --src-repo-url=https://packages.vmware.com/photon/4.0/photon_updates_4.0_x86_64/"
+    echo "============================================================"
 
 }
 
@@ -271,7 +286,7 @@ while true; do
 done
 
 if [ -z "${RAW_IMAGE}" ]; then
-    if [ $IMAGE_FLAVOR != "ami" -a $IMAGE_FLAVOR != "rpi" ] ; then
+    if [ $IMAGE_FLAVOR != "ami" -a $IMAGE_FLAVOR != "rpi" -a $IMAGE_FLAVOR != "iso" ] ; then
         echo "raw image is missing" >&2
         usage
         echo "Terminating." >&2
@@ -327,9 +342,11 @@ fi
 init_env
 
 #Create repository and raw image
-create_repo_and_raw_image
+if [ ${IMAGE_FLAVOR} != "iso" ] ; then
+    create_repo_and_raw_image
+fi
 
 #Create final image
-if [ ${IMAGE_FLAVOR} = "ova" -o ${IMAGE_FLAVOR} = "azure" ] ; then
+if [ ${IMAGE_FLAVOR} = "ova" -o ${IMAGE_FLAVOR} = "azure" -o ${IMAGE_FLAVOR} = "iso" ] ; then
     create_flavor_image
 fi
