@@ -2102,7 +2102,9 @@ class Installer(object):
 
         # check for public keys:
         if os.path.exists(os.path.join(self.photon_root, "root/.ssh/authorized_keys")):
-            self.logger.warn("WARNING: public key(s) configured in '/root/.ssh/authorized_keys'")
+            assert 'public_key' in self.install_config and 'reason' in self.install_config['public_key'], \
+                "public key set in '/root/.ssh/authorized_keys', but no reason given"
+            self.logger.warn(f"WARNING: public key(s) configured in /root/.ssh/authorized_keys, reason: {self.install_config['public_key']['reason']}")
 
 
     def getfile(self, filename):
