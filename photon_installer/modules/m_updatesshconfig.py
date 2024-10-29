@@ -14,16 +14,6 @@ def execute(installer):
     if 'public_key' not in installer.install_config:
         return
 
-    pubkey_config = installer.install_config['public_key']
-
-    # insist on having a reason, so having a key does not get missed
-    # reason can be "debug", meabning it should not be released
-    # or reason can describe a desired feature
-    assert type(pubkey_config) is dict, "'public_key' setting must be a dictionary with the keys 'key' and 'reason'"
-    assert 'reason' in pubkey_config, "need to set a reason to add a public key"
-
-    installer.logger.info(f"add public key for reason '{pubkey_config['reason']}'")
-
     authorized_keys_dir = os.path.join(installer.photon_root, "root/.ssh")
     authorized_keys_filename = os.path.join(
         authorized_keys_dir, "authorized_keys"
@@ -36,7 +26,7 @@ def execute(installer):
     if not os.path.exists(authorized_keys_dir):
         os.makedirs(authorized_keys_dir)
     with open(authorized_keys_filename, "a") as destination:
-        destination.write(f"{pubkey_config['key']}\n")
+        destination.write(installer.install_config['public_key'] + "\n")
     os.chmod(authorized_keys_filename, 0o600)
 
     # Change the sshd config to allow root login
