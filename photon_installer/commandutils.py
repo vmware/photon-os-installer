@@ -29,13 +29,16 @@ class CommandUtils(object):
         use_shell = not isinstance(cmd, list)
         process = subprocess.Popen(
             cmd, shell=use_shell, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
-        out, err = process.communicate()
+        out = ""
+        for line in process.stdout:
+            self.logger.info(line.rstrip())
+            out += line
+        process.wait()
+
         if out != "":
-            self.logger.info(out)
             if update_env:
-                os.environ.clear()
                 os.environ.update(
                     dict(
                         line.partition("=")[::2]
@@ -43,12 +46,10 @@ class CommandUtils(object):
                         if line
                     )
                 )
-        process.wait()
         retval = process.returncode
         if retval != 0:
             self.logger.info(f"Command failed: {cmd}")
             self.logger.info(f"Error code: {retval}")
-            self.logger.error(err)
         return retval
 
     def run_in_chroot(self, chroot_path, cmd, update_env=False):
