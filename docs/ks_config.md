@@ -250,6 +250,16 @@ Multiple disks:
   }
   ```
 
+### _"packagelist_files":_ (optional if _"packages"_ set)
+- Contains list of filenames which has list of packages to install.
+
+  Example:
+  ```json
+  {
+    "packagelist_files": ["packages_minimal.json", "custom_pkg.json"]
+  }
+  ```
+
 ### _"packages":_ (optional if _"packagelist_file"_ set)
 - Contains list of packages to install.
 
@@ -695,6 +705,35 @@ Used to configure the network.
   }
   ```
 
+### _"prepkgsinstall":_ (optional)
+- Contains list of lines to be executed as a single script on
+ the target just after "filesystem" and "rpm" package is installed
+ and before installing list of packages defined in _"packages"_/
+ _"packagelist_file"_/_"packagelist_files"_.
+
+  Example:
+  ```json
+  {
+    "prepkgsinstall": [
+                     "#!/bin/sh",
+                     "echo \"Hello World\" > /etc/pre-pkgs-install-conf"
+                   ]
+  }
+  ```
+ ### _"prepkgsinstallscripts":_ (optional)
+- Contains list of scripts to execute on the target
+ just after "filesystem" and "rpm" package is installed
+ and before installing list of packages defined in _"packages"_/
+ _"packagelist_file"_/_"packagelist_files"_.
+- Scripts will be looked up in _"search_path"_ list.
+
+  Example:
+  ```json
+  {
+    "prepkgsinstallscripts": ["pre-pkgs-install-work.sh"]
+  }
+  ```
+
 ### _"preinstall":_ (optional)
 - Contains list of lines to be executed as a single script on
  the target before installation starts.
@@ -724,8 +763,18 @@ Used to configure the network.
   ```
 
 ### _"public_key":_ (optional)
-- To inject entry to authorized_keys as a string. Setting this variable
+- To inject entry to authorized_keys as a dictionary. Setting this variable
  enables root login in sshd config.
+
+  Example:
+  ```json
+  {
+    "public_key": {
+                  "key": "<public key value as string>",
+                  "reason": "<Describe reason for adding a public key as string>"
+                }
+  }
+  ```
 
 ### _"search_path":_ (optional)
 - List of directories to search for additional files and scripts.
@@ -815,5 +864,62 @@ Used to configure the network.
                             "enabled": 1 }
              }
   }
+
+### _"dps":_ (optional)
+- use discoverable partition types to mount
+ necessary partitions with proper partition type value
+ as per "https://uapi-group.org/specifications/specs/discoverable_partitions_specification/"
+- Boolean Value: {"True", "False"}
+- Default value: "False"
+
+### _"manifest_file":_ (optional)
+- To generate manifest file, which will
+ contain following information:
+- list of installed packages on target
+- data of "/etc/fstab"
+- output of "df" command
+- output of "mount" command
+- All this information, helps you understand
+ your installed target.
+
+  Example:
+  ```json
+  {
+    "manifest_file": "poi-manifest.json"
+  }
+  ```
+
+### _"ansible":_ (optional)
+- Set to execute ansible playbooks
+- List of dictionary
+
+  Example:
+  ```json
+  {
+    "ansible": [
+                "ans_conf1": {"playbook": playbook.yml, "verbosity": 1, "extra-vars":<list>/<string>},
+                "ans_conf2": {"playbook": playbook2.yml, "verbosity": 1, "extra-vars":<list>/<string>}
+               ]
+  }
+  ```
+
+### _"no_unmount":_ (optional, only for debugging purpose)
+- In case of failure or just to understand the target better.
+- skip umount after installation or during failure in installation.
+- Boolean value: {"True", "False"}
+- Default value: "False"
+
+### _"user_grub_cfg_file":_ (optional)
+- users can add their own grub variables which will
+ eventually be fed to kernel command line.
+- Requires a file as param
+
+  Example:
+  ```json
+  {
+    "user_grub_cfg_file": "user_kernel_cmdline_param.cfg"
+  }
+  ```
+- Example of "user_kernel_cmdline_param.cfg": "https://github.com/vmware/photon-os-installer/blob/master/photon_installer/user.cfg"
 
 For reference, look at [sample_ks.cfg](../sample_ks/sample_ks.cfg) file

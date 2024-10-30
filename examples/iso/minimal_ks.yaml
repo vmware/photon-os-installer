@@ -31,7 +31,9 @@ additional_files:
     - sample_ks.cfg: /root/sample_ks.cfg
 
 # fake a key for testing
-public_key: <ssh-key-here>
+public_key:
+    reason: testing
+    key: <ssh-key-here>
 
 postinstall:
     # allow ssh root login
