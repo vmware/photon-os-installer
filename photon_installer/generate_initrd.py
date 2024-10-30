@@ -196,7 +196,7 @@ class IsoInitrd:
         else:
             mount_dirs = [self.rpms_path, self.working_dir]
 
-        self.tdnf.run(tdnf_args, directories=mount_dirs)
+        self.tdnf.run(tdnf_args, directories=mount_dirs, do_json=False)
 
     def prepare_installer_dir(self):
         installer_dir = f"{self.initrd_path}/installer"

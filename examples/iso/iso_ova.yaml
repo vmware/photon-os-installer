@@ -1,0 +1,52 @@
+system:
+    name: minimal
+    type: vmx-14 vmx-20 vmx-21
+    os_vmw: vmwarePhoton64Guest
+    firmware: efi
+    secure_boot: false
+
+networks:
+    vm_network:
+        name: "VM Network"
+        description: "The VM Network network"
+
+hardware:
+    cpus: 2
+    memory: 2048
+    sata1:
+        type: sata_controller
+    scsi1:
+        type: scsi_controller
+    cdrom1:
+        type: cd_drive
+        parent: sata1
+        image: photon-5.0.iso
+        connected: true
+    Harddisk 1:
+        type: hard_disk
+        parent: scsi1
+        disk_capacity: 20480
+    usb2:
+        type: usb_controller
+    usb3:
+        type: usb3_controller
+    ethernet1:
+        type: ethernet
+        subtype: VmxNet3
+        network: vm_network
+    videocard1:
+        type: video_card
+    vmci1:
+        type: vmci
+
+extra_configs:
+    guestinfo.kickstart.data:
+        value: >
+            cGFzc3dvcmQ6CiAgICBjcnlwdGVkOiBmYWxzZQogICAgdGV4dDogY2hhbmdlbWUKCmRpc2tzOgog
+            ICAgZGVmYXVsdDoKICAgICAgICBkZXZpY2U6IC9kZXYvc2RhCgpwYXJ0aXRpb25zOgogICAgLSBt
+            b3VudHBvaW50OiAvCiAgICAgIHNpemU6IDAKICAgICAgZmlsZXN5c3RlbTogZXh0NAogICAgLSBt
+            b3VudHBvaW50OiAvYm9vdAogICAgICBzaXplOiAxMjgKICAgICAgZmlsZXN5c3RlbTogZXh0NAog
+            ICAgLSBtb3VudHBvaW50OiAvcm9vdAogICAgICBzaXplcGVyY2VudDogNQogICAgICBmaWxlc3lz
+            dGVtOiBleHQ0CiAgICAtIHNpemVwZXJjZW50OiA1CiAgICAgIGZpbGVzeXN0ZW06IHN3YXAKCnBh
+            Y2thZ2VsaXN0X2ZpbGU6IHBhY2thZ2VzX21pbmltYWwuanNvbgoKYWRkaXRpb25hbF9wYWNrYWdl
+            czoKICAgIC0gdmltCgpsaW51eF9mbGF2b3I6IGxpbnV4Cg==

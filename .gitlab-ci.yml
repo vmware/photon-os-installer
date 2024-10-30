@@ -31,6 +31,24 @@ pytest:
         - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
         - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
         - pytest-3 -x tests/poi-container-test.py
+        - pytest-3 -x tests/poi-container-test.py
+    after_script:
+        # change ownerships for cleanup
+        - cd tests/
+        - sudo chown -R $(id -u -n):$(id -g -n) .
+
+iso-build:
+    stage: test
+    needs:
+        - build-container
+    script:
+        - cd examples/iso
+        - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} photon-iso-builder --config iso.yaml
+        - docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o photon5-iso-boot-${CI_COMMIT_SHORT_SHA}.ovf -m
+    after_script:
+        # change ownerships for cleanup
+        - cd examples/iso
+        - sudo chown -R $(id -u -n):$(id -g -n) .
 
 github:
     stage: github

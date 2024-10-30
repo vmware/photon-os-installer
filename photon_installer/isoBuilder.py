@@ -225,7 +225,7 @@ class IsoBuilder(object):
         # skip downloading if repo already exists
         if not os.path.isdir(os.path.join(self.rpms_path, "repodata")):
             self.logger.info("downloading packages...")
-            retval, tdnf_out = self.tdnf.run(
+            retval = self.tdnf.run(
                 [
                     "--alldeps",
                     "--downloadonly",
@@ -235,9 +235,10 @@ class IsoBuilder(object):
                 ]
                 + self.pkg_list,
                 directories=[self.rpms_path],
+                do_json=False
             )
             if retval != 0:
-                raise Exception(f"tdnf failed: {tdnf_out}")
+                raise Exception(f"tdnf failed")
             self.logger.info("...done.")
 
         # Separate out packages downloaded into arch specific directories.
@@ -683,6 +684,8 @@ def main():
                     config[dest] = value
         # Add config arguments to options
         options.__dict__.update(config)
+
+    print(f"initrd_pkg_list_file={options.initrd_pkgs_list_file}")
 
     isoBuilder = IsoBuilder(
         function=options.function,
