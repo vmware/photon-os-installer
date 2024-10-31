@@ -41,12 +41,4 @@ hardware:
 
 extra_configs:
     guestinfo.kickstart.data:
-        value: >
-            cGFzc3dvcmQ6CiAgICBjcnlwdGVkOiBmYWxzZQogICAgdGV4dDogY2hhbmdlbWUKCmRpc2tzOgog
-            ICAgZGVmYXVsdDoKICAgICAgICBkZXZpY2U6IC9kZXYvc2RhCgpwYXJ0aXRpb25zOgogICAgLSBt
-            b3VudHBvaW50OiAvCiAgICAgIHNpemU6IDAKICAgICAgZmlsZXN5c3RlbTogZXh0NAogICAgLSBt
-            b3VudHBvaW50OiAvYm9vdAogICAgICBzaXplOiAxMjgKICAgICAgZmlsZXN5c3RlbTogZXh0NAog
-            ICAgLSBtb3VudHBvaW50OiAvcm9vdAogICAgICBzaXplcGVyY2VudDogNQogICAgICBmaWxlc3lz
-            dGVtOiBleHQ0CiAgICAtIHNpemVwZXJjZW50OiA1CiAgICAgIGZpbGVzeXN0ZW06IHN3YXAKCnBh
-            Y2thZ2VsaXN0X2ZpbGU6IHBhY2thZ2VzX21pbmltYWwuanNvbgoKYWRkaXRpb25hbF9wYWNrYWdl
-            czoKICAgIC0gdmltCgpsaW51eF9mbGF2b3I6IGxpbnV4Cg==
+        value: !param ksdata64=""

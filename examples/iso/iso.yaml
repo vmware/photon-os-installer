@@ -9,7 +9,7 @@ initrd_pkgs_list_file: packages_installer_initrd.json
 kickstart_path: minimal_ks.yaml
 
 # uncomment for non-interactive install
-boot_cmdline_param: ks=minimal_ks.yaml
+#boot_cmdline_param: ks=minimal_ks.yaml
 
 repo_paths:
   - https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch

@@ -42,6 +42,7 @@
     "ncurses-terminfo",
     "nspr",
     "nss",
+    "open-vm-tools",
     "ostree",
     "ostree-grub2",
     "ostree-libs",

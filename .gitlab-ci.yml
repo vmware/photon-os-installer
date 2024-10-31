@@ -31,13 +31,12 @@ pytest:
         - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
         - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
         - pytest-3 -x tests/poi-container-test.py
-        - pytest-3 -x tests/poi-container-test.py
     after_script:
         # change ownerships for cleanup
         - cd tests/
         - sudo chown -R $(id -u -n):$(id -g -n) .
 
-iso-build:
+iso-poi-harness:
     variables:
         ISO_OVF: photon5-iso-boot-${CI_COMMIT_SHORT_SHA}.ovf
         VM_NAME: poi-iso-boot-${CI_COMMIT_SHORT_SHA}
@@ -45,13 +44,16 @@ iso-build:
     needs:
         - build-container
     script:
+        - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
+        - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
         - cd examples/iso
         # create ISO
         - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} photon-iso-builder --config iso.yaml
-        # create OVF that includes that ISO, and a bklank hard disk
-        - docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o ${ISO_OVF} -m
+        # create OVF that includes that ISO, and a blank hard disk
+        # base64 encode the ks file, must have no new lines (-w0)
+        - docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o ${ISO_OVF} -m --param ksdata64=$(base64 -w0 < minimal_ks.yaml)
         # clone the harness code
-        - git clone https://:$POI_HARNESS_PULL_TOKEN@gitlab-vmw.devops.broadcom.net/photon/poi-harness.git
+        - git clone https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
         # POI harness will deploy OVF on a VC and run tests
         - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf ${ISO_OVF} --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config minimal_ks.yaml --ova_config iso_ova.yaml
     after_script:

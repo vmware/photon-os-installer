@@ -14,6 +14,5 @@
         "less",
         "sudo",
         "lvm2"
-    ],
-    "packages_x86_64": ["linux-esx"]
+    ]
 }

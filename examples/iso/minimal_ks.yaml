@@ -2,6 +2,8 @@ password:
     crypted: false
     text: changeme
 
+hostname: minimal
+
 disks:
     default:
         device: /dev/sda
@@ -24,6 +26,15 @@ packagelist_file: packages_minimal.json
 additional_packages:
     - vim
 
+# for testing, take a random file (this one)
+additional_files:
+    - minimal_ks.yaml: /root/minimal_ks.yaml
+
+# fake a key for testing
 public_key: <ssh-key-here>
+
+postinstall:
+    # allow ssh root login
+    - sed -i "s/\(^PermitRootLogin\)[ ]*no$/\1 yes/g" /etc/ssh/sshd_config
 
 linux_flavor: linux
