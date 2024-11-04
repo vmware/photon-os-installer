@@ -42,11 +42,11 @@
     "ncurses-terminfo",
     "nspr",
     "nss",
+    "open-vm-tools",
     "ostree",
     "ostree-grub2",
     "ostree-libs",
     "pcre",
-    "/poi/RPMS/x86_64/photon-os-installer-2.3-2.ph5.x86_64.rpm",
     "popt",
     "python3",
     "python3",
@@ -72,6 +72,11 @@
     "zlib"
   ],
   "packages_x86_64": [
-    "grub2-pc"
+    "grub2-pc",
+    "/poi/RPMS/x86_64/photon-os-installer-2.4-1.ph5.x86_64.rpm"
+  ],
+  "packages_aarch64": [
+    "grub2-pc",
+    "/poi/RPMS/aarch64/photon-os-installer-2.4-1.ph5.aarch64.rpm"
   ]
 }
