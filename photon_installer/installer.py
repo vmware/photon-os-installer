@@ -64,6 +64,7 @@ class Installer(object):
         'arch',
         'autopartition',
         'bootmode',
+        'build_mounts',
         'disk',
         'disks',
         'docker',
@@ -732,6 +733,7 @@ class Installer(object):
             self._setup_install_repo()
             self._initialize_system()
             self._mount_special_folders()
+            self._build_mounts()
             self._execute_modules(modules.commons.PRE_PKGS_INSTALL)
             self._install_packages()
             self._install_additional_rpms()
@@ -1259,6 +1261,15 @@ class Installer(object):
 
         for d in ["/tmp", "/run"]:
             self._mount('tmpfs', d, fstype='tmpfs')
+
+
+    def _build_mounts(self):
+        if 'build_mounts' not in self.install_config:
+            return
+
+        build_mounts = self.install_config['build_mounts']
+        for src, dst in build_mounts.items():
+            self._mount(src, dst, bind=True, create=True)
 
 
     def _copy_additional_files(self):
