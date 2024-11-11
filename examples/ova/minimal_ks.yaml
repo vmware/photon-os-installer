@@ -22,6 +22,13 @@ partitions:
     - sizepercent: 5
       filesystem: swap
 
+repos:
+    photon:
+        name: "Photon 5.0"
+        baseurl: !param photon_repo_url=https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch
+        enabled: 1
+        gpgcheck: 0
+
 packagelist_file: packages_minimal.json
 
 additional_packages:
