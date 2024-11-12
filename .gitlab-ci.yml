@@ -17,13 +17,13 @@ build-container:
         - docker push ${POI_REGISTRY}/${POI_IMAGE_NAME}
         - docker system prune -f
 
-.cayman_poi:
+cayman_poi:
     stage: build
     needs: []
     script:
         - ./ci/gitlab/submodule_ci.py --private-token=$CAYMAN_POI_CICD_API_TOKEN --project-id core-build/cayman_photon-os-installer --branch test/poi-submodule/$CI_COMMIT_SHORT_SHA --parent-branch vmware-master --submodule-path poi/src --submodule-sha $CI_COMMIT_SHA
 
-.pytest:
+pytest:
     stage: test
     needs:
         - build-container
@@ -38,19 +38,28 @@ build-container:
 
 ova-poi-harness:
     variables:
-        VM_NAME: poi-harness-${CI_COMMIT_SHORT_SHA}
+        VM_NAME_BASE: ova-poi-harness-${CI_COMMIT_SHORT_SHA}
     stage: test
     needs:
         - build-container
+    parallel:
+        matrix:
+            - NAME:
+                - minimal
+                - minimal_lvm
     script:
+        - VM_NAME=${VM_NAME_BASE}-${NAME}
+        - KS_FILE=${NAME}_ks.yaml
+
         - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
         - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
+
         - cd examples/ova
-        - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} create-image --repo-paths= -c minimal_ks.yaml -v 5.0
-        - docker run --rm -v$(pwd):/workdir -w/workdir ${POI_IMAGE_NAME} create-ova --ovf --mf --vmdk --installer-config minimal_ks.yaml --ova-config minimal_ova.yaml
+        - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} create-image --repo-paths= -c ${KS_FILE} -v 5.0
+        - docker run --rm -v$(pwd):/workdir -w/workdir ${POI_IMAGE_NAME} create-ova --ovf --mf --vmdk --installer-config ${KS_FILE} --ova-config minimal_ova.yaml
         # clone the harness code
         - git clone --depth=1 https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
-        - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf *.ovf --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config minimal_ks.yaml --ova_config minimal_ova.yaml
+        - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf *.ovf --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config ${KS_FILE} --ova_config minimal_ova.yaml
     after_script:
         # change ownerships for cleanup
         - cd examples/ova

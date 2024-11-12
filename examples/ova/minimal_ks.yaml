@@ -34,7 +34,9 @@ packagelist_file: packages_minimal.json
 additional_packages:
     - vim
 
-public_key: <ssh-key-here>
+postinstall:
+    # allow ssh root login
+    - sed -i "s/\(^PermitRootLogin\)[ ]*no$/\1 yes/g" /etc/ssh/sshd_config
 
 linux_flavor: linux
 
