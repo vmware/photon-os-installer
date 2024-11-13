@@ -36,6 +36,35 @@ pytest:
         - cd tests/
         - sudo chown -R $(id -u -n):$(id -g -n) .
 
+ova-poi-harness:
+    variables:
+        VM_NAME_BASE: ova-poi-harness-${CI_COMMIT_SHORT_SHA}
+    stage: test
+    needs:
+        - build-container
+    parallel:
+        matrix:
+            - NAME:
+                - minimal
+                - minimal_lvm
+    script:
+        - VM_NAME=${VM_NAME_BASE}-${NAME}
+        - KS_FILE=${NAME}_ks.yaml
+
+        - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
+        - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
+
+        - cd examples/ova
+        - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} create-image --repo-paths= -c ${KS_FILE} -v 5.0
+        - docker run --rm -v$(pwd):/workdir -w/workdir ${POI_IMAGE_NAME} create-ova --ovf --mf --vmdk --installer-config ${KS_FILE} --ova-config minimal_ova.yaml
+        # clone the harness code
+        - git clone --depth=1 https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
+        - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf *.ovf --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config ${KS_FILE} --ova_config minimal_ova.yaml
+    after_script:
+        # change ownerships for cleanup
+        - cd examples/ova
+        - sudo chown -R $(id -u -n):$(id -g -n) .
+
 iso-poi-harness:
     variables:
         ISO_OVF: photon5-iso-boot-${CI_COMMIT_SHORT_SHA}.ovf
@@ -53,7 +82,7 @@ iso-poi-harness:
         # base64 encode the ks file, must have no new lines (-w0)
         - docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o ${ISO_OVF} -m --param ksdata64=$(base64 -w0 < minimal_ks.yaml)
         # clone the harness code
-        - git clone https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
+        - git clone --depth=1 https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
         # POI harness will deploy OVF on a VC and run tests
         - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf ${ISO_OVF} --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config minimal_ks.yaml --ova_config iso_ova.yaml
     after_script:
