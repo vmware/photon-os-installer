@@ -1,0 +1,46 @@
+system:
+    name: glrunner
+    type: vmx-14 vmx-20 vmx-21
+    os_vmw: vmwarePhoton64Guest
+    firmware: efi
+    secure_boot: false
+
+networks:
+    vm_network:
+        name: "VM Network"
+        description: "The VM Network network"
+
+hardware:
+    cpus:
+        type: cpus
+        number: 4
+    memory:
+        type: memory
+        size: 8192
+    sata1:
+        type: sata_controller
+    scsi1:
+        type: scsi_controller
+    rootdisk:
+        type: hard_disk
+        parent: scsi1
+        raw_image: !param rootdisk=root.img
+    usb1:
+        type: usb_controller
+    ethernet1:
+        type: ethernet
+        subtype: VmxNet3
+        network: vm_network
+    videocard1:
+        type: video_card
+    vmci1:
+        type: vmci
+
+product:
+    product: Photon OS Gitlab Runner
+    vendor: VMware Inc.
+
+annotation:
+    text: >
+      Provides a simple gitlab runner based on Photon.
+
