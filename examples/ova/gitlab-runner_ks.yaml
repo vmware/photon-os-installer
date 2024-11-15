@@ -1,0 +1,86 @@
+live: False
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: !param rootdisk=root.img
+        size: 40960
+
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - size: 4
+      filesystem: swap
+
+repos:
+    photon:
+        name: "Photon 5.0"
+        baseurl: !param photon_repo_url=https://packages.vcfd.broadcom.net/artifactory/photonos-rpm-local/$releasever/photon_updates_$releasever_$basearch/
+        enabled: 1
+        gpgcheck: 0
+
+packagelist_file: packages_minimal.json
+
+additional_packages:
+    # install vim because you probably need to edit config files
+    - vim
+    - build-essential
+    - zlib-devel
+    # to build docker images
+    - docker-buildx
+    # gitlab runner needs git
+    - git
+    # python3 is optional, but many CI/CD jobs will need it
+    - python3
+    - python3-PyYAML
+    - python3-pytest
+    - python3-lxml  
+    - python3-xmltodict
+    # to install gitlab python package
+    - python3-pip
+    - jq
+    - tar
+    - sshpass
+
+linux_flavor: linux
+
+additional_files:
+    - sudoers-wheel-nopasswd: /etc/sudoers.d/wheel-nopasswd
+
+postinstall:
+    # see https://docs.gitlab.com/runner/install/linux-manually.html#using-binary-file
+    - curl -L --output /usr/local/bin/gitlab-runner "https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64"
+    - chmod +x /usr/local/bin/gitlab-runner
+    - useradd --comment 'GitLab Runner' --create-home gitlab-runner --shell /bin/bash
+    - gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner
+
+    - pip3 install git+https://github.com/python-gitlab/python-gitlab.git
+
+    # some scripts use pytest-3
+    - ln -fs /usr/bin/pytest3.11 /usr/bin/pytest-3
+
+    # enable docker and allow gitlab-runner to use it
+    - systemctl enable docker
+    - usermod -aG docker gitlab-runner
+
+    # sudo access for gitlab-runner
+    - usermod -aG wheel gitlab-runner
+
+    # allow ssh root login - needed for testing
+    - sed -i "s/\(^PermitRootLogin\)[ ]*no$/\1 yes/g" /etc/ssh/sshd_config
+
+docker:
+    images:
+        - method: pull
+          name: dockerhub.artifactory.vcfd.broadcom.net/photon:5.0
+          tags:
+              - photon:5.0
+
+eject_cdrom: false
