@@ -22,7 +22,7 @@ partitions:
 
 repos:
     photon:
-        name: "Photon 5.0"
+        name: "Photon"
         baseurl: !param photon_repo_url=https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch
         enabled: 1
         gpgcheck: 0

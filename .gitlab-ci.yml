@@ -50,16 +50,20 @@ ova-poi-harness:
               OVA_CONFIG: minimal_ova.yaml
             - NAME: gitlab-runner
               OVA_CONFIG: gitlab-runner_ova.yaml
+            - NAME: minimal
+              OVA_CONFIG: minimal_ova.yaml
+              PHOTON_RELEASE: "4.0"
 
     script:
-        - VM_NAME=${VM_NAME_BASE}-${NAME}
         - KS_FILE=${NAME}_ks.yaml
+        - PHOTON_RELEASE="${PHOTON_RELEASE:-5.0}"
+        - VM_NAME=${VM_NAME_BASE}-${NAME}-${PHOTON_RELEASE}
 
         - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
         - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
 
         - cd examples/ova
-        - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} create-image --repo-paths= -c ${KS_FILE} -v 5.0
+        - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} create-image --repo-paths= -c ${KS_FILE} -v ${PHOTON_RELEASE}
         - docker run --rm -v$(pwd):/workdir -w/workdir ${POI_IMAGE_NAME} create-ova --ovf --mf --vmdk --installer-config ${KS_FILE} --ova-config ${OVA_CONFIG}
         # clone the harness code
         - git clone --depth=1 https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
