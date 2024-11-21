@@ -7,6 +7,7 @@ stages:
 - build
 - test
 - github
+- deploy
 
 build-container:
     stage: build
@@ -120,3 +121,22 @@ github:
         - git checkout $CI_COMMIT_REF_NAME
         - git remote add github https://$GITHUB_USER:$GERRIT_PHOTON_GITHUB_TOKEN@github.com/vmware/photon-os-installer.git
         - git push github
+
+push-image:
+    # no `needs` entry - this should run at last job, only when all others have succeeded
+    stage: deploy
+    rules:
+        - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    variables:
+        ARTIFACTORY_SERVER: photon-docker-prod-local.usw5.packages.broadcom.com
+    script:
+        - set -e
+        - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
+        - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
+        - echo ${ARTIFACTORY_TOKEN} | docker login --username ${ARTIFACTORY_USER} --password-stdin ${ARTIFACTORY_SERVER}
+        # this will be available in public as projects.packages.broadcom.com/photon/installer:$CI_COMMIT_SHORT_SHA
+        - docker tag $POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME
+        - docker push ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME
+        # also as latest
+        - docker tag $POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/photon/installer:latest
+        - docker push ${ARTIFACTORY_SERVER}/photon/installer:latest
