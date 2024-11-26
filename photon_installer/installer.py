@@ -1081,13 +1081,16 @@ class Installer(object):
                 else:
                     mountpoint = partition['mountpoint']
 
+                # If LVM use device mapper path
                 # Use PARTUUID/UUID instead of bare path.
                 # Prefer PARTUUID over UUID as it is supported by kernel
                 # and UUID only by initrd.
                 path = partition['path']
                 mnt_src = None
                 partuuid = self._get_partuuid(path)
-                if partuuid != '':
+                if ptype == PartitionType.LVM:
+                    mnt_src = partition['path']
+                elif partuuid != '':
                     mnt_src = f"PARTUUID={partuuid}"
                 else:
                     uuid = self._get_uuid(path)
