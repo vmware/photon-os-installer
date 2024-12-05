@@ -1,12 +1,18 @@
 password:
     crypted: false
     text: changeme
+    age: -1
 
-hostname: minimal
+hostname: ostree
 
 disks:
     default:
         device: /dev/sda
+
+ostree:
+    default_repo: false
+    repo_url: https://packages-prod.broadcom.com/photon/rpm-ostree/base/5.0/x86_64/repo/
+    repo_ref: photon/5.0/x86_64/minimal
 
 partitions:
     - mountpoint: /
@@ -20,18 +26,6 @@ partitions:
       filesystem: ext4
     - sizepercent: 5
       filesystem: swap
-
-packagelist_file: packages_minimal.json
-
-additional_packages:
-    - vim
-
-# for testing, take a random file (this one)
-additional_files:
-    - sample_ks.cfg: /root/sample_ks.cfg
-
-# fake a key for testing
-public_key: <ssh-key-here>
 
 postinstall:
     # allow ssh root login

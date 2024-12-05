@@ -35,13 +35,13 @@ create_ova()
             opt_mf="--manifest"
         fi
 
-        params=()
+        params=("--param" "disk=${name0}.vmdk")
         for p in "${PARAMS[@]}" ; do
             params+=("--param")
             params+=("$p")
         done
 
-        printf "%s\n" "${params[@]}" | xargs ova-compose -i ${OVA_CFG_FILE} -o ${output_file} --param disk=${name0}.vmdk ${opt_mf}
+        printf "%s\0" "${params[@]}" | xargs -0 ova-compose -i ${OVA_CFG_FILE} -o ${output_file} ${opt_mf}
 
         # nuke vmdk's if we created an OVA
         if [ "${CREATE_OVA}" == "true" ] ; then
@@ -120,7 +120,7 @@ if [ -z "${RAW_IMAGES}" ] ; then
         params+=("--param")
         params+=("$p")
     done
-    RAW_IMAGES=$(printf "%s\n" "${params[@]}" | xargs yjson -i ${CFG_FILE} | jq -r '.disks|values[].filename')
+    RAW_IMAGES=$(printf "%s\0" "${params[@]}" | xargs -0 yjson -i ${CFG_FILE} | jq -r '.disks|values[].filename')
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then

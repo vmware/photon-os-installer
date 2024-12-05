@@ -1,16 +1,19 @@
 #!/bin/bash
 
+set -xe
+
 WORKDIR=/mnt/photon-root
 REPO_PATHS=/repo
 RELEASE_VER=5.0
 
 create_image() {
-    params=()
+    # make sure params is not empty or one empty arg will be passed by xargs, and photon-installer will fail
+    params=("-i" "ova" "-v" "${RELEASE_VER}" "--repo-paths=${REPO_PATHS}" "-c" "${CFG_FILE}" "-w" "${WORKDIR}")
     for p in "${PARAMS[@]}" ; do
         params+=("--param")
         params+=("$p")
     done
-    printf "%s\n" "${params[@]}" | xargs photon-installer -i ova -v ${RELEASE_VER} --repo-paths=${REPO_PATHS} -c ${CFG_FILE} -w ${WORKDIR}
+    printf "%s\0" "${params[@]}" | xargs -0 photon-installer
 }
 
 usage() {

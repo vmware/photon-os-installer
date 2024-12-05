@@ -185,16 +185,16 @@ repo_paths:
 
 iso_files:
     minimal_ks.yaml: isolinux/
-    "https://raw.githubusercontent.com/vmware/photon/5.0/support/image-builder/iso/sample_ks.cfg": isolinux/
+    "https://raw.githubusercontent.com/vmware/photon/5.0/support/poi/configs/iso/sample_ks.cfg": isolinux/
     "https://raw.githubusercontent.com/vmware/photon/5.0/EULA.txt": ""
     "https://raw.githubusercontent.com/vmware/photon/5.0/NOTICE-Apachev2": ""
     "https://raw.githubusercontent.com/vmware/photon/5.0/NOTICE-GPL2.0": ""
-    "https://github.com/vmware/photon/raw/5.0/support/image-builder/iso/open_source_license.tar.gz": ""
+    "https://github.com/vmware/photon/raw/5.0/support/poi/configs/iso/open_source_license.tar.gz": ""
 
 initrd_files:
     minimal_ks.yaml: installer/
     packages_minimal.json: installer/
-    "https://raw.githubusercontent.com/vmware/photon/5.0/support/image-builder/iso/sample_ui.cfg": installer/
+    "https://raw.githubusercontent.com/vmware/photon/5.0/support/poi/configs/iso/sample_ui.cfg": installer/
     "https://raw.githubusercontent.com/vmware/photon/5.0/EULA.txt": installer/
 ```
 Use the config file as (`iso.yaml`) with:

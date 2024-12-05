@@ -24,7 +24,7 @@ build_image() {
         volumes+=("$v")
     done
 
-    printf "%s\n" "${params[@]}" | xargs \
+    printf "%s\0" "${params[@]}" | xargs -0 \
         docker run --rm --privileged \
         -v /dev:/dev \
         -v $(pwd):/workdir \
@@ -63,7 +63,8 @@ build_ovf() {
     ova_name=
     [ -z "${OVA_NAME}" ] || ova_name="--ova-name=${OVA_NAME}"
 
-    docker run --rm \
+    printf "%s\0" "${params[@]}" | xargs -0 \
+        docker run --rm \
         -v $(pwd):/workdir \
         --network=none \
         ${POI_IMAGE} \
@@ -71,7 +72,7 @@ build_ovf() {
             ${ovf_args} \
             --installer-config ${KS_CFG_FILE} \
             --ova-config ${OVA_CFG_FILE} \
-            ${ova_name} "${params[@]}"
+            ${ova_name}
 }
 
 usage() {
