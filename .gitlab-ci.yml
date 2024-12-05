@@ -77,11 +77,18 @@ ova-poi-harness:
 iso-poi-harness:
     variables:
         ISO_OVF: photon5-iso-boot-${CI_COMMIT_SHORT_SHA}.ovf
-        VM_NAME: poi-iso-boot-${CI_COMMIT_SHORT_SHA}
+        VM_NAME_BASE: poi-iso-boot-${CI_COMMIT_SHORT_SHA}
     stage: test
     needs:
         - build-container
+    parallel:
+        matrix:
+            - NAME:
+                - minimal
+                - ostree
     script:
+        - VM_NAME=${VM_NAME_BASE}-${NAME}
+        - KS_FILE=${NAME}_ks.yaml
         - docker pull ${POI_REGISTRY}/${POI_IMAGE_NAME}
         - docker tag ${POI_REGISTRY}/${POI_IMAGE_NAME} ${POI_IMAGE_NAME}
         - cd examples/iso
@@ -89,12 +96,12 @@ iso-poi-harness:
         - docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} photon-iso-builder --config iso.yaml
         # create OVF that includes that ISO, and a blank hard disk
         # base64 encode the ks file, must have no new lines (-w0)
-        - KSDATA64=$(base64 -w0 < minimal_ks.yaml)
+        - KSDATA64=$(base64 -w0 < ${KS_FILE})
         - docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o ${ISO_OVF} -m --param ksdata64=${KSDATA64}
         # clone the harness code
         - git clone --depth=1 https://:${POI_HARNESS_PULL_TOKEN}@${CI_SERVER_HOST}/photon/poi-harness.git
         # POI harness will deploy OVF on a VC and run tests
-        - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf ${ISO_OVF} --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config minimal_ks.yaml --ova_config iso_ova.yaml --param ksdata64=${KSDATA64}
+        - pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf ${ISO_OVF} --name ${VM_NAME} --vc_config ${VC_CONFIG_FILE} --ks_config ${KS_FILE} --ova_config iso_ova.yaml --param ksdata64=${KSDATA64}
     after_script:
         # change ownerships for cleanup
         - cd examples/iso
