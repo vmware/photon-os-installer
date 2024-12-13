@@ -43,8 +43,9 @@ def main():
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'hi:', longopts=['param='])
-    except:
-        print (f"{sys.argv[0]}: invalid option")
+    except getopt.GetoptError as e:
+        print (f"{sys.argv[0]}: invalid option {e.opt}: {e.msg}")
+        print(sys.argv[1:])
         sys.exit(2)
 
     for o, a in opts:

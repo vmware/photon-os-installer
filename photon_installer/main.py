@@ -11,8 +11,7 @@ import yaml
 
 
 def main():
-    usage = "Usage: %prog [options]"
-    parser = ArgumentParser(usage)
+    parser = ArgumentParser()
     parser.add_argument("-i", "--image-type", dest="image_type")
     parser.add_argument("-c", "--install-config", dest="install_config_file")
     parser.add_argument("-u", "--ui-config", dest="ui_config_file")
