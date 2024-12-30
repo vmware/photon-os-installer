@@ -18,5 +18,7 @@ def execute(installer):
             installer.photon_root, "/bin/systemd-machine-id-setup"
         )
     else:
-        open(installer.photon_root + "/etc/machine-id", "w").close()
+        # see https://www.freedesktop.org/software/systemd/man/latest/machine-id.html
+        with open(installer.photon_root + "/etc/machine-id", "wt") as f:
+            f.write("uninitialized\n")
         os.chmod(installer.photon_root + "/etc/machine-id", 0o444)
