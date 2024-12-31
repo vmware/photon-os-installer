@@ -391,7 +391,7 @@ class Installer(object):
             assert p.strip(), "package name must not be empty"
 
             if "=" in p:
-                name, version = p.split("=")
+                name, version = p.split("=", maxsplit=1)
                 if name in versioned_pkgs:
                     # let tdnf deal with this - there are exceptions where this is allowed (like install_only packages)
                     # also, one of the versions may be incomplete: vim=9.0.2142 vs vim=9.0.2142-1.ph5 , which does not conflict

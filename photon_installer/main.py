@@ -29,7 +29,7 @@ def main():
 
     params = {}
     for p in options.params:
-        k,v = p.split('=')
+        k,v = p.split('=', maxsplit=1)
         params[k] = yaml.safe_load(v)
 
     try:

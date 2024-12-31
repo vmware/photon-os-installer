@@ -84,7 +84,7 @@ def main():
     # enforce full nevr
     for p in packages:
         assert "=" in p, f"package {p} does not have a version"
-        n, v = p.split("=")
+        n, v = p.split("=", maxsplit=1)
         assert "-" in v, f"package {p} does not have a full version/release"
 
     repos_dir = tempfile.mkdtemp(prefix="reposdir-")
