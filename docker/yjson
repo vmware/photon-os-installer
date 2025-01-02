@@ -55,7 +55,7 @@ def main():
         elif o in ['-i']:
             input_file = a
         elif o in ['--param']:
-            k,v = a.split('=')
+            k,v = a.split("=", maxsplit=1)
             params[k] = yaml.safe_load(v)
         else:
             assert False, f"unhandled option {o}"

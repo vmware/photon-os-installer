@@ -391,7 +391,7 @@ class Installer(object):
             assert p.strip(), "package name must not be empty"
 
             if "=" in p:
-                name, version = p.split("=")
+                name, version = p.split("=", maxsplit=1)
                 if name in versioned_pkgs:
                     # let tdnf deal with this - there are exceptions where this is allowed (like install_only packages)
                     # also, one of the versions may be incomplete: vim=9.0.2142 vs vim=9.0.2142-1.ph5 , which does not conflict
@@ -747,6 +747,7 @@ class Installer(object):
         self._ansible_run()
         self._docker_images()
         self._execute_modules(modules.commons.POST_INSTALL)
+        self._final_check()
         self._deactivate_network_in_chroot()
         self._write_manifest()
         self._cleanup_install_repo()
@@ -2106,6 +2107,19 @@ class Installer(object):
                 raise Exception(
                     "Failed to format {} partition @ {}".format(partition['filesystem'],
                                                                 partition['path']))
+
+
+    def _final_check(self):
+        """
+        add final tests here, and prin error or warnings
+        """
+
+        # check for public keys:
+        if os.path.exists(os.path.join(self.photon_root, "root/.ssh/authorized_keys")):
+            assert 'public_key' in self.install_config and 'reason' in self.install_config['public_key'], \
+                "public key set in '/root/.ssh/authorized_keys', but no reason given"
+            self.logger.warn(f"WARNING: public key(s) configured in /root/.ssh/authorized_keys, reason: {self.install_config['public_key']['reason']}")
+
 
     def getfile(self, filename):
         """
