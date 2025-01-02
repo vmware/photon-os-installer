@@ -1,0 +1,14 @@
+# firstboot service installed by photon-os-installer
+
+[Unit]
+Description=POI Firstboot scripts
+ConditionPathExists=/etc/firstboot.to_be_run
+
+[Install]
+WantedBy=default.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /etc/firstboot.sh
+ExecStartPost=/usr/bin/rm /etc/firstboot.to_be_run
+KillMode=process

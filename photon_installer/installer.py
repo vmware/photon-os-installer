@@ -70,6 +70,7 @@ class Installer(object):
         'docker',
         'dps',
         'eject_cdrom',
+        'firstboot',
         'hostname',
         'insecure_repo',
         'linux_flavor',
@@ -140,6 +141,8 @@ class Installer(object):
         self.tdnf_conf_path = os.path.join(self.working_directory, "tdnf.conf")
 
         self.setup_grub_command = os.path.join(self.installer_path, "mk-setup-grub.sh")
+        self.firstboot_script = os.path.join(self.installer_path, "firstboot.sh")
+        self.firstboot_service = os.path.join(self.installer_path, "firstboot.service")
 
         self.user_grub_cfg_fn = os.path.join(self.installer_path, "user.cfg")
 
@@ -1296,6 +1299,43 @@ class Installer(object):
                             os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copyfile(srcpath, self.photon_root + dest)
 
+
+    def _install_firstboot(self):
+        if not 'firstboot' in self.install_config:
+            return
+
+        firstboot = self.install_config['firstboot']
+
+        # we may want to make these configurable in the future
+        script_dir = self.photon_root + "/etc/"
+        os.makedirs(script_dir, exist_ok=True)
+        shutil.copy(self.firstboot_script, script_dir)
+        
+        service_dir = self.photon_root + "/etc/systemd/system/"
+        os.makedirs(service_dir, exist_ok=True)
+        shutil.copy(self.firstboot_service, service_dir)
+
+        with open(self.photon_root + "/etc/firstboot.to_be_run", "wt"):
+            pass
+
+        service_name = os.path.basename(self.firstboot_service)
+        self.cmd.run_in_chroot(self.photon_root, f"systemctl enable {service_name}")
+
+        if 'scripts' in firstboot:
+            scripts = firstboot['scripts']
+            assert type(scripts) is list, "firstboot/scripts must be a list"
+            scripts_dir = self.photon_root + "/etc/firstboot.d"
+            os.makedirs(scripts_dir, exist_ok=True)
+            for script in scripts:
+                # we check for executability and correct extension, but only warn
+                # use case: common settings to be included from other scripts
+                if not os.access(script, os.X_OK):
+                    self.logger.warn(f"firstboot script '{script}' is not executable")
+                if not script.endswith(".sh"):
+                    self.logger.warn(f"firstboot script '{script}' should have the extension '.sh'")
+                shutil.copy(script, scripts_dir)
+
+
     def _finalize_system(self):
         """
         Finalize the system after the installation
@@ -1304,6 +1344,7 @@ class Installer(object):
             self.progress_bar.show_loading('Finalizing installation')
 
         self._copy_additional_files()
+        self._install_firstboot()
 
         self.cmd.run_in_chroot(self.photon_root, "/sbin/ldconfig")
 
