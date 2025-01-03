@@ -34,7 +34,7 @@ FROM ${DOCKER_PROXY}library/photon:5.0 as poi-rpm-builder
 ARG TDNF_OPTIONS
 
 RUN tdnf ${TDNF_OPTIONS} makecache && \
-    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 createrepo
+    tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 createrepo ca-certificates openssl
 
 COPY --from=poi-helper / /photon-os-installer
 
@@ -61,7 +61,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     python3-rpm \
     qemu-img \
     open-vmdk ostree rpm-ostree \
-    stig-hardening \
+    stig-hardening ca-certificates openssl \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 
