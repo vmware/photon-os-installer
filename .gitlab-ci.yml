@@ -48,6 +48,7 @@ ova-poi-harness:
             - NAME:
                 - minimal
                 - minimal_lvm
+                - minimal_secure
               OVA_CONFIG: minimal_ova.yaml
             - NAME: gitlab-runner
               OVA_CONFIG: gitlab-runner_ova.yaml
