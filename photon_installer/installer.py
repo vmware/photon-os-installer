@@ -83,6 +83,7 @@ class Installer(object):
         'packagelist_files',
         'partition_type',
         'partitions',
+        'security',
         'network',
         'no_unmount',
         'no_clean',
@@ -141,10 +142,11 @@ class Installer(object):
         self.tdnf_conf_path = os.path.join(self.working_directory, "tdnf.conf")
 
         self.setup_grub_command = os.path.join(self.installer_path, "mk-setup-grub.sh")
+        self.user_grub_cfg_fn = os.path.join(self.installer_path, "user.cfg")
+        self.poi_kernel_cmdline = ""
+
         self.firstboot_script = os.path.join(self.installer_path, "firstboot.sh")
         self.firstboot_service = os.path.join(self.installer_path, "firstboot.service")
-
-        self.user_grub_cfg_fn = os.path.join(self.installer_path, "user.cfg")
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
         self.lvs_to_detach = {'vgs': [], 'pvs': []}
@@ -384,6 +386,16 @@ class Installer(object):
         # docker images need docker in the target
         if 'docker' in install_config:
             packages.append("docker")
+
+        if 'security' in install_config:
+            security = install_config['security']
+            # the mere mention will add these packages, even if disabled or False,
+            # unless set to None
+            # use case: prepare for selinux/fips, but configure it later
+            if 'selinux' in security and security['selinux'] is not None:
+                packages.append("selinux-policy")
+            if 'fips' in security and security['fips'] is not None:
+                packages.append("openssl-fips-provider")
 
         packages = list(set(packages))
 
@@ -756,6 +768,7 @@ class Installer(object):
             self._setup_network()
             self._finalize_system()
             self._cleanup_tdnf_cache()
+            self._setup_security()
             self._setup_grub()
             self._create_fstab()
             self._update_abupdate()
@@ -765,6 +778,7 @@ class Installer(object):
         self._final_check()
         self._deactivate_network_in_chroot()
         self._write_manifest()
+        self._selinux_label() # run after last possible file creation
         self._cleanup_install_repo()
         self._unmount_all()
 
@@ -1374,6 +1388,16 @@ class Installer(object):
             shutil.rmtree(cache_dir)
 
 
+    def _selinux_label(self):
+        if not 'security' in self.install_config:
+            return
+
+        security = self.install_config['security']
+        selinux = security.get('selinux', None)
+        if selinux is not None:
+            subprocess.check_call(["chroot", self.photon_root, "/usr/sbin/setfiles", "/etc/selinux/default/contexts/files/file_contexts", "/"])
+
+
     def _cleanup_install_repo(self):
         if self.install_config.get('no_clean', False):
             return
@@ -1437,7 +1461,8 @@ class Installer(object):
                     partitions_data['root'],
                     partitions_data['boot'],
                     partitions_data['bootdirectory'],
-                    self.user_grub_cfg_fn
+                    self.user_grub_cfg_fn,
+                    self.poi_kernel_cmdline
                 ])
 
         if retval != 0:
@@ -1640,6 +1665,35 @@ class Installer(object):
         """
         if self.install_config.get('eject_cdrom', True):
             self.cmd.run(['eject', '-r'])
+
+
+    def _setup_security(self):
+        if not 'security' in self.install_config:
+            return
+
+        security = self.install_config['security']
+        if security.get('selinux', "disabled") in ["enforcing", "permissive"]:
+            self.poi_kernel_cmdline += " security=selinux selinux=1"
+        if security.get('fips', False):
+            self.poi_kernel_cmdline += " fips=1"
+
+        selinux = security.get('selinux', None)
+        if selinux is not None:
+            file_in = self.photon_root + "/etc/selinux/config"
+            file_out = self.photon_root + "/etc/selinux/config.tmp"
+            with open(file_in, "rt") as fin:
+                with open(file_out, "wt") as fout:
+                    found = False
+                    for line in fin:
+                        if line.startswith("SELINUX="):
+                            fout.write(f"SELINUX={selinux}\n")
+                            found = True
+                        else:
+                            fout.write(line)
+                    if not found:
+                        fout.write(f"SELINUX={selinux}\n")
+            os.rename(file_out, file_in)
+
 
     def _enable_network_in_chroot(self):
         """
