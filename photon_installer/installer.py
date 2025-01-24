@@ -663,6 +663,15 @@ class Installer(object):
                     if 'filename' not in image:
                         return "no 'filename' set for docker image with 'load' method"
 
+        if 'security' in install_config:
+            security = install_config['security']
+            if security.get('selinux', None) is not None:
+                if security['selinux'] not in ["enforcing", "permissive", "disabled"]:
+                    return "selinux must be enforcing, permissive, disabled or null"
+            if security.get('fips', None) is not None:
+                if not isinstance(security['fips'], bool):
+                    return "fips mode must be boolean or null"
+
         return None
 
 
