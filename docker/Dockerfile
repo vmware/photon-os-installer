@@ -30,7 +30,7 @@ COPY --from=builder /photon-os-installer /
 # this stage builds an RPM from photon-os-installer which can
 # be installed into the final image and into the initrd
 ARG DOCKER_PROXY
-FROM ${DOCKER_PROXY}library/photon:5.0 as poi-rpm-builder
+FROM ${DOCKER_PROXY}library/photon:5.0 AS poi-rpm-builder
 ARG TDNF_OPTIONS
 
 RUN tdnf ${TDNF_OPTIONS} makecache && \
@@ -53,7 +53,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     tdnf ${TDNF_OPTIONS} -y update && \
     tdnf ${TDNF_OPTIONS} -y install \
     zlib tar \
-    util-linux coreutils findutils binutils cdrkit \
+    util-linux coreutils findutils gawk binutils cdrkit \
     gptfdisk grub2 \
     e2fsprogs btrfs-progs xfsprogs kpartx lvm2 dosfstools \
     createrepo rpm jq jc \
@@ -71,12 +71,14 @@ RUN createrepo /poi
 # install directly from path to make sure we are using current source
 RUN tdnf ${TDNF_OPTIONS} -y install /poi/RPMS/*/photon-os-installer-*.rpm
 
-COPY create-image \
+COPY \
+     create-image \
      create-ova \
      create-repo \
      create-azure \
      create-ostree \
      create-cherrypicks-repo \
+     create-pkg \
      poi-pkglist yjson \
      /usr/bin
 

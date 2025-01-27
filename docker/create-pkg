@@ -1,0 +1,206 @@
+#!/bin/sh
+set -x
+set -e
+
+# To build for 3.0:
+# * use 3.0 container because 3.0 uses old bdb format for the rpmdb
+# * run container as root because of "error: Failed to initialize NSS library"
+#   for rpm (problem with old nspr library)
+
+RELEASEVER=$(cat /etc/os-release | grep VERSION=|cut -d'=' -f2|tr -d '"')
+
+BUILDROOT=/buildroot
+PKGS_ESSENTIAL="build-essential rpm-build findutils photon-release bzip2 tar sed file gzip cpio"
+SOURCES_BASEURL=http://10.126.62.2/sources/1.0
+USE_ORIG_URL=false
+WITH_CHECK=0
+
+create_installroot()
+{
+    mkdir -p ${BUILDROOT}
+
+    mkdir -p ${BUILDROOT}/var/lib/tdnf
+    mkdir -p ${BUILDROOT}/etc/tdnf
+    cp -r /etc/tdnf/* ${BUILDROOT}/etc/tdnf/
+    mkdir -p ${BUILDROOT}/etc/yum.repos.d
+    cp /etc/yum.repos.d/* ${BUILDROOT}/etc/yum.repos.d/
+
+    # needed in 3.0 for tdnf
+    rpmdb --initdb -r ${BUILDROOT}
+    if [ ${RELEASEVER} == "3.0" ] ; then
+        tdnf -y --releasever=${RELEASEVER} --nogpgcheck --installroot=${BUILDROOT} --enablerepo=photon-release install ${PKGS_ESSENTIAL}
+    else
+        tdnf -y --releasever=${RELEASEVER} --nogpgcheck --installroot=${BUILDROOT} install ${PKGS_ESSENTIAL}
+    fi
+}
+
+install_installroot()
+{
+    tarcache=/cache/buildroot-${RELEASEVER}.tgz
+    if [ -f ${tarcache} ] ; then
+        mkdir -p ${BUILDROOT}
+        pushd ${BUILDROOT}
+        tar zxf ${tarcache}
+        popd
+    else
+        create_installroot
+    fi
+}
+
+save_installroot()
+{
+    if [ -d /cache ] ; then
+        tarcache=/cache/buildroot-${RELEASEVER}.tgz
+        if [ ! -f ${tarcache} ] ; then
+            pushd ${BUILDROOT}
+            tar zcf /cache/buildroot-${RELEASEVER}.tgz .
+            popd
+        fi
+    fi
+}
+
+setup_installroot()
+{
+    mkdir -p /usr/src/photon/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+
+    mkdir -p ${BUILDROOT}/usr/src/photon
+    mount -o rbind /usr/src/photon ${BUILDROOT}/usr/src/photon
+    mount -o bind /dev ${BUILDROOT}/dev
+    mount -o bind /sys ${BUILDROOT}/sys
+    mount -o bind /proc ${BUILDROOT}/proc
+
+    # go build needs network
+    cp /etc/resolv.conf ${BUILDROOT}/etc/
+
+    # 4.0 has the rpm db at different place
+    if [ ${RELEASEVER} != "5.0" ] ; then
+        if [ -d /usr/lib/sysimage/rpm ] ; then
+            mkdir -p ${BUILDROOT}/var/lib/rpm
+            mount -o bind ${BUILDROOT}/usr/lib/sysimage/rpm ${BUILDROOT}/var/lib/rpm
+        fi
+    fi
+}
+
+create_buildrepo()
+{
+    rm -rf ${BUILDROOT}/usr/src/photon/RPMS/repodata
+    createrepo_c ${BUILDROOT}/usr/src/photon/RPMS
+    rm -rf ${BUILDROOT}/var/cache/tdnf/build*
+}
+
+install_builddeps()
+{
+    specfile=/usr/src/photon/SOURCES/$1.spec
+    if [ ! -f $specfile ] ; then
+        echo "file \"$specfile\" not found"
+        exit 1
+    fi
+
+    # see https://github.com/vmware/tdnf/issues/462
+    deps=$(chroot ${BUILDROOT} rpmspec -q --srpm --requires ${specfile})
+    extra_deps=$(cat $specfile | grep ExtraBuildRequires | grep ^%define | awk '{for (i = 3; i <= NF; i++) {printf "%s ", $i}; printf "\n"}' | sed s/,/\ /g)
+
+    if [ -z "${deps}" -a -z "${extra_deps}" ] ; then
+        echo "no dependencies found"
+    else
+        echo installing packages: ${deps}
+        if [ "${RELEASEVER}" == "3.0" ] ; then
+            echo "[build]" > ${BUILDROOT}/etc/yum.repos.d/build.repo
+            echo "baseurl=file://${BUILDROOT}/usr/src/photon/RPMS" >> ${BUILDROOT}/etc/yum.repos.d/build.repo
+            echo "enabled=1" >> ${BUILDROOT}/etc/yum.repos.d/build.repo
+            echo "${deps}" | xargs -d '\n' tdnf install -y --nogpgcheck --releasever=${RELEASEVER} --installroot=${BUILDROOT} ${extra_deps}
+        else
+            if [ ! -f ${BUILDROOT}/usr/src/photon/RPMS/repodata ] ; then
+                createrepo_c ${BUILDROOT}/usr/src/photon/RPMS
+            fi
+            # quotes needed to preserve line breaks. Line breaks needed because a requirement may be complex, containing spaces (eg. "foo >= 1.2-3")
+            echo "${deps}" | xargs -d '\n' tdnf install -y --nogpgcheck --releasever=${RELEASEVER} --installroot=${BUILDROOT} --repofrompath=build,${BUILDROOT}/usr/src/photon/RPMS ${extra_deps}
+        fi
+    fi
+}
+
+install_sources()
+{
+    specfile=/usr/src/photon/SOURCES/$1.spec
+
+    srcs=$(chroot ${BUILDROOT} rpmspec --parse $specfile | grep "Source[0-9]*:" | awk '{ print $2;}')
+    for src in ${srcs} ; do
+        if ! echo $src | grep -q "^http" ; then
+            continue
+        fi
+        s=$(basename ${src})
+        if [ "${USE_ORIG_URL}" == "true" ] ; then
+            url=${src}
+        else
+            url=${SOURCES_BASEURL}/${s}
+        fi
+        if [ -f /usr/src/photon/SOURCES/${s} ] ; then
+            true
+        else
+            pushd /usr/src/photon/SOURCES
+            curl -LO ${url}
+            popd
+        fi
+    done
+}
+
+check_sources()
+{
+    specfile=/usr/src/photon/SOURCES/$1.spec
+    src0=$(chroot ${BUILDROOT} rpmspec --parse $specfile | grep "Source0:" | awk '{ print $2;}')
+    s0=$(basename ${src0})
+    sha512_real=$(sha512sum /usr/src/photon/SOURCES/${s0} | awk '{print $1}')
+    sha512=$(cat ${specfile} | grep "^%define [ ]*sha512" | grep name | awk '{print $3}' | cut -d'=' -f2)
+    if [ "$sha512_real" != "$sha512" ] ; then
+        echo "sha512sum does not match:"
+        echo "$sha512_real != $sha512"
+        exit 1
+    fi
+}
+
+build()
+{
+    # rpm-build strip utilities may take along time if nofiles isn't limited
+    ulimit -n 1024
+
+    chroot ${BUILDROOT} rpmbuild --define "dist ${DIST}" --define "photon_release_version ${RELEASEVER}" --define "photon_build_number local" -ba /usr/src/photon/SOURCES/$1.spec --define "with_check ${WITH_CHECK}"
+}
+
+OPTS=$(getopt -o hov: --long help,orig-url,releasever:,skip-checksum,with-check -n $0 -- "$@")
+if [ $? != 0 ] ; then
+    usage
+    echo "Terminating." >&2
+    exit 1
+fi
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -h | --help) usage ; exit 0;;
+        -o | --orig-url) USE_ORIG_URL="true" ; shift ;;
+        --skip-checksum) SKIP_CHECKSUM="true" ; shift ;;
+        -v | --releasever) RELEASEVER=${2} ; shift 2 ;;
+        --with-check) WITH_CHECK=1 ; shift ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+DIST=.ph5
+case ${RELEASEVER} in
+    3.0) DIST=".ph3";;
+    4.0) DIST=".ph4";;
+    5.0) DIST=".ph5";;
+esac
+
+install_installroot
+save_installroot
+setup_installroot
+install_builddeps $1
+install_sources $1
+if [ "${SKIP_CHECKSUM}" != "true" ] ; then
+    check_sources $1
+fi
+build $1
+create_buildrepo
