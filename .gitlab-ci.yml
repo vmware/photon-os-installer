@@ -138,5 +138,5 @@ push-image:
         - docker tag $POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME
         - docker push ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME
         # also as latest
-        - docker tag $POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/photon/installer:latest
+        - docker tag ${ARTIFACTORY_SERVER}/$POI_IMAGE_NAME ${ARTIFACTORY_SERVER}/photon/installer:latest
         - docker push ${ARTIFACTORY_SERVER}/photon/installer:latest
