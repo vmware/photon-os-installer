@@ -104,7 +104,12 @@ if [ -z "${OVA_CFG_FILE}" ] ; then
 fi
 
 if [ -z "${OVA_NAME}" ] ; then
-    OVA_NAME=$(yjson < ${OVA_CFG_FILE} | jq -r '.system.name')
+    ova_params=()
+    for p in "${PARAMS[@]}" ; do
+        ova_params+=("--param")
+        ova_params+=("$p")
+    done
+    OVA_NAME=$(printf "%s\0" "${ova_params[@]}" | xargs -0 yjson -i ${OVA_CFG_FILE} | jq -r '.system.name')
 fi
 
 if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
@@ -115,12 +120,12 @@ if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then
-    params=()
+    ks_params=()
     for p in "${INSTALLER_PARAMS[@]}" ; do
-        params+=("--param")
-        params+=("$p")
+        ks_params+=("--param")
+        ks_params+=("$p")
     done
-    RAW_IMAGES=$(printf "%s\0" "${params[@]}" | xargs -0 yjson -i ${CFG_FILE} | jq -r '.disks|values[].filename')
+    RAW_IMAGES=$(printf "%s\0" "${ks_params[@]}" | xargs -0 yjson -i ${CFG_FILE} | jq -r '.disks|values[].filename')
 fi
 
 if [ -z "${RAW_IMAGES}" ] ; then
