@@ -443,8 +443,9 @@ class Installer(object):
             if not 'disk_id' in p:
                 p['disk_id'] = 'default'
             if p.get('all_disk', False):
-                self.logger.info(f"Using full disk for {p['disk_id']}")
-                p['size'] = 0
+                if 'size' not in p:
+                    self.logger.info(f"Using full disk for {p['disk_id']}")
+                    p['size'] = 0
                 # Don't do any operation on disk if p.keys is subset of below keys
                 if set(p.keys()) <= {'size', 'all_disk', 'disk_id', 'sizepercent'}:
                     install_config['partitions'].remove(p)
@@ -547,6 +548,7 @@ class Installer(object):
             has_nopartition = {}
             has_root = False
             mountpoints = []
+            vg_names = {}
 
             for partition in install_config['partitions']:
                 if 'disk' in partition and 'disks' in install_config:
@@ -561,7 +563,12 @@ class Installer(object):
                 if disk_id not in has_nopartition:
                     has_nopartition[disk_id] = False
                 elif partition.get('all_disk', False) or has_nopartition[disk_id]:
-                    return f"Cannot have multiple partitions for disk '{disk_id}', 'all_disk' is enabled"
+                    if 'lvm' not in partition or disk_id not in vg_names:
+                        return f"Cannot have multiple partitions for disk '{disk_id}', 'all_disk' is enabled"
+                    else:
+                        # if we have multiple logical volumes on a single disk, the vg_names must match
+                        if partition['lvm']['vg_name'] != vg_names[disk_id]:
+                            return f"multiple logical volumes on disk '{disk_id}' must share the volume group '{vg_names[disk_id]}' when 'all_disk' is enabled"
 
                 if partition.get('all_disk', False):
                     if disk_id == 'default':
@@ -569,6 +576,8 @@ class Installer(object):
                     if partition.get('ab', False):
                         return f"ab requires disk to be partitioned but 'all_disk' was defined for {disk_id}"
                     has_nopartition[disk_id] = True
+                    if 'lvm' in partition:
+                        vg_names[disk_id] = partition['lvm']['vg_name']
 
                 if 'size' not in partition and 'sizepercent' not in partition and not partition.get('all_disk', False):
                     return "Need to specify 'size' or 'sizepercent'"
@@ -1880,7 +1889,7 @@ class Installer(object):
                         'lvs': [],
                         'vg_name': vg_name
                     }
-                if 'all_disk' in partition:
+                if partition.get('all_disk', False):
                     vg_partitions[device][vg_name]['all_disk'] = partition['all_disk']
                     vg_partitions[device][vg_name]['path'] = partition['device']
                 vg_partitions[device][vg_name]['lvs'].append(partition)
