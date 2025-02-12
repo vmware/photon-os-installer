@@ -406,12 +406,10 @@ class Installer(object):
 
         install_config['packages'] = packages_pruned
 
-        # live means online system, and it's True be default. When you create an image for
-        # target system, live should be set to False.
+        # live means online system, and it's False be default.
+        # For ISO installation, it should have been set to True
         if 'live' not in install_config:
-            install_config['live'] = True
-            if 'loop' in install_config.get('disk', ""):
-                install_config['live'] = False
+            install_config['live'] = False
 
         # we can remove this when we have deprecated 'disk'
         if 'disk' in install_config:
@@ -2158,14 +2156,15 @@ class Installer(object):
                 "public key set in '/root/.ssh/authorized_keys', but no reason given"
             self.logger.warn(f"WARNING: public key(s) configured in /root/.ssh/authorized_keys, reason: {self.install_config['public_key']['reason']}")
 
-        # check machine id file
-        # we accept the file not existing, empty, or containing "uninitialized"
-        # see https://www.freedesktop.org/software/systemd/man/latest/machine-id.html
-        machine_id_file = os.path.join(self.photon_root, "etc/machine-id")
-        if os.path.exists(machine_id_file):
-            with open(machine_id_file, "rt") as f:
-                content = f.read().strip()
-                assert content == f"uninitialized" or content == "", f"file {machine_id_file} content is {content}, but should be 'uninitialized' or empty"
+        if not self.install_config['live']:
+            # check machine id file
+            # we accept the file not existing, empty, or containing "uninitialized"
+            # see https://www.freedesktop.org/software/systemd/man/latest/machine-id.html
+            machine_id_file = os.path.join(self.photon_root, "etc/machine-id")
+            if os.path.exists(machine_id_file):
+                with open(machine_id_file, "rt") as f:
+                    content = f.read().strip()
+                    assert content == "uninitialized" or content == "", f"file {machine_id_file} content is {content}, but should be 'uninitialized' or empty"
 
 
     def getfile(self, filename):

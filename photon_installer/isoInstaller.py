@@ -79,6 +79,10 @@ class IsoInstaller(object):
         else:
             install_config = self._load_ks_config_platform(verify=not insecure_installation)
 
+        # 'live' should be True for iso installs
+        if 'live' not in install_config:
+            install_config['live'] = True
+
         if insecure_installation and install_config is not None:
             install_config['insecure_repo'] = True
 
