@@ -433,6 +433,11 @@ class Installer(object):
                         disks[disk_id] = {'device' : p['disk']}
                         p['disk_id'] = disk_id
 
+        if 'disks' in install_config:
+            if 'filename' in install_config['disks']['default']:
+                if install_config['live']:
+                    self.logger.warn("'live' is True but installaion is to a file image - this may cause issues with image duplications")
+
         # default partition
         if 'partitions' not in install_config:
             install_config['partitions'] = Installer.default_partitions
