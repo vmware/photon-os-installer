@@ -1297,7 +1297,7 @@ class Installer(object):
                         result, msg = CommandUtils.wget(src, temp_file, False)
                         if result:
                             os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
-                            shutil.copyfile(temp_file, self.photon_root + dest)
+                            shutil.copy(temp_file, self.photon_root + dest)
                         else:
                             self.logger.error(f"Download failed URL: {src} got error: {msg}")
                     else:
@@ -1306,7 +1306,7 @@ class Installer(object):
                             shutil.copytree(srcpath, self.photon_root + dest, dirs_exist_ok=True)
                         else:
                             os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
-                            shutil.copyfile(srcpath, self.photon_root + dest)
+                            shutil.copy(srcpath, self.photon_root + dest)
 
 
     def _install_firstboot(self):
