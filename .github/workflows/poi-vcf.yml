@@ -23,6 +23,33 @@ jobs:
                 docker push ${POI_REGISTRY}/${POI_IMAGE_NAME}
                 docker system prune -f
 
+    cayman_poi:
+        runs-on: self-hosted
+        steps:
+            - name: Checkout Cayman POI
+              uses: actions/checkout@master
+              with:
+                  repository: vcf/cayman-poi
+                  ref: vmware-master
+                  path: ./cayman-poi
+                  submodules: "true"
+                  fetch-depth: 0
+                  ssh-key: ${{ secrets.POI_CICD_SSH_KEY }}
+                  ssh-strict: "false"
+
+            - name: create branch and push
+              run: |
+                  cd ./cayman-poi
+                  git checkout -b test/poi-submodule/${GITHUB_SHA::7}
+                  pushd poi/src
+                  git checkout ${GITHUB_SHA::7}
+                  popd
+                  git add poi/src
+                  git config --global user.email "poi-cd@broadcom.com"
+                  git config --global user.name "POI CI/CD"
+                  git commit -m "update poi/src to ${GITHUB_SHA::7} for testing branch ${{ github.ref_name }}"
+                  git push origin test/poi-submodule/${GITHUB_SHA::7}
+
     ova-poi-harness:
         runs-on: self-hosted
         needs: build-container
@@ -55,7 +82,7 @@ jobs:
                   ref: main
                   path: ./poi-harness
                   ssh-key: ${{ secrets.POI_CICD_SSH_KEY }}
-                  ssh-strict: false
+                  ssh-strict: "false"
 
             - name: build OVA
               env:
