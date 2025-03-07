@@ -161,3 +161,20 @@ jobs:
 
                   (cd poi-harness && echo "poi-harness sha is $(git rev-parse --short HEAD)")
                   pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf examples/iso/${ISO_OVF} --name ${VM_NAME} --ks_config examples/iso/${KS_FILE} --ova_config examples/iso/iso_ova.yaml --param ksdata64=${KSDATA64}
+
+    github-public:
+        runs-on: self-hosted
+        needs:
+            - cayman_poi
+            - ova-poi-harness
+            - iso-poi-harness
+        if: github.ref_name == 'master'
+        steps:
+           - name: Checkout code
+             uses: actions/checkout@master
+
+           - name: push to public GitHub
+             run: |
+                 # token needs "repo, workflow" permissions
+                 git remote add github https://gerrit-photon:${{ secrets.GERRIT_PHOTON_GITHUB_TOKEN }}@github.com/vmware/photon-os-installer.git
+                 git push github
