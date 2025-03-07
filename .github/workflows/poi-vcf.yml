@@ -172,9 +172,10 @@ jobs:
         steps:
            - name: Checkout code
              uses: actions/checkout@master
-
+             with:
+                 fetch-depth: 0
            - name: push to public GitHub
              run: |
                  # token needs "repo, workflow" permissions
-                 git remote add github https://gerrit-photon:${{ secrets.GERRIT_PHOTON_GITHUB_TOKEN }}@github.com/vmware/photon-os-installer.git
+                 git remote add github https://gerrit-photon:${{ secrets.GERRIT_PHOTON_GITHUB_TOKEN }}@github.com/vmware/photon-os-installer.git || true
                  git push github
