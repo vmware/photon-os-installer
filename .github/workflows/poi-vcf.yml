@@ -9,7 +9,7 @@ env:
 
 jobs:
     build-container:
-        runs-on: self-hosted
+        runs-on: [ self-hosted, "docker:root" ]
         steps:
             - name: Checkout code
               uses: actions/checkout@v3
@@ -51,7 +51,7 @@ jobs:
                   git push origin test/poi-submodule/${GITHUB_SHA::7}
 
     ova-poi-harness:
-        runs-on: self-hosted
+        runs-on: [ self-hosted, "docker:root" ]
         needs: build-container
 
         strategy:
@@ -113,7 +113,7 @@ jobs:
                   pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf examples/ova/*.ovf --name ${VM_NAME} --ks_config examples/ova/${KS_FILE} --ova_config examples/ova/${OVA_CONFIG}
 
     iso-poi-harness:
-        runs-on: self-hosted
+        runs-on: [ self-hosted, "docker:root" ]
         needs: build-container
         strategy:
             fail-fast: false
