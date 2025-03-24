@@ -21,6 +21,9 @@ create_installroot()
 
     mkdir -p ${BUILDROOT}/var/lib/tdnf
     mkdir -p ${BUILDROOT}/etc/tdnf
+
+    tdnf-config edit main keepcache=1
+
     cp -r /etc/tdnf/* ${BUILDROOT}/etc/tdnf/
     mkdir -p ${BUILDROOT}/etc/yum.repos.d
     cp /etc/yum.repos.d/* ${BUILDROOT}/etc/yum.repos.d/
@@ -65,9 +68,10 @@ setup_installroot()
 
     mkdir -p ${BUILDROOT}/usr/src/photon
     mount -o rbind /usr/src/photon ${BUILDROOT}/usr/src/photon
-    mount -o bind /dev ${BUILDROOT}/dev
+    mount -o rbind /dev ${BUILDROOT}/dev
     mount -o bind /sys ${BUILDROOT}/sys
     mount -o bind /proc ${BUILDROOT}/proc
+    mount -o bind /var/cache/tdnf ${BUILDROOT}/var/cache/tdnf
 
     # go build needs network
     cp /etc/resolv.conf ${BUILDROOT}/etc/
