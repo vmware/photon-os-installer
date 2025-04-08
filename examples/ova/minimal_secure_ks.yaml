@@ -1,0 +1,47 @@
+live: False
+
+password:
+    crypted: false
+    text: changeme
+
+disks:
+    default:
+        filename: minimal.img
+        size: 2048
+
+partitions:
+    - mountpoint: /
+      size: 0
+      filesystem: ext4
+    - mountpoint: /boot
+      size: 128
+      filesystem: ext4
+    - mountpoint: /root
+      sizepercent: 5
+      filesystem: ext4
+    - sizepercent: 5
+      filesystem: swap
+
+repos:
+    photon:
+        name: "Photon"
+        baseurl: !param photon_repo_url=https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch
+        enabled: 1
+        gpgcheck: 0
+
+packagelist_file: packages_minimal.json
+
+additional_packages:
+    - vim
+
+security:
+    selinux: permissive
+    fips: True
+
+postinstall:
+    # allow ssh root login
+    - sed -i "s/\(^PermitRootLogin\)[ ]*no$/\1 yes/g" /etc/ssh/sshd_config
+
+linux_flavor: linux
+
+eject_cdrom: false

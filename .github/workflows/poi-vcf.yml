@@ -64,6 +64,9 @@ jobs:
                     - name: minimal_lvm
                       ova_config: minimal_ova.yaml
                       release: "5.0"
+                    - name: minimal_secure
+                      ova_config: minimal_ova.yaml
+                      release: "5.0"
                     - name: minimal
                       ova_config: minimal_ova.yaml
                       release: "4.0"
