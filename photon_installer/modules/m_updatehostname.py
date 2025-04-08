@@ -17,9 +17,8 @@ def execute(installer):
     hostname_file = os.path.join(installer.photon_root, "etc/hostname")
     hosts_file = os.path.join(installer.photon_root, "etc/hosts")
 
-    with open(hostname_file, "wb") as outfile:
-        outfile.write(hostname.encode())
+    with open(hostname_file, "wt") as fout:
+        fout.write(hostname)
 
-    pattern = r'(127\.0\.0\.1)(\s+)(localhost)\s*\Z'
-    replace = r'\1\2\3\n\1\2' + hostname
-    commons.replace_string_in_file(hosts_file, pattern, replace)
+    with open(hosts_file, "at") as fout:
+        fout.write(f"127.0.1.1 {hostname}\n")
