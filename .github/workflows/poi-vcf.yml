@@ -108,7 +108,7 @@ jobs:
 
                   pushd examples/ova
                   docker run --rm --privileged -v/dev:/dev -v$(pwd):/workdir ${POI_IMAGE_NAME} create-image --repo-paths= -c ${KS_FILE} -v ${PHOTON_RELEASE}
-                  docker run --rm -v$(pwd):/workdir -w/workdir ${POI_IMAGE_NAME} create-ova --ovf --mf --vmdk --installer-config ${KS_FILE} --ova-config ${OVA_CONFIG}
+                  docker run --rm -v$(pwd):/workdir -w/workdir ${POI_IMAGE_NAME} create-ova --ovf --mf --vmdk --installer-config ${KS_FILE} --ova-config ${OVA_CONFIG} --compression-level 6
                   sudo chown -R $(id -u -n):$(id -g -n) .
                   popd
 
