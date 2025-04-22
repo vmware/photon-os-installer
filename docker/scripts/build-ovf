@@ -67,6 +67,8 @@ build_ovf() {
         docker run --rm \
         -v $(pwd):/workdir \
         --network=none \
+        -e VMDKCONVERT_COMPRESSION_LEVEL=${VMDKCONVERT_COMPRESSION_LEVEL} \
+        -e VMDKCONVERT_NUM_THREADS=${VMDKCONVERT_NUM_THREADS} \
         ${POI_IMAGE} \
         create-ova \
             ${ovf_args} \
@@ -77,8 +79,10 @@ build_ovf() {
 
 usage() {
     echo "Usage: $0"
+    echo "          [--compression-level <level>] compression level for cmpressing VMDKs (1 - 9)"
     echo "          [--ks-config <config-file>] ks (kickstart) config file that describes the raw image (required)"
     echo "          [--ks-param <key=value>] set parameters in the ks config (optional, can be given multiple times)"
+    echo "          [--num-threads <n>] number of threads used for cmpressing VMDKs"
     echo "          [--ova] build OVA, no OVF with vmdk and manifest file"
     echo "          [--ova-config <config-file>] ova config file that describes the hardware and OVF (required)"
     echo "          [--ova-param <key=value>] set parameters in the ova config (optional, can be given multiple times)"
@@ -89,7 +93,7 @@ usage() {
     echo "          [--volume src:dst] additional volumes to be mounted to the docker container"
 }
 
-OPTS=$(getopt -o hc:v: --long ks-config:,ova,ova-config:,ks-param:,ova-param:,param:,ova-name:,poi-image:,releasever:,step:,volume: -n $0 -- "$@")
+OPTS=$(getopt -o hc:v: --long ks-config:,compression-level:,num-threads:,ova,ova-config:,ks-param:,ova-param:,param:,ova-name:,poi-image:,releasever:,step:,volume: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -100,18 +104,20 @@ eval set -- "$OPTS"
 
 while true; do
     case "$1" in
-        -h)                usage ; exit 0;;
-        --ks-config)       KS_CFG_FILE=${2} ; shift 2 ;;
-        --ks-param)        KS_PARAMS+=("${2}"); shift 2 ;;
-        --ova)             CREATE_OVA="true"; shift ;;
-        --ova-config)      OVA_CFG_FILE=${2} ; shift 2 ;;
-        --ova-name)        OVA_NAME=${2} ; shift 2 ;;
-        --ova-param)       OVA_PARAMS+=("${2}"); shift 2 ;;
-        --poi-image)       POI_IMAGE=${2} ; shift 2 ;;
-        --step)            STEPS+=("${2}"); shift 2 ;;
-        -v | --releasever) RELEASE_VER=${2} ; shift 2 ;;
-        --param)           COMMON_PARAMS+=("${2}"); shift 2 ;;
-        --volume)          VOLUMES+=("${2}"); shift 2 ;;
+        --compression-level) VMDKCONVERT_COMPRESSION_LEVEL=${2} ; shift 2 ;;
+        -h)                  usage ; exit 0;;
+        --ks-config)         KS_CFG_FILE=${2} ; shift 2 ;;
+        --ks-param)          KS_PARAMS+=("${2}"); shift 2 ;;
+        --num-threads)       VMDKCONVERT_NUM_THREADS=${2} ; shift 2 ;;
+        --ova)               CREATE_OVA="true"; shift ;;
+        --ova-config)        OVA_CFG_FILE=${2} ; shift 2 ;;
+        --ova-name)          OVA_NAME=${2} ; shift 2 ;;
+        --ova-param)         OVA_PARAMS+=("${2}"); shift 2 ;;
+        --poi-image)         POI_IMAGE=${2} ; shift 2 ;;
+        --step)              STEPS+=("${2}"); shift 2 ;;
+        -v | --releasever)   RELEASE_VER=${2} ; shift 2 ;;
+        --param)             COMMON_PARAMS+=("${2}"); shift 2 ;;
+        --volume)            VOLUMES+=("${2}"); shift 2 ;;
         --) shift; break ;;
         *) break ;;
     esac
