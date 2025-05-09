@@ -6,7 +6,7 @@
 ARG DOCKER_PROXY
 ARG POI_IMAGE=photon/installer
 
-FROM ${DOCKER_PROXY}library/photon:5.0 as tdnf-rpm-builder
+FROM ${DOCKER_PROXY}library/photon:5.0 AS tdnf-rpm-builder
 ARG TDNF_OPTIONS
 
 RUN tdnf ${TDNF_OPTIONS} makecache && \

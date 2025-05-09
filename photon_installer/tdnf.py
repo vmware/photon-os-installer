@@ -4,11 +4,12 @@
 # */
 # pylint: disable=invalid-name,missing-docstring
 
-import subprocess
-import os
 import json
 import shutil
 from logger import Logger
+import subprocess
+import os
+import platform
 
 
 class TdnfError(Exception):
@@ -61,6 +62,7 @@ def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md
 class Tdnf:
     def __init__(self, **kwargs):
         kwords = [
+            'arch',
             'logger',
             'config_file',
             'reposdir',
@@ -71,6 +73,10 @@ class Tdnf:
         for kw in kwords:
             attr = kwargs.get(kw, None)
             setattr(self, kw, attr)
+
+        # only need to specify arch if it's different
+        if self.arch == platform.machine():
+            self.arch = None
 
         if self.logger is None:
             self.logger = Logger.get_logger(None, "debug", True)
@@ -104,6 +110,8 @@ class Tdnf:
         args = []
         if self.config_file:
             args += ["-c", self.config_file]
+        if self.arch is not None:
+            args += ["--forcearch", self.arch]
         if self.reposdir:
             args += ["--setopt", f"reposdir={self.reposdir}"]
         if self.releasever:

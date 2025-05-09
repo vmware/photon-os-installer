@@ -24,6 +24,7 @@ import copy
 import jc
 import json
 import datetime
+import platform
 
 from defaults import Defaults
 from logger import Logger
@@ -189,18 +190,19 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
-        self.tdnf = tdnf.Tdnf(logger=self.logger,
-                              config_file=self.tdnf_conf_path,
-                              reposdir=self.working_directory,
-                              releasever=self.photon_release_version,
-                              installroot=self.photon_root)
-
         issue = self._check_install_config(install_config)
         if issue:
             self.logger.error(issue)
             raise Exception(issue)
 
         self._add_defaults(install_config)
+
+        self.tdnf = tdnf.Tdnf(logger=self.logger,
+                              config_file=self.tdnf_conf_path,
+                              arch=install_config['arch'],
+                              reposdir=self.working_directory,
+                              releasever=self.photon_release_version,
+                              installroot=self.photon_root)
 
         self.install_config = install_config
 
@@ -349,8 +351,8 @@ class Installer(object):
         Add default install_config settings if not specified
         """
         # set arch to host's one if not defined
-        if 'arch' not in install_config:
-            arch = subprocess.check_output(['uname', '-m'], universal_newlines=True).rstrip('\n')
+        if install_config.get('arch', None) is None:
+            arch = platform.machine()
             install_config['arch'] = arch
         else:
             arch = install_config['arch']
