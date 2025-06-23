@@ -36,17 +36,13 @@ def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md
 
 
 class Tdnf:
-    DOCKER_ARGS = ["--rm", "--privileged", "--ulimit", "nofile=1024:1024"]
-    DEFAULT_CONTAINER = "photon:latest"
-
-    def __init__(self, force_docker=False, **kwargs):
+    def __init__(self, **kwargs):
         kwords = [
             'logger',
             'config_file',
             'reposdir',
             'releasever',
             'installroot',
-            'docker_image',
         ]
 
         for kw in kwords:
@@ -61,39 +57,16 @@ class Tdnf:
         if not self.tdnf_bin:
             raise Exception("tdnf binary not found in PATH")
 
-        if not force_docker:
-            self.tdnf_bin = find_binary_in_path("tdnf")
-
-            if self.tdnf_bin:
-                try:
-                    retval, tdnf_out = self.run(["--version"])
-                    assert retval == 0
-                    self.tdnf_version = tdnf_out['Version']
-                except Exception:
-                    self.logger.error(
-                        f"tdnf binary found at {self.tdnf_bin} is not usable."
-                    )
-                    self.tdnf_bin = None
-
-        self.docker_bin = find_binary_in_path("docker")
-
-        if self.tdnf_bin is None:
-            if self.docker_bin:
-                assert (
-                    self.docker_image is not None
-                ), "local tdnf binary not found, try setting a docker image that contains tdnf"
-                try:
-                    retval, tdnf_out = self.run(["--version"])
-                    assert retval == 0
-                    self.tdnf_version = tdnf_out["Version"]
-                except Exception as e:
-                    self.logger.error(
-                        f"tdnf binary on docker image {self.docker_image} is not usable - maybe provide another image?"
-                    )
-                    self.tdnf_bin = None
-                    raise e
-            else:
-                raise Exception("No usable tdnf or docker binary found")
+        # Validate tdnf binary is usable
+        try:
+            retval, tdnf_out = self.run(["--version"])
+            if retval != 0:
+                raise Exception("tdnf binary returned non-zero exit code")
+            self.tdnf_version = tdnf_out['Version']
+            self.logger.info(f"Using tdnf version: {self.tdnf_version}")
+        except Exception as e:
+            self.logger.error(f"tdnf binary found at {self.tdnf_bin} is not usable: {e}")
+            raise Exception(f"tdnf binary is not functional: {e}")
 
     def get_rpm_dbpath(self):
         if self.releasever == "4.0":
@@ -115,14 +88,10 @@ class Tdnf:
             args += ["--rpmdefine", f"_dbpath {self.get_rpm_dbpath()}"]
         return args
 
-    def get_command(self, args=None, directories=None, repos=None, do_json=True):
+    def get_command(self, args=None, do_json=True):
         # Fix mutable default arguments issue
         if args is None:
             args = []
-        if directories is None:
-            directories = []
-        if repos is None:
-            repos = {}
 
         tdnf_args = []
         if do_json:
@@ -131,35 +100,7 @@ class Tdnf:
             tdnf_args.append("-y")
         tdnf_args += self.default_args() + args
 
-        if self.tdnf_bin:
-            return [self.tdnf_bin] + tdnf_args
-        elif self.docker_bin:
-            dirs = set(directories)
-            if self.installroot:
-                dirs.add(self.installroot)
-            if self.config_file:
-                dirs.add(os.path.dirname(self.config_file))
-            if self.reposdir:
-                dirs.add(os.path.dirname(self.reposdir))
-
-            for repoid, repo in repos.items():
-                if repo['baseurl'].startswith("file://"):
-                    dirs.add(repo['baseurl'][7:])
-
-            dir_args = []
-            for d in dirs:
-                dir_args.append("-v")
-                dir_args.append(f"{d}:{d}")
-
-            return (
-                [self.docker_bin, "run"]
-                + self.DOCKER_ARGS
-                + dir_args
-                + [self.docker_image, "tdnf"]
-                + tdnf_args
-            )
-        else:
-            raise Exception("no usable tdnf or docker binary found")
+        return [self.tdnf_bin] + tdnf_args
 
     def execute(self, args, do_json=True):
         self.logger.info(f"running {' '.join(args)}")
@@ -203,17 +144,13 @@ class Tdnf:
         else:
             return subprocess.check_call(args)
 
-    def run(self, args=None, directories=None, repos=None, do_json=True):
+    def run(self, args=None, do_json=True):
         # Fix mutable default arguments issue
         if args is None:
             args = []
-        if directories is None:
-            directories = []
-        if repos is None:
-            repos = {}
 
-        args = self.get_command(args, directories, repos, do_json=do_json)
-        return self.execute(args, do_json=do_json)
+        command = self.get_command(args, do_json=do_json)
+        return self.execute(command, do_json=do_json)
 
 
 def main():

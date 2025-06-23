@@ -61,7 +61,6 @@ class IsoInitrd:
             reposdir=self.working_dir,
             releasever=self.photon_release_version,
             installroot=self.initrd_path,
-            docker_image=f"photon:{self.photon_release_version}",
         )
 
     def create_installer_script(self):
@@ -196,7 +195,7 @@ class IsoInitrd:
         else:
             mount_dirs = [self.rpms_path, self.working_dir]
 
-        self.tdnf.run(tdnf_args, directories=mount_dirs, do_json=False)
+        self.tdnf.run(tdnf_args, do_json=False)
 
     def prepare_installer_dir(self):
         installer_dir = f"{self.initrd_path}/installer"
