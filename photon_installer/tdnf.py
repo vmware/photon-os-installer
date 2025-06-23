@@ -11,6 +11,29 @@ import shutil
 from logger import Logger
 
 
+class TdnfError(Exception):
+    """Base exception for tdnf-related errors"""
+    pass
+
+
+class TdnfBinaryNotFoundError(TdnfError):
+    """Raised when tdnf binary is not found in PATH"""
+    pass
+
+
+class TdnfBinaryNotUsableError(TdnfError):
+    """Raised when tdnf binary is found but not functional"""
+    pass
+
+
+class TdnfCommandError(TdnfError):
+    """Raised when a tdnf command fails"""
+    def __init__(self, message, return_code=None, command=None):
+        super().__init__(message)
+        self.return_code = return_code
+        self.command = command
+
+
 def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md_extras=True):
     """
     Create .repo file as per configurations passed.
@@ -55,18 +78,21 @@ class Tdnf:
         # Find and validate tdnf binary
         self.tdnf_bin = shutil.which("tdnf")
         if not self.tdnf_bin:
-            raise Exception("tdnf binary not found in PATH")
+            raise TdnfBinaryNotFoundError("tdnf binary not found in PATH")
 
         # Validate tdnf binary is usable
         try:
             retval, tdnf_out = self.run(["--version"])
             if retval != 0:
-                raise Exception("tdnf binary returned non-zero exit code")
+                raise TdnfBinaryNotUsableError("tdnf binary returned non-zero exit code")
             self.tdnf_version = tdnf_out['Version']
             self.logger.info(f"Using tdnf version: {self.tdnf_version}")
+        except TdnfError:
+            # Re-raise tdnf-specific errors as-is
+            raise
         except Exception as e:
             self.logger.error(f"tdnf binary found at {self.tdnf_bin} is not usable: {e}")
-            raise Exception(f"tdnf binary is not functional: {e}")
+            raise TdnfBinaryNotUsableError(f"tdnf binary is not functional: {e}")
 
     def get_rpm_dbpath(self):
         if self.releasever == "4.0":
