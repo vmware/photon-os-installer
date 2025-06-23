@@ -7,18 +7,8 @@
 import subprocess
 import os
 import json
+import shutil
 from logger import Logger
-
-
-def find_binary_in_path(binary_name):
-    path_dirs = os.environ.get("PATH").split(os.pathsep)
-
-    for dir in path_dirs:
-        binary_path = os.path.join(dir, binary_name)
-        if os.path.isfile(binary_path) and os.access(binary_path, os.X_OK):
-            return binary_path
-
-    return None
 
 
 def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md_extras=True):
@@ -26,7 +16,7 @@ def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md
     Create .repo file as per configurations passed.
     Parameters:
     - repos: Dictionary containing repo_id as key and value as dictionary containing repo configurations.
-             Ex: {'repo_id1': {'baseurl': 'https://foo/bar', 'enabled': 0}, 'repo_id2': {'basurl': '/mnt/media/RPMS', 'enabled': 1}}
+             Ex: {'repo_id1': {'baseurl': 'https://foo/bar', 'enabled': 0}, 'repo_id2': {'baseurl': '/mnt/media/RPMS', 'enabled': 1}}
     - reposdir (Optional): Parent dir where .repo needs to be placed. Default Value - /etc/yum.repos.d/{repo_name}.repo
     Returns:
     - None
@@ -34,7 +24,7 @@ def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md
     os.makedirs(reposdir, exist_ok=True)
     for id, repo in repos.items():
         if insecure:
-            repo['sslverify'] =  0
+            repo['sslverify'] = 0
         if skip_md_extras:
             for key in ['skip_md_filelists', 'skip_md_updateinfo', 'skip_md_other']:
                 if key not in repo:
@@ -66,7 +56,10 @@ class Tdnf:
         if self.logger is None:
             self.logger = Logger.get_logger(None, "debug", True)
 
-        self.tdnf_bin = None
+        # Find and validate tdnf binary
+        self.tdnf_bin = shutil.which("tdnf")
+        if not self.tdnf_bin:
+            raise Exception("tdnf binary not found in PATH")
 
         if not force_docker:
             self.tdnf_bin = find_binary_in_path("tdnf")
@@ -122,7 +115,14 @@ class Tdnf:
             args += ["--rpmdefine", f"_dbpath {self.get_rpm_dbpath()}"]
         return args
 
-    def get_command(self, args=[], directories=[], repos={}, do_json=True):
+    def get_command(self, args=None, directories=None, repos=None, do_json=True):
+        # Fix mutable default arguments issue
+        if args is None:
+            args = []
+        if directories is None:
+            directories = []
+        if repos is None:
+            repos = {}
 
         tdnf_args = []
         if do_json:
@@ -191,18 +191,27 @@ class Tdnf:
 
             if retval != 0:
                 self.logger.info(f"Command failed: {args}")
+                self.logger.error(err.decode('utf-8', errors='replace'))
                 if 'Error' in out_json:
                     self.logger.info(f"Error code: {out_json['Error']}")
-                if 'ErrorMessage' in out_json:
+                if out_json and 'ErrorMessage' in out_json:
                     self.logger.error(out_json['ErrorMessage'])
                 else:
-                    print(out_json)
+                    self.logger.error(f"Command output: {out_json}")
 
             return retval, out_json
         else:
             return subprocess.check_call(args)
 
-    def run(self, args=[], directories=[], repos={}, do_json=True):
+    def run(self, args=None, directories=None, repos=None, do_json=True):
+        # Fix mutable default arguments issue
+        if args is None:
+            args = []
+        if directories is None:
+            directories = []
+        if repos is None:
+            repos = {}
+
         args = self.get_command(args, directories, repos, do_json=do_json)
         return self.execute(args, do_json=do_json)
 
