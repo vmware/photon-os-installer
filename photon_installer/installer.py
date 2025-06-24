@@ -70,6 +70,7 @@ class Installer(object):
         'docker',
         'dps',
         'eject_cdrom',
+        'environment',
         'firstboot',
         'hostname',
         'insecure_repo',
@@ -315,8 +316,30 @@ class Installer(object):
                                                 f"\nPlease refer https://github.com/vmware/photon-os-installer/blob/master/docs/ks_config.md#preinstall-optional")
 
 
+    def _set_environment_variables(self, install_config):
+        """
+        Set environment variables from the configuration
+        """
+        if 'environment' not in install_config:
+            return
+        
+        env_vars = install_config['environment']
+        if not isinstance(env_vars, dict):
+            raise Exception("'environment' must be a dictionary of key-value pairs")
+        
+        for key, value in env_vars.items():
+            if not isinstance(key, str):
+                raise Exception(f"Environment variable name must be a string: {key}")
+            if not isinstance(value, str):
+                raise Exception(f"Environment variable value must be a string: {value} for key {key}")
+            
+            # Set the environment variable
+            os.environ[key] = value
+            self.logger.info(f"Set environment variable {key}={value}")
+
     def _load_preinstall(self, install_config):
         self.install_config = install_config
+        self._set_environment_variables(install_config)
         self._execute_modules(modules.commons.PRE_INSTALL)
         for fill_values in self._fill_dynamic_conf(install_config):
             self.logger.info(f"{fill_values}")
@@ -671,6 +694,18 @@ class Installer(object):
             if security.get('fips', None) is not None:
                 if not isinstance(security['fips'], bool):
                     return "fips mode must be boolean or null"
+
+        if 'environment' in install_config:
+            env_vars = install_config['environment']
+            if not isinstance(env_vars, dict):
+                return "'environment' must be a dictionary of key-value pairs"
+            for key, value in env_vars.items():
+                if not isinstance(key, str):
+                    return f"Environment variable name must be a string: {key}"
+                if not isinstance(value, str):
+                    return f"Environment variable value must be a string: {value} for key {key}"
+                if not key.strip():
+                    return "Environment variable name cannot be empty or whitespace"
 
         return None
 
