@@ -24,33 +24,50 @@ class CommandUtils(object):
         self.logger = logger
         self.hostRpmIsNotUsable = -1
 
-    def run(self, cmd, update_env=False):
-        self.logger.info(f"running {cmd}")
-        use_shell = not isinstance(cmd, list)
-        process = subprocess.Popen(
-            cmd, shell=use_shell, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        )
-        out = ""
-        for line in process.stdout:
-            self.logger.info(line.rstrip())
-            out += line
-        process.wait()
+    def _update_environment(self, output):
+        """Update environment variables from command output."""
+        env_vars = {}
+        for line in output.split("\0"):
+            if line and "=" in line:
+                key, _, value = line.partition("=")
+                env_vars[key.strip()] = value.strip()
 
-        if out != "":
-            if update_env:
-                os.environ.update(
-                    dict(
-                        line.partition("=")[::2]
-                        for line in out.split("\0")
-                        if line
-                    )
-                )
-        retval = process.returncode
-        if retval != 0:
-            self.logger.info(f"Command failed: {cmd}")
-            self.logger.info(f"Error code: {retval}")
-        return retval
+        if env_vars:
+            os.environ.update(env_vars)
+            self.logger.debug(f"Updated environment with {len(env_vars)} variables")
+
+    def run(self, cmd, update_env=False):
+        try:
+            self.logger.info(f"running {cmd}")
+            use_shell = not isinstance(cmd, list)
+
+            with subprocess.Popen(
+                cmd, shell=use_shell, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            ) as process:
+                out = ""
+                if process.stdout:
+                    for line in process.stdout:
+                        self.logger.info(line.rstrip())
+                        out += line
+
+                retval = process.wait()
+
+                if out.strip() and update_env:
+                    self._update_environment(out)
+
+                if retval != 0:
+                    self.logger.error(f"Command failed: {cmd}")
+                    self.logger.error(f"Error code: {retval}")
+
+                return retval
+
+        except subprocess.SubprocessError as e:
+            self.logger.error(f"Subprocess error running {cmd}: {e}")
+            return -1
+        except Exception as e:
+            self.logger.error(f"Unexpected error running {cmd}: {e}")
+            return -1
 
     def run_in_chroot(self, chroot_path, cmd, update_env=False):
         # Use short command here. Initial version was:
@@ -150,7 +167,7 @@ class CommandUtils(object):
                 port = 443
             try:
                 pem = ssl.get_server_certificate((u.netloc, port))
-                cert = load_certificate(FILETYPE_PEM, pem)
+                cert = load_certificate(FILETYPE_PEM, pem.encode('utf-8'))
                 fp = cert.digest("sha1").decode()
             except:
                 return False, "Failed to get server certificate"
@@ -225,10 +242,13 @@ class CommandUtils(object):
     def readConfig(stream, params={}):
         config = None
 
-        yaml_loader = yaml.SafeLoader
-        yaml_loader.app_params = params
-        yaml.add_constructor("!param", CommandUtils._yaml_param, Loader=yaml_loader)
-        config = yaml.load(stream, Loader=yaml_loader)
+        class ParamLoader(yaml.SafeLoader):
+            def __init__(self, stream):
+                super().__init__(stream)
+                self.app_params = params
+
+        yaml.add_constructor("!param", CommandUtils._yaml_param, Loader=ParamLoader)
+        config = yaml.load(stream, Loader=ParamLoader)
 
         return config
 
