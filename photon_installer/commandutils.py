@@ -13,6 +13,8 @@ import ssl
 import requests
 import copy
 import json
+import tempfile
+import shlex
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from OpenSSL.crypto import load_certificate, FILETYPE_PEM
@@ -24,22 +26,60 @@ class CommandUtils(object):
         self.logger = logger
         self.hostRpmIsNotUsable = -1
 
-    def _update_environment(self, output):
-        """Update environment variables from command output."""
-        env_vars = {}
-        for line in output.split("\0"):
-            if line and "=" in line:
-                key, _, value = line.partition("=")
-                env_vars[key.strip()] = value.strip()
+    def _update_environment_from_file(self, env_file_path):
+        """Update environment variables from a temporary file."""
+        try:
+            if not os.path.exists(env_file_path):
+                self.logger.debug("Environment file does not exist, skipping environment update")
+                return
 
-        if env_vars:
-            os.environ.update(env_vars)
-            self.logger.debug(f"Updated environment with {len(env_vars)} variables")
+            env_vars = {}
+            with open(env_file_path, 'rb') as f:
+                content = f.read().decode('utf-8', errors='replace')
+
+            # Split on null bytes for env -0 output
+            for line in content.split('\0'):
+                if line and '=' in line:
+                    key, _, value = line.partition('=')
+                    env_vars[key.strip()] = value.strip()
+
+            if env_vars:
+                os.environ.update(env_vars)
+                self.logger.debug(f"Updated environment with {len(env_vars)} variables")
+
+        except Exception as e:
+            self.logger.error(f"Failed to update environment from file: {e}")
 
     def run(self, cmd, update_env=False):
+        env_file_path = None
         try:
             self.logger.info(f"running {cmd}")
             use_shell = not isinstance(cmd, list)
+
+            # If we need to update environment, modify the command to write env vars to a temp file
+            if update_env:
+                # Create a temporary file for environment variables
+                env_fd, env_file_path = tempfile.mkstemp(prefix='photon_installer_env_', suffix='.txt')
+                os.close(env_fd)  # Close the file descriptor, we'll write to it via shell redirection
+
+                if use_shell:
+                    # For shell commands, append environment capture to the command
+                    if isinstance(cmd, str):
+                        # Wrap the command in a subshell and capture environment after execution
+                        cmd = f"bash -c {shlex.quote(cmd + f'; env -0 > {env_file_path}')}"
+                else:
+                    # For list commands, execute them directly and then capture environment
+                    # We'll use a different approach - run the command and then capture env
+                    # Convert list to a proper shell command with environment capture
+                    if len(cmd) >= 3 and cmd[0] == "/bin/bash" and cmd[1] == "-c":
+                        # This is a bash -c command, we can extend it
+                        script_content = cmd[2] + f'; env -0 > {env_file_path}'
+                        cmd = ["/bin/bash", "-c", script_content]
+                    else:
+                        # Regular command list - convert to shell with proper escaping
+                        escaped_cmd = ' '.join(shlex.quote(arg) for arg in cmd)
+                        cmd = f"bash -c {shlex.quote(escaped_cmd + f'; env -0 > {env_file_path}')}"
+                        use_shell = True
 
             with subprocess.Popen(
                 cmd, shell=use_shell, text=True,
@@ -53,8 +93,9 @@ class CommandUtils(object):
 
                 retval = process.wait()
 
-                if out.strip() and update_env:
-                    self._update_environment(out)
+                # Update environment from the temporary file if needed
+                if update_env and env_file_path:
+                    self._update_environment_from_file(env_file_path)
 
                 if retval != 0:
                     self.logger.error(f"Command failed: {cmd}")
@@ -68,6 +109,14 @@ class CommandUtils(object):
         except Exception as e:
             self.logger.error(f"Unexpected error running {cmd}: {e}")
             return -1
+        finally:
+            # Clean up the temporary file if it was created
+            if env_file_path and os.path.exists(env_file_path):
+                try:
+                    os.unlink(env_file_path)
+                    self.logger.debug(f"Cleaned up temporary environment file: {env_file_path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to remove temporary environment file {env_file_path}: {e}")
 
     def run_in_chroot(self, chroot_path, cmd, update_env=False):
         # Use short command here. Initial version was:
