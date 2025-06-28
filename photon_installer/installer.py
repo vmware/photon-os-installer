@@ -49,6 +49,9 @@ class PartitionType(Enum):
     BIOS = 5
 
 
+RHEL_LIKES=["fedora", "rocky", "rhel", "centos"]
+
+
 class Installer(object):
     """
     Photon installer
@@ -67,6 +70,7 @@ class Installer(object):
         'build_mounts',
         'disk',
         'disks',
+        'dist',
         'docker',
         'dps',
         'eject_cdrom',
@@ -97,6 +101,7 @@ class Installer(object):
         'prepkgsinstallscripts',
         'public_key',
         'photon_docker_image',
+        'release_package',
         'repos',
         'search_path',
         'setup_grub_script',
@@ -356,6 +361,10 @@ class Installer(object):
         else:
             arch = install_config['arch']
 
+        if 'dist' not in install_config:
+            install_config['dist'] = "photon"
+        dist = install_config['dist']
+
         # 'bootmode' mode
         if 'bootmode' not in install_config:
             if "x86_64" in arch:
@@ -400,7 +409,9 @@ class Installer(object):
 
         # add bootloader packages after bootmode set
         if install_config['bootmode'] in ['dualboot', 'efi']:
-            packages.append('grub2-efi-image')
+            dist = install_config.get('dist', "photon")
+            if dist == "photon":
+                packages.append("grub2-efi-image")
 
         # ansible needs python3 in the target
         if 'ansible' in install_config:
@@ -493,7 +504,7 @@ class Installer(object):
 
         # define 'hostname' as 'photon-<RANDOM STRING>'
         if "hostname" not in install_config or install_config['hostname'] == "":
-            install_config['hostname'] = f'photon-{secrets.randbelow(16 ** 12):12x}'
+            install_config['hostname'] = f"{dist}-{secrets.randbelow(16 ** 12):12x}"
 
         # Set password if needed.
         # Installer uses 'shadow_password' and optionally 'password'/'age'
@@ -1301,8 +1312,15 @@ class Installer(object):
             self.logger.error("Failed to initialize rpm DB")
             self.exit_gracefully()
 
-        retval = self.tdnf.run(['install', 'filesystem'],
+        packages = ["filesystem"]
+        # in RHEL like OSes, "filesystem" will pull in a release package, like "fedora-release-basic".
+        # This can later conflict with any other release package if installed later
+        if 'release_package' in self.install_config:
+            packages.append(self.install_config['release_package'])
+
+        retval = self.tdnf.run(["install"] + packages,
                                repos=self.install_config['repos'], do_json=False)
+
         if retval != 0:
             self.logger.error("Failed to install filesystem rpm")
             self.exit_gracefully()
@@ -1637,12 +1655,25 @@ class Installer(object):
         """
         Install packages using tdnf command
         """
-        self._adjust_packages_based_on_selected_flavor()
+
+        if self.install_config['dist'] == "photon":
+            self._adjust_packages_based_on_selected_flavor()
+
         selected_packages = self.install_config['packages']
         state = 0
         packages_to_install = {}
         total_size = 0
         stderr = None
+
+        dracut_conffile = None
+        if self.install_config['dist'] in RHEL_LIKES:
+            # make sure to build initramfs with hostonly="no" for a generic kernel
+            dracut_confdir = os.path.join(self.photon_root, "etc", "dracut.conf.d")
+            os.makedirs(dracut_confdir)
+            # Fedora sets hostonly="yes" in 01-dist.conf, override it
+            dracut_conffile = os.path.join(dracut_confdir, "01-dist-poi.conf")
+            with open(dracut_conffile, "wt") as f:
+                f.write(f'hostonly="no"\n')
 
         if self.install_config['ui']:
             tdnf_cmd = ("tdnf install -y --releasever {0} --installroot {1} "
@@ -1703,6 +1734,11 @@ class Installer(object):
                 self.logger.error(stderr.decode())
             self.exit_gracefully()
 
+        # remove again, assuming kernel upgrades will be done in a real host using hostonly="yes"
+        if dracut_conffile is not None:
+            os.remove(dracut_conffile)
+
+
     def _eject_cdrom(self):
         """
         Eject the cdrom on request
@@ -1743,8 +1779,11 @@ class Installer(object):
         """
         Enable network in chroot
         """
-        if os.path.exists("/etc/resolv.conf"):
-            shutil.copy("/etc/resolv.conf", self.photon_root + '/etc/.')
+        try:
+            if os.path.exists("/etc/resolv.conf"):
+                shutil.copy("/etc/resolv.conf", self.photon_root + '/etc/.')
+        except FileNotFoundError:
+            pass
 
     def _deactivate_network_in_chroot(self):
         """
