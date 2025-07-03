@@ -31,7 +31,9 @@ def execute_scripts(installer, scripts, chroot=None, update_env=False):
             raise Exception(f"script {script} is not executable. ")
 
         if update_env:
-            script = ["/bin/bash", "-c", f"set -a && source {script} && env -0"]
+            # Use set -a to export all variables, then source the script
+            # The run() method will handle capturing environment variables
+            script = ["/bin/bash", "-c", f"set -a && source {script}"]
 
         installer.logger.info(f"Running script {script}")
         if chroot is None:
