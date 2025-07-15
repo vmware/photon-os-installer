@@ -58,7 +58,6 @@ class IsoBuilder(object):
             logger=self.logger,
             releasever=self.photon_release_version,
             reposdir=self.yum_repos_dir,
-            docker_image=self.photon_docker_image,
         )
         if self.function == "build-rpm-ostree-iso":
             self.tdnf.reposdir = None
@@ -234,7 +233,6 @@ class IsoBuilder(object):
                     "install",
                 ]
                 + self.pkg_list,
-                directories=[self.rpms_path],
                 do_json=False
             )
             if retval != 0:
@@ -324,7 +322,6 @@ class IsoBuilder(object):
         isolinux_dir = os.path.join(self.working_dir, "isolinux-temp")
         retval, tdnf_out = self.tdnf.run(
             ["install", "--installroot", isolinux_dir] + pkg_list,
-            directories=[isolinux_dir],
         )
         if retval != 0:
             raise Exception(f"tdnf failed: {tdnf_out}")

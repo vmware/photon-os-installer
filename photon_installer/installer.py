@@ -193,8 +193,7 @@ class Installer(object):
                               config_file=self.tdnf_conf_path,
                               reposdir=self.working_directory,
                               releasever=self.photon_release_version,
-                              installroot=self.photon_root,
-                              docker_image=install_config.get('photon_docker_image', None))
+                              installroot=self.photon_root)
 
         issue = self._check_install_config(install_config)
         if issue:
@@ -518,6 +517,7 @@ class Installer(object):
         # Default Photon docker image
         if 'photon_docker_image' not in install_config:
             install_config['photon_docker_image'] = "photon:latest"
+
 
         # if "repos" key not present in install_config or "repos=" provided by user through cmdline prioritize cmdline
         if "repos" not in install_config or (self.repo_paths and self.repo_paths != Defaults.REPO_PATHS):
@@ -1288,21 +1288,13 @@ class Installer(object):
         os.makedirs(os.path.join(self.photon_root, rpm_db_path.lstrip("/")), exist_ok=True)
 
         rpm_db_init_cmd = f"rpm --root {self.photon_root} --initdb --dbpath {rpm_db_path}"
-        if self.cmd.checkIfHostRpmNotUsable():
-            rpm_db_init_cmd = f"tdnf install -y rpm && {rpm_db_init_cmd}"
-            retval = self.cmd.run(['docker', 'run', '--privileged', '--ulimit',  'nofile=1024:1024', '--rm',
-                                  '-v', f"{self.photon_root}:{self.photon_root}",
-                                   self.install_config['photon_docker_image'],
-                                   '/bin/sh', '-c', rpm_db_init_cmd])
-        else:
-            retval = self.cmd.run(rpm_db_init_cmd)
+        retval = self.cmd.run(rpm_db_init_cmd)
 
         if retval != 0:
             self.logger.error("Failed to initialize rpm DB")
             self.exit_gracefully()
 
-        retval = self.tdnf.run(['install', 'filesystem'],
-                               repos=self.install_config['repos'], do_json=False)
+        retval = self.tdnf.run(['install', 'filesystem'], do_json=False)
         if retval != 0:
             self.logger.error("Failed to install filesystem rpm")
             self.exit_gracefully()
@@ -1625,9 +1617,7 @@ class Installer(object):
             raise Exception(f"additional rpms path '{rpms_path}' not found")
 
         pkgs = glob.glob(os.path.join(rpms_path, "*.rpm"))
-        retval = self.tdnf.run(['install'] + pkgs,
-                               directories=[rpms_path],
-                               repos=self.install_config['repos'], do_json=False)
+        retval = self.tdnf.run(['install'] + pkgs, do_json=False)
 
         if retval != 0:
             raise Exception(f"failed to install additional rpms from '{rpms_path}'")
@@ -1694,7 +1684,7 @@ class Installer(object):
 
                     self.progress_bar.update_message(output)
         else:
-            retval = self.tdnf.run(['install'] + selected_packages, repos=self.install_config['repos'], do_json=False)
+            retval = self.tdnf.run(['install'] + selected_packages, do_json=False)
 
         # 0 : succeed; 137 : package already installed; 65 : package not found in repo.
         if retval != 0 and retval != 137:
