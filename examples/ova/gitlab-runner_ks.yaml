@@ -77,7 +77,7 @@ postinstall:
 docker:
     images:
         - method: pull
-          name: dockerhub.artifactory.vcfd.broadcom.net/photon:5.0
+          name: dockerhub.packages.vcfd.broadcom.net/photon:5.0
           tags:
               - photon:5.0
 

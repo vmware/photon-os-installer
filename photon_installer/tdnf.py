@@ -170,19 +170,27 @@ class Tdnf:
             retval = process.returncode
 
             out_json = None
+
+            if err:
+                self.logger.error(err.decode())
+
             try:
                 out_json = json.loads(out)
             except json.decoder.JSONDecodeError as e:
                 # try again, stopping at the pos where error happened
                 # happens when packages print output from scripts
-                out_json = json.loads(out[: e.pos])
-                self.logger.info(
-                    f"json decode failed at line {e.lineno}, at: '{e.doc[e.pos:]}'"
-                )
+                try:
+                    self.logger.info(
+                        f"json decode failed at line {e.lineno}, at: '{e.doc[e.pos:]}'"
+                    )
+                    out_json = json.loads(out[: e.pos])
+                except json.decoder.JSONDecodeError:
+                    self.logger.info(
+                        f"json decode failed for output: {out_json}"
+                    )
 
             if retval != 0:
                 self.logger.info(f"Command failed: {args}")
-                self.logger.error(err.decode())
                 if 'Error' in out_json:
                     self.logger.info(f"Error code: {out_json['Error']}")
                 if 'ErrorMessage' in out_json:
