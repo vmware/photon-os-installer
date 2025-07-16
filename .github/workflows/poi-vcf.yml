@@ -54,6 +54,10 @@ jobs:
                   fi
 
                   pushd poi/src
+
+                  # sometimes the sha is not available yet
+                  git fetch
+
                   git checkout ${GITHUB_SHA::7}
                   popd
                   git add poi/src
@@ -113,8 +117,8 @@ jobs:
                   run_id=$(echo "$runs" | head -1 | cut -d' ' -f1)
                   echo "Monitoring workflow run ID: $run_id"
 
-                  # Monitor workflow status (up to 30 minutes)
-                  timeout=1800
+                  # Monitor workflow status (up to 1 hour)
+                  timeout=3600
                   interval=60
                   elapsed=0
 
