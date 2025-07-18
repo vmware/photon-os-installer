@@ -69,7 +69,7 @@ COPY --from=poi-rpm-builder /usr/src/photon /poi
 RUN createrepo /poi
 
 # install directly from path to make sure we are using current source
-RUN tdnf ${TDNF_OPTIONS} -y install /poi/RPMS/*/photon-os-installer-*.rpm
+RUN tdnf ${TDNF_OPTIONS} -y --nogpgcheck install /poi/RPMS/*/photon-os-installer-*.rpm
 
 COPY \
      create-image \
