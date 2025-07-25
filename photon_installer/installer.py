@@ -801,10 +801,10 @@ class Installer(object):
             ostree = OstreeInstaller(self)
             ostree.install()
         else:
-            self._setup_install_repo()
-            self._initialize_system()
             self._mount_special_folders()
             self._build_mounts()
+            self._setup_install_repo()
+            self._initialize_system()
             self._execute_modules(modules.commons.PRE_PKGS_INSTALL)
             self._install_packages()
             self._install_additional_rpms()
@@ -1299,34 +1299,21 @@ class Installer(object):
             self.logger.error("Failed to install filesystem rpm")
             self.exit_gracefully()
 
-        # Create special devices. We need it when devtpmfs is not mounted yet.
-        devices = {
-            'console': (600, stat.S_IFCHR, 5, 1),
-            'null': (666, stat.S_IFCHR, 1, 3),
-            'random': (444, stat.S_IFCHR, 1, 8),
-            'urandom': (444, stat.S_IFCHR, 1, 9)
-        }
-        for device, (mode, dev_type, major, minor) in devices.items():
-            os.mknod(os.path.join(self.photon_root, "dev", device),
-                     mode | dev_type, os.makedev(major, minor))
-
 
     def _mount_special_folders(self):
         for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
-            self._mount(d, d, bind=True)
+            self._mount(d, d, bind=True, create=True)
 
         # device cgroup for docker
         for d in ["/sys/fs/cgroup"]:
-            os.makedirs(os.path.join(self.photon_root, d), exist_ok=True)
-            self._mount(d, d, bind=True)
+            self._mount(d, d, bind=True, create=True)
         # the following is neded on CentOS8, but not on Ubuntu 22.04
         for dev in ["hugetlb", "memory", "blkio", "cpu,cpuacct", "devices", "freezer", "cpuset"]:
             d = f"/sys/fs/cgroup/{dev}"
-            os.makedirs(os.path.join(self.photon_root, d), exist_ok=True)
-            self._mount(d, d, bind=True)
+            self._mount(d, d, bind=True, create=True)
 
         for d in ["/tmp", "/run"]:
-            self._mount('tmpfs', d, fstype='tmpfs')
+            self._mount('tmpfs', d, fstype='tmpfs', create=True)
 
 
     def _build_mounts(self):
@@ -1818,8 +1805,8 @@ class Installer(object):
         self.logger.info(f"mounting {device} to {mntpoint}")
         assert mntpoint.startswith(self.photon_root)
 
-        if create and not os.path.isdir(mntpoint):
-            os.makedirs(mntpoint)
+        if create:
+            os.makedirs(mntpoint, exist_ok=True)
 
         cmd = ['mount', '-v']
         if fstype is not None:
