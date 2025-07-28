@@ -24,4 +24,4 @@ FROM ${POI_IMAGE}
 COPY --from=tdnf-rpm-builder /usr/src/photon /tdnf
 
 # install directly from path to make sure we are using current source
-RUN tdnf --repofrompath=tdnf,file:///tdnf/RPMS -y install tdnf
+RUN tdnf --nogpgcheck --repofrompath=tdnf,file:///tdnf/RPMS ${TDNF_OPTIONS} -y install tdnf
