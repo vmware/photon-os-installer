@@ -1,16 +1,16 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 import sys
+
 from device import Device
 from window import Window
 from actionresult import ActionResult
 from menu import Menu
+
 
 class SelectDisk(object):
     def __init__(self, maxy, maxx, install_config):
@@ -47,18 +47,32 @@ class SelectDisk(object):
         if len(self.devices) == 0:
             err_win = Window(self.win_height, self.win_width, self.maxy, self.maxx,
                              'Select a disk', False, position=2, tab_enabled=False)
-            err_win.addstr(0, 0, 'No block devices found to select\n' +
-                           'Press any key to get to bash.')
+            err_win.addstr(
+                0,
+                0,
+                (
+                    "No block devices found to select\n"
+                    "Press any key to get to bash."
+                )
+            )
+
             err_win.show_window()
             err_win.content_window().getch()
             sys.exit(1)
 
-        self.window.addstr(0, 0, 'Please select a disk and a method how to partition it:\n' +
-                           'Auto - single partition for /, no swap partition.\n' +
-                           'Custom - for customized partitioning')
+            self.window.addstr(
+                0,
+                0,
+                (
+                    "Please select a disk and a method how to partition it:\n"
+                    "Auto - single partition for /, no swap partition.\n"
+                    "Custom - for customized partitioning"
+                )
+            )
+
         # Fill in the menu items
         for index, device in enumerate(self.devices):
-            #if index > 0:
+            # if index > 0:
             self.disk_menu_items.append(
                 (
                     '{2} - {1} @ {0}'.format(device.path, device.size, device.model),
@@ -77,10 +91,10 @@ class SelectDisk(object):
         self.install_config['disk'] = self.devices[device_index].path
         return ActionResult(True, None)
 
-    def auto_function(self):    #default is no partition
+    def auto_function(self):    # default is no partition
         self.install_config['autopartition'] = True
         return ActionResult(True, None)
 
-    def custom_function(self):  #custom minimize partition number is 1
+    def custom_function(self):  # custom minimize partition number is 1
         self.install_config['autopartition'] = False
         return ActionResult(True, None)

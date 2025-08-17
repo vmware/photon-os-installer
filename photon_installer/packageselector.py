@@ -1,17 +1,17 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 import os
 import platform
+
 from jsonwrapper import JsonWrapper
 from menu import Menu
 from window import Window
 from actionresult import ActionResult
+
 
 class PackageSelector(object):
     def __init__(self, maxy, maxx, install_config, options_file):
@@ -30,20 +30,31 @@ class PackageSelector(object):
         self.load_package_list(options_file)
 
         if not self.inactive_screen:
-            self.window = Window(self.win_height, self.win_width, self.maxy, self.maxx,
-                             'Select Installation', True, action_panel=self.package_menu,
-                             can_go_next=True, position=1)
+            self.window = Window(
+                self.win_height,
+                self.win_width,
+                self.maxy,
+                self.maxx,
+                'Select Installation',
+                True,
+                action_panel=self.package_menu,
+                can_go_next=True,
+                position=1,
+            )
 
     @staticmethod
     def get_packages_to_install(option, output_data_path):
         if 'packagelist_file' in option:
-            json_wrapper_package_list = JsonWrapper(os.path.join(output_data_path,
-                                                option['packagelist_file']))
+            json_wrapper_package_list = JsonWrapper(
+                os.path.join(output_data_path, option['packagelist_file'])
+            )
             package_list_json = json_wrapper_package_list.read()
 
             platform_packages = "packages_" + platform.machine()
             if platform_packages in package_list_json:
-                return package_list_json["packages"] + package_list_json[platform_packages]
+                return (
+                    package_list_json["packages"] + package_list_json[platform_packages]
+                )
             return package_list_json["packages"]
 
         elif 'packages' in option:
@@ -70,7 +81,7 @@ class PackageSelector(object):
         default_selected = 0
         visible_options_cnt = 0
         for install_option in options_sorted:
-            if install_option[1]["visible"] == True:
+            if install_option[1]["visible"]:
                 package_list = PackageSelector.get_packages_to_install(install_option[1],
                                                                        base_path)
                 self.package_menu_items.append((install_option[1]["title"],
@@ -79,7 +90,6 @@ class PackageSelector(object):
                 if install_option[0] == 'minimal':
                     default_selected = visible_options_cnt
                 visible_options_cnt = visible_options_cnt + 1
-
 
         if self.inactive_screen:
             self.exit_function(self.package_menu_items[0][2])

@@ -1,7 +1,7 @@
 #
 # Copyright © 2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# pylint: disable=invalid-name,missing-docstring,no-member
+#
 import os
 import stat
 import shutil
@@ -188,12 +188,13 @@ class IsoInitrd:
 
     def install_initrd_packages(self):
         tdnf_args = ["install"] + self.initrd_pkgs
-        mount_dirs = []
+        # mount_dirs = []
         if self.ostree_iso:
             self.tdnf.config_file = None
             self.tdnf.reposdir = None
         else:
-            mount_dirs = [self.rpms_path, self.working_dir]
+            # mount_dirs = [self.rpms_path, self.working_dir]
+            pass
 
         self.tdnf.run(tdnf_args, do_json=False)
 

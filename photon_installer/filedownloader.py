@@ -1,20 +1,19 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#     Date: Tue Oct 15 14:17:13 IST 2019
-#   Author: Siddharth Chandrasekaran <csiddharth@vmware.com>
 
 import os
 import tempfile
+
 from commandutils import CommandUtils
 from window import Window
 from windowstringreader import WindowStringReader
 from actionresult import ActionResult
 from networkmanager import NetworkManager
 from confirmwindow import ConfirmWindow
+
 
 class FileDownloader(object):
 
@@ -29,11 +28,10 @@ class FileDownloader(object):
         self.setup_network = setup_network
         self.root_dir = root_dir
 
-
     def ask_proceed_unsafe_download(self, fingerprint):
         msg = ('This server could not prove its authenticity. Its '
-                'fingerprint is:\n\n' + fingerprint +
-                '\n\nDo you wish to proceed?\n')
+               'fingerprint is:\n\n' + fingerprint +
+               '\n\nDo you wish to proceed?\n')
         conf_message_height = 12
         conf_message_width = 80
         conf_message_button_y = (self.maxy - conf_message_height) // 2 + 8
@@ -63,10 +61,10 @@ class FileDownloader(object):
             return ActionResult(False, {'goBack': True})
 
         file_source = {}
-        accepted_chars = list(range(ord('a'), ord('z')+1))
-        accepted_chars.extend(range(ord('A'), ord('Z')+1))
-        accepted_chars.extend(range(ord('0'), ord('9')+1))
-        accepted_chars.extend([ ord('-'), ord('_'), ord('.'), ord('~'), ord(':'), ord('/') ])
+        accepted_chars = list(range(ord('a'), ord('z') + 1))
+        accepted_chars.extend(range(ord('A'), ord('Z') + 1))
+        accepted_chars.extend(range(ord('0'), ord('9') + 1))
+        accepted_chars.extend([ord('-'), ord('_'), ord('.'), ord('~'), ord(':'), ord('/')])
         result = WindowStringReader(self.maxy, self.maxx, 18, 78, 'url',
                                     None, None, accepted_chars, None, None,
                                     self.title, self.intro, 10, file_source, 'https://',
@@ -74,7 +72,7 @@ class FileDownloader(object):
         if not result.success:
             return result
 
-        status_window = Window(10,70, self.maxy, self.maxx, 'Installing Photon', False)
+        status_window = Window(10, 70, self.maxy, self.maxx, 'Installing Photon', False)
         status_window.addstr(1, 0, 'Downloading file...')
         status_window.show_window()
 
@@ -91,7 +89,7 @@ class FileDownloader(object):
 
         if 'additional_files' not in self.install_config:
             self.install_config['additional_files'] = []
-        copy = { temp_file: self.dest }
+        copy = {temp_file: self.dest}
         self.install_config['additional_files'].append(copy)
 
         return ActionResult(True, None)

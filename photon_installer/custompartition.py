@@ -1,15 +1,16 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
+
 from window import Window
-from windowstringreader import WindowStringReader
 from partitionpane import PartitionPane
 from readmultext import ReadMulText
 from confirmwindow import ConfirmWindow
 from actionresult import ActionResult
 from device import Device
-from installer import BIOSSIZE,ESPSIZE
+from installer import BIOSSIZE, ESPSIZE
+
 
 class CustomPartition(object):
     def __init__(self, maxy, maxx, install_config):
@@ -52,7 +53,7 @@ class CustomPartition(object):
     def display(self):
         self.initialize_devices()
 
-        if 'autopartition' in self.install_config and self.install_config['autopartition'] == True:
+        if self.install_config.get('autopartition'):
             return ActionResult(True, None)
 
         self.device_index = self.disk_to_index[self.install_config['disk']]
@@ -73,17 +74,23 @@ class CustomPartition(object):
         title = 'Current partitions:\n'
         self.window.addstr(0, (self.win_width - len(title)) // 2, title)
 
-        info = ("Unpartitioned space: " +
-                str(self.disk_size[self.device_index][1])+
-                " MB, Total size: "+
-                str(int(self.devices[self.device_index].size)/ 1048576) + " MB")
+        info = (
+            f"Unpartitioned space: {self.disk_size[self.device_index][1]} MB, "
+            f"Total size: {int(self.devices[self.device_index].size) / 1048576} MB"
+        )
 
-        self.partition_pane = PartitionPane(self.text_starty, self.maxx, self.text_width,
-                                  self.text_height, self.disk_buttom_items,
-                                  config=self.cp_config,
-                                  text_items=self.text_items, table_space=self.table_space,
-                                  info=info,
-                                  size_left=str(self.disk_size[self.device_index][1]))
+        self.partition_pane = PartitionPane(
+            self.text_starty,
+            self.maxx,
+            self.text_width,
+            self.text_height,
+            self.disk_buttom_items,
+            config=self.cp_config,
+            text_items=self.text_items,
+            table_space=self.table_space,
+            info=info,
+            size_left=str(self.disk_size[self.device_index][1]),
+        )
 
         self.window.set_action_panel(self.partition_pane)
 
@@ -97,16 +104,14 @@ class CustomPartition(object):
         typedata = pstr[1]
         devicedata = self.devices[self.device_index].path
 
-        #no empty fields unless swap
-        if (typedata == 'swap' and
-                (len(mtdata) != 0 or len(typedata) == 0 or len(devicedata) == 0)):
+        # no empty fields unless swap
+        if (typedata == 'swap' and (mtdata or not devicedata)):
             return False, "invalid swap data "
 
-        if (typedata != 'swap' and
-                (len(sizedata) == 0 or
-                 len(mtdata) == 0 or
-                 len(typedata) == 0 or
-                 len(devicedata) == 0)):
+        if (
+            typedata != "swap" and
+            (not sizedata or not mtdata or not devicedata)
+        ):
             if not self.has_empty and mtdata and typedata and devicedata:
                 self.has_empty = True
             else:
@@ -120,10 +125,10 @@ class CustomPartition(object):
 
         if mtdata in self.path_checker:
             return False, "Path already existed"
-        #validate disk: must be one of the existing disks
+        # validate disk: must be one of the existing disks
         i = self.device_index
 
-        #valid size: must not exceed memory limit
+        # valid size: must not exceed memory limit
         curr_size = self.disk_size[i][1]
         if len(sizedata) != 0:
             try:
@@ -133,8 +138,8 @@ class CustomPartition(object):
 
             if int(curr_size) - int(sizedata) < 0:
                 return False, "invalid device size"
-            #if valid, update the size and return true
-            new_size = (self.disk_size[i][0], int(curr_size)- int(sizedata))
+            # if valid, update the size and return true
+            new_size = (self.disk_size[i][0], int(curr_size) - int(sizedata))
             self.disk_size[i] = new_size
 
         if mtdata == "/":
@@ -148,9 +153,9 @@ class CustomPartition(object):
 
         self.cp_config['partition_disk'] = self.devices[self.device_index].path
         self.partition_items = []
-        self.partition_items.append(('Size in MB: ' +
-                                     str(self.disk_size[self.device_index][1]) +
-                                     ' available'))
+        self.partition_items.append(
+            f"Size in MB: {self.disk_size[self.device_index][1]} available"
+        )
         self.partition_items.append(('Type: (ext3, ext4, xfs, btrfs, swap)'))
         self.partition_items.append(('Mountpoint:'))
         self.create_window = ReadMulText(
@@ -161,15 +166,15 @@ class CustomPartition(object):
             None,
             None,
             None,
-            self.validate_partition,   #validation function of the input
+            self.validate_partition,   # validation function of the input
             None,
             True,
-            )
+        )
         result = self.create_window.do_action()
         if result.success:
             self.cp_config['partitionsnumber'] = self.cp_config['partitionsnumber'] + 1
 
-        #parse the input in install config
+        # parse the input in install config
         return self.display()
 
     def delete_function(self):
@@ -180,20 +185,20 @@ class CustomPartition(object):
         self.delete()
         self.window.hide_window()
         self.partition_pane.hide()
-        return ActionResult(False, {'goBack':True})
+        return ActionResult(False, {'goBack': True})
 
     def next(self):
         if self.cp_config['partitionsnumber'] == 0:
             window_height = 9
             window_width = 40
-            window_starty = (self.maxy-window_height) // 2 + 5
+            window_starty = (self.maxy - window_height) // 2 + 5
             confirm_window = ConfirmWindow(window_height, window_width, self.maxy,
                                            self.maxx, window_starty,
                                            'Partition information cannot be empty',
                                            info=True)
             confirm_window.do_action()
             return self.display()
-        #must have /
+        # must have /
         if not self.has_slash:
             window_height = 9
             window_width = 40
@@ -209,26 +214,26 @@ class CustomPartition(object):
 
         partitions = []
         for i in range(int(self.cp_config['partitionsnumber'])):
-            if len(self.cp_config[str(i)+'partition_info'+str(0)]) == 0:
+            if len(self.cp_config[str(i) + 'partition_info' + str(0)]) == 0:
                 sizedata = 0
             else:
                 sizedata = int(self.cp_config[str(i) + 'partition_info' + str(0)])
             mtdata = self.cp_config[str(i) + 'partition_info' + str(2)]
-            typedata = self.cp_config[str(i) + 'partition_info'+str(1)]
+            typedata = self.cp_config[str(i) + 'partition_info' + str(1)]
 
             partitions = partitions + [{"mountpoint": mtdata,
                                         "size": sizedata,
                                         "filesystem": typedata},]
         self.install_config['partitions'] = partitions
 
-        return ActionResult(True, {'goNext':True})
+        return ActionResult(True, {'goNext': True})
 
     def delete(self):
         for i in range(int(self.cp_config['partitionsnumber'])):
-            self.cp_config[str(i)+'partition_info'+str(0)] = ''
-            self.cp_config[str(i)+'partition_info'+str(1)] = ''
-            self.cp_config[str(i)+'partition_info'+str(2)] = ''
-            self.cp_config[str(i)+'partition_info'+str(3)] = ''
+            self.cp_config[str(i) + 'partition_info' + str(0)] = ''
+            self.cp_config[str(i) + 'partition_info' + str(1)] = ''
+            self.cp_config[str(i) + 'partition_info' + str(2)] = ''
+            self.cp_config[str(i) + 'partition_info' + str(3)] = ''
         del self.disk_size[:]
         for index, device in enumerate(self.devices):
             self.disk_size.append((device.path, int(device.size) / 1048576 - (BIOSSIZE + ESPSIZE + 2)))

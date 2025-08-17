@@ -28,7 +28,6 @@ import datetime
 from defaults import Defaults
 from logger import Logger
 from commandutils import CommandUtils
-from jsonwrapper import JsonWrapper
 from progressbar import ProgressBar
 from window import Window
 from networkmanager import NetworkManager
@@ -152,10 +151,10 @@ class Installer(object):
         signal.signal(signal.SIGINT, self.exit_gracefully)
         self.lvs_to_detach = {'vgs': [], 'pvs': []}
 
-
     """
     create, append and validate configuration date - install_config
     """
+
     def configure(self, install_config, ui_config=None):
         # Initialize logger and cmd first
         if not install_config:
@@ -214,7 +213,6 @@ class Installer(object):
         self._get_vg_names()
         self._clear_vgs()
 
-
     # collect LVM Volume Group names
     def _get_vg_names(self):
         retval, host_vg_names = self.cmd.get_vgnames()
@@ -229,11 +227,10 @@ class Installer(object):
                 self.vg_names.add(vg_name)
         self.logger.info(f"using VG names: {self.vg_names}")
 
-
     def _prepare_devices(self):
         disks = self.install_config['disks']
         for id, disk in disks.items():
-            if not 'device' in disk:
+            if 'device' not in disk:
                 filename = disk['filename']
                 size = disk['size']
                 retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
@@ -262,16 +259,14 @@ class Installer(object):
             disk_sizes[device] = int(size)
         self.disk_sizes = disk_sizes
 
-
     def _calc_size_percentages(self):
         partitions = self.install_config['partitions']
         for partition in partitions:
-            if not 'sizepercent' in partition:
+            if 'sizepercent' not in partition:
                 continue
             size_percent = partition['sizepercent']
             device = partition['device']
             partition['size'] = int(self.disk_sizes[device] * size_percent / (100 * 1024**2))
-
 
     def _check_disk_space(self):
         partitions = self.install_config['partitions']
@@ -286,13 +281,11 @@ class Installer(object):
             if size > disk_size:
                 raise Exception(f"Total space requested for {device} ({size} MB) exceeds disk size ({disk_size} MB)")
 
-
     def execute(self):
         if self.install_config['ui']:
             curses.wrapper(self._install)
         else:
             self._install()
-
 
     def _fill_dynamic_conf(self, install_config):
         if isinstance(install_config, abc.Mapping) or isinstance(install_config, list):
@@ -314,24 +307,23 @@ class Installer(object):
                                                 f"\nexport {value[1:]}=\'<my-val>\'"
                                                 f"\nPlease refer https://github.com/vmware/photon-os-installer/blob/master/docs/ks_config.md#preinstall-optional")
 
-
     def _set_environment_variables(self, install_config):
         """
         Set environment variables from the configuration
         """
         if 'environment' not in install_config:
             return
-        
+
         env_vars = install_config['environment']
         if not isinstance(env_vars, dict):
             raise Exception("'environment' must be a dictionary of key-value pairs")
-        
+
         for key, value in env_vars.items():
             if not isinstance(key, str):
                 raise Exception(f"Environment variable name must be a string: {key}")
             if not isinstance(value, str):
                 raise Exception(f"Environment variable value must be a string: {value} for key {key}")
-            
+
             # Set the environment variable
             os.environ[key] = value
             self.logger.info(f"Set environment variable {key}={value}")
@@ -342,7 +334,6 @@ class Installer(object):
         self._execute_modules(modules.commons.PRE_INSTALL)
         for fill_values in self._fill_dynamic_conf(install_config):
             self.logger.info(f"{fill_values}")
-
 
     def _add_defaults(self, install_config):
         """
@@ -450,8 +441,8 @@ class Installer(object):
             if 'disks' not in install_config:
                 install_config['disks'] = {}
             disks = install_config['disks']
-            if not 'default' in disks:
-                disks['default'] = {'device' : install_config['disk']}
+            if 'default' not in disks:
+                disks['default'] = {'device': install_config['disk']}
 
             # for backwards compatibility - handle 'disk' in 'partitions'
             for p in install_config.get('partitions', []):
@@ -464,7 +455,7 @@ class Installer(object):
                     # none found, create entry:
                     if 'disk_id' not in p:
                         disk_id = p['disk'].replace("/", "_")
-                        disks[disk_id] = {'device' : p['disk']}
+                        disks[disk_id] = {'device': p['disk']}
                         p['disk_id'] = disk_id
 
         if 'disks' in install_config:
@@ -477,7 +468,7 @@ class Installer(object):
             install_config['partitions'] = Installer.default_partitions
 
         for p in install_config['partitions'].copy():
-            if not 'disk_id' in p:
+            if 'disk_id' not in p:
                 p['disk_id'] = 'default'
             if p.get('all_disk', False):
                 if 'size' not in p:
@@ -487,7 +478,7 @@ class Installer(object):
                 if set(p.keys()) <= {'size', 'all_disk', 'disk_id', 'sizepercent'}:
                     install_config['partitions'].remove(p)
                     continue
-            if not 'filesystem' in p:
+            if 'filesystem' not in p:
                 p['filesystem'] = 'ext4'
 
         # define 'hostname' as 'photon-<RANDOM STRING>'
@@ -518,20 +509,20 @@ class Installer(object):
         if 'photon_docker_image' not in install_config:
             install_config['photon_docker_image'] = "photon:latest"
 
-
         # if "repos" key not present in install_config or "repos=" provided by user through cmdline prioritize cmdline
         if "repos" not in install_config or (self.repo_paths and self.repo_paths != Defaults.REPO_PATHS):
             # override "repos" provided via ks_config
             install_config['repos'] = {}
             repo_pathslist = self.repo_paths.split(",")
-            for idx,url in enumerate(repo_pathslist):
+            for idx, url in enumerate(repo_pathslist):
                 if url.startswith('/'):
                     url = f"file://{url}"
                 install_config['repos'][f"photon-local{idx}"] = {
-                                                "name": f"VMware Photon OS Installer-{idx}",
-                                                "baseurl": url,
-                                                "gpgcheck": 0,
-                                                "enabled": 1 }
+                    "name": f"VMware Photon OS Installer-{idx}",
+                    "baseurl": url,
+                    "gpgcheck": 0,
+                    "enabled": 1,
+                }
 
         if 'setup_grub_script' in install_config:
             script = install_config['setup_grub_script']
@@ -545,7 +536,6 @@ class Installer(object):
             if not script.startswith("/"):
                 script = os.path.join(self.cwd, script)
             self.user_grub_cfg_fn = script
-
 
     def _check_install_config(self, install_config):
         """
@@ -610,7 +600,7 @@ class Installer(object):
 
                 if partition.get('all_disk', False):
                     if disk_id == 'default':
-                         return "Default disk needs to partitioned. Define default disk configuration under 'partitions'"
+                        return "Default disk needs to partitioned. Define default disk configuration under 'partitions'"
                     if partition.get('ab', False):
                         return f"ab requires disk to be partitioned but 'all_disk' was defined for {disk_id}"
                     has_nopartition[disk_id] = True
@@ -621,7 +611,7 @@ class Installer(object):
                     return "Need to specify 'size' or 'sizepercent'"
 
                 if 'size' in partition:
-                    if type(partition['size']) != int:
+                    if not isinstance(partition['size'], int):
                         return "'size' must be an integer"
                     if 'sizepercent' in partition:
                         return "only one of 'size' or 'sizepercent' can be specified"
@@ -633,7 +623,7 @@ class Installer(object):
                             has_extensible[disk_id] = True
 
                 if 'sizepercent' in partition:
-                    if type(partition['sizepercent']) != int:
+                    if not isinstance(partition['sizepercent'], int):
                         return "'sizepercent' must be an integer"
                     if partition['sizepercent'] <= 0:
                         return "'sizepercent' must be greater than 0"
@@ -709,13 +699,11 @@ class Installer(object):
 
         return None
 
-
     def _is_ab_present(self):
         partitions = self.install_config['partitions']
         for partition in partitions:
             if 'lvm' not in partition and partition.get('ab', False):
                 return True
-
 
     def _add_shadow_partitions(self):
         """
@@ -735,7 +723,6 @@ class Installer(object):
                     self.ab_present = True
 
             partitions.extend(shadow_parts)
-
 
     def _install(self, stdscreen=None):
         """
@@ -788,7 +775,6 @@ class Installer(object):
         if self.install_config.get('live', True):
             self._eject_cdrom()
 
-
     def _unsafe_install(self):
         """
         Install photon system
@@ -822,10 +808,9 @@ class Installer(object):
         self._final_check()
         self._deactivate_network_in_chroot()
         self._write_manifest()
-        self._selinux_label() # run after last possible file creation
+        self._selinux_label()  # run after last possible file creation
         self._cleanup_install_repo()
         self._unmount_all()
-
 
     def exit_gracefully(self, signal1=None, frame1=None):
         """
@@ -846,7 +831,6 @@ class Installer(object):
             self._unmount_all()
         raise Exception("Installer failed")
 
-
     def _setup_network(self):
         if 'network' not in self.install_config:
             return
@@ -861,7 +845,6 @@ class Installer(object):
         # Configure network when in live mode (ISO)
         if (self.install_config.get('live', True)):
             nm.restart_networkd()
-
 
     def _ansible_run(self):
         if 'ansible' not in self.install_config:
@@ -881,10 +864,10 @@ class Installer(object):
                 "-u", "root",
                 playbook]
 
-            verbose= "-v"
+            verbose = "-v"
             if 'verbosity' in ans_cfg:
                 if ans_cfg['verbosity'] > 0:
-                    verbose = "-" + "v"*ans_cfg['verbosity']
+                    verbose = "-" + "v" * ans_cfg['verbosity']
                 else:
                     verbose = None
             if verbose is not None:
@@ -923,7 +906,6 @@ class Installer(object):
             assert process.returncode == 0, f"ansible run for playbook {playbook} failed"
             if logf is not None:
                 shutil.copy(ans_cfg['logfile'], os.path.join(self.photon_root, "var/log"))
-
 
     def _docker_images(self):
         if 'docker' not in self.install_config:
@@ -978,7 +960,6 @@ class Installer(object):
         docker_process.terminate()
         docker_process.wait()
 
-
     def _write_manifest(self):
         mf_file = self.install_config.get('manifest_file', "poi-manifest.json")
         manifest = {}
@@ -1018,7 +999,6 @@ class Installer(object):
         with open(mf_file, "wt") as f:
             f.write(json.dumps(manifest))
         subprocess.run(["gzip", mf_file])
-
 
     def _unmount_all(self):
         """
@@ -1078,7 +1058,6 @@ class Installer(object):
                         # don't raise an exception so we can continue with remaining devices
                         self.logger.error("failed to detach loop device '{device}'")
 
-
     def _get_partuuid(self, path):
         partuuid = subprocess.check_output(['blkid', '-s', 'PARTUUID', '-o', 'value', path],
                                            universal_newlines=True).rstrip('\n')
@@ -1101,7 +1080,7 @@ class Installer(object):
         """
         for subvol in btrfs_partition["subvols"]:
             if "mountpoint" in subvol:
-                fstab_file.write(f"{mnt_src}\t{subvol['mountpoint']}\tbtrfs\tsubvol="+ os.path.join(parent_subvol, subvol['name']) +"\t0\t0\n")
+                fstab_file.write(f"{mnt_src}\t{subvol['mountpoint']}\tbtrfs\tsubvol=" + os.path.join(parent_subvol, subvol['name']) + "\t0\t0\n")
             if "subvols" in subvol:
                 self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, subvol, os.path.join(parent_subvol, subvol['name']))
 
@@ -1170,14 +1149,16 @@ class Installer(object):
                 if not mnt_src:
                     raise RuntimeError(f"Cannot get PARTUUID/UUID of: {path}")
 
-                fstab_file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
-                    mnt_src,
-                    mountpoint,
-                    partition['filesystem'],
-                    options,
-                    dump,
-                    fsck
-                    ))
+                fstab_file.write(
+                    "{}\t{}\t{}\t{}\t{}\t{}\n".format(
+                        mnt_src,
+                        mountpoint,
+                        partition['filesystem'],
+                        options,
+                        dump,
+                        fsck,
+                    )
+                )
 
                 if partition.get('filesystem', '') == "btrfs" and "btrfs" in partition and "subvols" in partition["btrfs"]:
                     self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, partition["btrfs"])
@@ -1185,16 +1166,15 @@ class Installer(object):
             # Add the cdrom entry
             fstab_file.write("/dev/cdrom\t/mnt/cdrom\tiso9660\tro,noauto\t0\t0\n")
 
-
     def _update_abupdate(self):
         if not self.ab_present:
             return
 
         abupdate_conf = os.path.join(self.photon_root, "etc/abupdate.conf")
 
-        boot_map = {'efi':'EFI', 'bios':'BIOS', 'dualboot':'BOTH'}
+        boot_map = {'efi': 'EFI', 'bios': 'BIOS', 'dualboot': 'BOTH'}
         bootmode = self.install_config['bootmode']
-        if not bootmode in boot_map:
+        if bootmode not in boot_map:
             raise Exception(f"invalid boot mode '{bootmode}'")
 
         ab_map = {}
@@ -1215,8 +1195,8 @@ class Installer(object):
 
                 # we go through this twice - active and shadow
                 # only add entry once
-                if not name in ab_map:
-                    ab_map[name] = {'mntpoint' : mntpoint}
+                if name not in ab_map:
+                    ab_map[name] = {'mntpoint': mntpoint}
 
                 if partition.get('shadow', False):
                     ab_map[name]['shadow'] = partuuid
@@ -1232,7 +1212,6 @@ class Installer(object):
 
             sets = " ".join(ab_map.keys())
             f.write(f"SETS=({sets})\n")
-
 
     def _generate_partitions_param(self, reverse=False):
         """
@@ -1272,7 +1251,6 @@ class Installer(object):
                 if 'subvols' in partition["btrfs"]:
                     self._create_btrfs_subvolumes(mntpoint, partition['btrfs'], partition['path'])
 
-
     def _initialize_system(self):
         """
         Prepare the system to install photon
@@ -1299,7 +1277,6 @@ class Installer(object):
             self.logger.error("Failed to install filesystem rpm")
             self.exit_gracefully()
 
-
     def _mount_special_folders(self):
         for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
             self._mount(d, d, bind=True, create=True)
@@ -1315,7 +1292,6 @@ class Installer(object):
         for d in ["/tmp", "/run"]:
             self._mount('tmpfs', d, fstype='tmpfs', create=True)
 
-
     def _build_mounts(self):
         if 'build_mounts' not in self.install_config:
             return
@@ -1323,7 +1299,6 @@ class Installer(object):
         build_mounts = self.install_config['build_mounts']
         for src, dst in build_mounts.items():
             self._mount(src, dst, bind=True, create=True)
-
 
     def _copy_additional_files(self):
         if 'additional_files' in self.install_config:
@@ -1345,9 +1320,8 @@ class Installer(object):
                             os.makedirs(self.photon_root + os.path.dirname(dest), exist_ok=True)
                             shutil.copy(srcpath, self.photon_root + dest)
 
-
     def _install_firstboot(self):
-        if not 'firstboot' in self.install_config:
+        if 'firstboot' not in self.install_config:
             return
 
         firstboot = self.install_config['firstboot']
@@ -1356,7 +1330,7 @@ class Installer(object):
         script_dir = self.photon_root + "/etc/"
         os.makedirs(script_dir, exist_ok=True)
         shutil.copy(self.firstboot_script, script_dir)
-        
+
         service_dir = self.photon_root + "/etc/systemd/system/"
         os.makedirs(service_dir, exist_ok=True)
         shutil.copy(self.firstboot_service, service_dir)
@@ -1381,7 +1355,6 @@ class Installer(object):
                     self.logger.warn(f"firstboot script '{script}' should have the extension '.sh'")
                 shutil.copy(script, scripts_dir)
 
-
     def _finalize_system(self):
         """
         Finalize the system after the installation
@@ -1397,7 +1370,6 @@ class Installer(object):
         # Importing the pubkey
         self.cmd.run_in_chroot(self.photon_root, "rpm --import /etc/pki/rpm-gpg/*")
 
-
     def _cleanup_tdnf_cache(self):
         if self.install_config.get('no_clean', False) or self.install_config.get('tdnf_cachedir', None) is not None:
             return
@@ -1410,16 +1382,14 @@ class Installer(object):
         if (os.path.isdir(cache_dir)):
             shutil.rmtree(cache_dir)
 
-
     def _selinux_label(self):
-        if not 'security' in self.install_config:
+        if 'security' not in self.install_config:
             return
 
         security = self.install_config['security']
         selinux = security.get('selinux', None)
         if selinux is not None:
             subprocess.check_call(["chroot", self.photon_root, "/usr/sbin/setfiles", "/etc/selinux/default/contexts/files/file_contexts", "/"])
-
 
     def _cleanup_install_repo(self):
         if self.install_config.get('no_clean', False):
@@ -1436,7 +1406,6 @@ class Installer(object):
                     os.remove(os.path.join(self.working_directory, f"{repo}.repo"))
                 except FileNotFoundError:
                     pass
-
 
     def _setup_grub(self):
         bootmode = self.install_config['bootmode']
@@ -1471,22 +1440,24 @@ class Installer(object):
             if self.install_config.get('live', True):
                 arch = self.install_config['arch']
                 # 'x86_64' -> 'bootx64.efi', 'aarch64' -> 'bootaa64.efi'
-                exe_name = 'boot'+arch[:-5]+arch[-2:]+'.efi'
+                exe_name = 'boot' + arch[:-5] + arch[-2:] + '.efi'
                 # Some platforms do not support adding boot entry. Thus, ignore failures
                 self.cmd.run(['efibootmgr', '--create', '--remove-dups', '--disk', device,
                               '--part', esp_pn, '--loader', '/EFI/BOOT/' + exe_name, '--label', 'Photon'])
 
         # Create custom grub.cfg
         partitions_data = self.install_config['partitions_data']
-        retval = self.cmd.run([
-                    self.setup_grub_command,
-                    self.photon_root,
-                    partitions_data['root'],
-                    partitions_data['boot'],
-                    partitions_data['bootdirectory'],
-                    self.user_grub_cfg_fn,
-                    self.poi_kernel_cmdline
-                ])
+        retval = self.cmd.run(
+            [
+                self.setup_grub_command,
+                self.photon_root,
+                partitions_data['root'],
+                partitions_data['boot'],
+                partitions_data['bootdirectory'],
+                self.user_grub_cfg_fn,
+                self.poi_kernel_cmdline,
+            ]
+        )
 
         if retval != 0:
             raise Exception("Bootloader (grub2) setup failed")
@@ -1536,17 +1507,17 @@ class Installer(object):
                 flavor = package[1]
             else:
                 flavor = ""
-            if(package[0] != "linux"):
+            if (package[0] != "linux"):
                 return True
-            elif("" in redundant_linux_flavors and flavor in self.linux_dependencies):
+            elif ("" in redundant_linux_flavors and flavor in self.linux_dependencies):
                 return False
-            elif(flavor in redundant_linux_flavors):
+            elif (flavor in redundant_linux_flavors):
                 return False
             else:
                 return True
 
         for flavor in self.all_linux_flavors:
-            if(flavor != self.install_config['linux_flavor']):
+            if (flavor != self.install_config['linux_flavor']):
                 flavor = flavor.split('-')
                 if len(flavor) > 1:
                     flavor = flavor[1]
@@ -1590,9 +1561,8 @@ class Installer(object):
 
         with open(self.tdnf_conf_path, "wt") as f:
             f.write("[main]\n")
-            for key,value in tdnf_conf.items():
+            for key, value in tdnf_conf.items():
                 f.write(f"{key}={value}\n")
-
 
     def _install_additional_rpms(self):
         rpms_path = self.install_config.get('additional_rpms_path', None)
@@ -1608,7 +1578,6 @@ class Installer(object):
 
         if retval != 0:
             raise Exception(f"failed to install additional rpms from '{rpms_path}'")
-
 
     def _install_packages(self):
         """
@@ -1687,9 +1656,8 @@ class Installer(object):
         if self.install_config.get('eject_cdrom', True):
             self.cmd.run(['eject', '-r'])
 
-
     def _setup_security(self):
-        if not 'security' in self.install_config:
+        if 'security' not in self.install_config:
             return
 
         security = self.install_config['security']
@@ -1715,7 +1683,6 @@ class Installer(object):
                         fout.write(f"SELINUX={selinux}\n")
             os.rename(file_out, file_in)
 
-
     def _enable_network_in_chroot(self):
         """
         Enable network in chroot
@@ -1730,12 +1697,10 @@ class Installer(object):
         if os.path.exists(self.photon_root + '/etc/resolv.conf'):
             os.remove(self.photon_root + '/etc/resolv.conf')
 
-
     def partition_compare(self, p):
         if 'mountpoint' in p and p['mountpoint'] is not None:
             return (1, len(p['mountpoint']), p['mountpoint'])
         return (0, 0, "A")
-
 
     def _get_partition_path(self, disk, part_idx):
         prefix = ''
@@ -1761,7 +1726,6 @@ class Installer(object):
             return PartitionType.LVM
         return PartitionType.LINUX
 
-
     def _partition_type(self, partition):
         ptype = self._get_partition_type(partition)
         if self.install_config.get('dps', False):
@@ -1784,7 +1748,6 @@ class Installer(object):
 
         return self._partition_type_to_string(ptype)
 
-
     def _partition_type_to_string(self, ptype):
         if ptype == PartitionType.BIOS:
             return 'ef02'
@@ -1797,7 +1760,6 @@ class Installer(object):
         if ptype == PartitionType.LINUX:
             return '8300'
         raise Exception(f"Unknown partition type: {ptype}")
-
 
     def _mount(self, device, mntpoint, bind=False, options=None, fstype=None, create=False):
         mntpoint = os.path.join(self.photon_root, mntpoint.strip("/"))
@@ -1823,7 +1785,6 @@ class Installer(object):
         else:
             self.mounts.append(mntpoint)
 
-
     def _mount_btrfs_subvol(self, mountpoint, disk, subvol_name, fs_options=None, parent_subvol=""):
         """
         Mount btrfs subvolume if mountpoint specified.
@@ -1839,7 +1800,6 @@ class Installer(object):
             options = fs_options
         options.append(f"subvol={os.path.join(parent_subvol, subvol_name)}")
         self._mount(disk, mountpoint, options=options, create=True)
-
 
     def _create_btrfs_subvolumes(self, path, partition, disk, parent_subvol=""):
         """
@@ -1861,10 +1821,9 @@ class Installer(object):
             if "mountpoint" in subvol:
                 self._mount_btrfs_subvol(subvol["mountpoint"], disk, subvol["name"], subvol.get("fs_options", None), parent_subvol)
             if "label" in subvol:
-                self.cmd.run(f"btrfs filesystem label " + os.path.join(path, subvol['name']) + f" {subvol['label']}")
+                self.cmd.run("btrfs filesystem label " + os.path.join(path, subvol['name']) + f" {subvol['label']}")
             if "subvols" in subvol:
                 self._create_btrfs_subvolumes(os.path.join(path, subvol["name"]), subvol, disk, os.path.join(parent_subvol, subvol["name"]))
-
 
     def _create_logical_volumes(self, physical_partition, vg_name, lv_partitions, extensible):
         """
@@ -1914,7 +1873,7 @@ class Installer(object):
                 retval = self.cmd.run(lv_cmd)
                 if retval != 0:
                     raise Exception(f"Error: Failed to create logical volumes , command: {lv_cmd}")
-            if not "loop" in  partition['device']:
+            if "loop" not in partition['device']:
                 partition['path'] = os.path.join("/dev", vg_name, lv_name)
             else:
                 partition['path'] = os.path.join("/dev/mapper", f"{vg_name}-{lv_name}")
@@ -1999,16 +1958,17 @@ class Installer(object):
 
         return ptv
 
-
     def _insert_boot_partitions(self):
 
         def create_partition(size, filesystem, mountpoint):
             device = self.install_config['disks']['default']['device']
-            return {'size' : size,
-                    'filesystem' : filesystem,
-                    'mountpoint' : mountpoint,
-                    'disk_id' : 'default',
-                    'device' : device}
+            return {
+                'size': size,
+                'filesystem': filesystem,
+                'mountpoint': mountpoint,
+                'disk_id': 'default',
+                'device': device
+            }
 
         bios_found = False
         esp_found = False
@@ -2045,12 +2005,10 @@ class Installer(object):
             bios_partition = create_partition(BIOSSIZE, "bios", None)
             partitions.insert(0, bios_partition)
 
-
     def __set_ab_partition_size(self, l2entries, used_size, total_disk_size):
         for l2 in l2entries:
             if l2['size'] == 0:
                 l2['size'] = int((total_disk_size - (used_size * (1024**2))) / (2 * (1024**2)))
-
 
     def __ptv_update_partition_sizes(self, ptv):
         # For ab partitions, if we copied a partition with size==0, we need to
@@ -2060,17 +2018,16 @@ class Installer(object):
             for disk, l2entries in ptv.items():
                 total_disk_size = self.disk_sizes[disk]
                 is_last_partition_ab = False
-                used_size = 1 # first usable sector is 2048, 512 * 2048 = 1MB
+                used_size = 1  # first usable sector is 2048, 512 * 2048 = 1MB
                 for l2 in l2entries:
                     used_size += l2['size']
-                    if not 'lvs' in l2:
+                    if 'lvs' not in l2:
                         if l2['partition'].get('ab', False) and l2['partition'].get('shadow', False):
                             if l2['size'] == 0:
                                 is_last_partition_ab = True
 
                 if is_last_partition_ab:
                     self.__set_ab_partition_size(l2entries, used_size, total_disk_size)
-
 
     def _clear_vgs(self):
         retval, active_vg_list = self.cmd.get_vgnames()
@@ -2088,13 +2045,11 @@ class Installer(object):
                     self.logger.error(f"Error: Failed to remove existing VG: {vg_name} before clearing the disk")
                     self.exit_gracefully()
 
-
     def _check_device(self, device):
         with open("/proc/mounts", "rt") as f:
             for line in f:
                 if line.startswith(device):
                     raise Exception("device '{device}' appears to be in use (mounted)")
-
 
     def _partition_disks(self):
         """
@@ -2233,7 +2188,6 @@ class Installer(object):
                     "Failed to format {} partition @ {}".format(partition['filesystem'],
                                                                 partition['path']))
 
-
     def _final_check(self):
         """
         add final tests here, and print error or warnings
@@ -2254,7 +2208,6 @@ class Installer(object):
                 with open(machine_id_file, "rt") as f:
                     content = f.read().strip()
                     assert content == "uninitialized" or content == "", f"file {machine_id_file} content is {content}, but should be 'uninitialized' or empty"
-
 
     def getfile(self, filename):
         """

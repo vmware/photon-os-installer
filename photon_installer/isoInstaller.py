@@ -1,25 +1,25 @@
-#! /usr/bin/python3
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+#!/usr/bin/env python3
+
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
+
 import os
 import subprocess
 import shlex
 import requests
 import time
-import json
 import base64
+
 from device import Device
 from argparse import ArgumentParser
 from installer import Installer
 from commandutils import CommandUtils
 from jsonwrapper import JsonWrapper
-from device import Device
 from defaults import Defaults
+
 
 class IsoInstaller(object):
     def __init__(self, options, params={}):
@@ -89,19 +89,19 @@ class IsoInstaller(object):
         if options.ui_config_file:
             ui_config = (JsonWrapper(options.ui_config_file)).read()
         else:
-            ui_config={}
+            ui_config = {}
         ui_config['options_file'] = options.options_file
 
-        #initializing eula file path
+        # initializing eula file path
         ui_config['eula_file_path'] = options.eula_file_path
 
-        #initializing license display text
+        # initializing license display text
         ui_config['license_display_title'] = options.license_display_title
 
         try:
             # Run installer
             installer = Installer(repo_paths=repo_paths, log_path="/var/log",
-                                photon_release_version=options.photon_release_version)
+                                  photon_release_version=options.photon_release_version)
 
             installer.configure(install_config, ui_config)
             installer.execute()
@@ -168,16 +168,29 @@ class IsoInstaller(object):
 
     def _load_ks_config_vmware(self, verify=True):
         try:
-            result = subprocess.run(['vmtoolsd', '--cmd', 'info-get guestinfo.kickstart.data'],
-                    universal_newlines=True, stdout=subprocess.PIPE)
+            result = subprocess.run(
+                ['vmtoolsd', '--cmd', 'info-get guestinfo.kickstart.data'],
+                universal_newlines=True,
+                stdout=subprocess.PIPE,
+            )
             if result.returncode == 0:
-                return CommandUtils.readConfig(base64.b64decode(result.stdout.rstrip('\n')), params=self.params)
-            result = subprocess.run(['vmtoolsd', '--cmd', 'info-get guestinfo.kickstart.url'],
-                    universal_newlines=True, stdout=subprocess.PIPE)
+                return CommandUtils.readConfig(
+                    base64.b64decode(result.stdout.rstrip('\n')),
+                    params=self.params,
+                )
+            result = subprocess.run(
+                ['vmtoolsd', '--cmd', 'info-get guestinfo.kickstart.url'],
+                universal_newlines=True,
+                stdout=subprocess.PIPE,
+            )
             if result.returncode == 0:
-                return self._load_ks_config_url(result.stdout.rstrip('\n'), verify=verify)
+                return self._load_ks_config_url(
+                    result.stdout.rstrip('\n'), verify=verify
+                )
         except OSError as e:
-            print(f"Failed to run vmtoolsd, do you have open-vm-tools installed? Error: {e}")
+            print(
+                f"Failed to run vmtoolsd, do you have open-vm-tools installed? Error: {e}"
+            )
 
     def mount_media(self, photon_media, mount_path=Defaults.MOUNT_PATH):
         """Mount the external media"""
@@ -188,9 +201,9 @@ class IsoInstaller(object):
         # Construct mount cmdline
         cmdline = ['mount']
         if photon_media.startswith("UUID="):
-            cmdline.extend(['-U', photon_media[len("UUID="):] ])
+            cmdline.extend(['-U', photon_media[len("UUID="):]])
         elif photon_media.startswith("LABEL="):
-            cmdline.extend(['-L', photon_media[len("LABEL="):] ])
+            cmdline.extend(['-L', photon_media[len("LABEL="):]])
         elif photon_media == "cdrom":
             # Check if cdrom is listed in block devices.
             if not Device.check_cdrom():
@@ -199,7 +212,7 @@ class IsoInstaller(object):
                                 "interface and try again.")
             cmdline.append('/dev/cdrom')
         else:
-            #User specified mount path
+            # User specified mount path
             cmdline.append(photon_media)
 
         cmdline.extend(['-o', 'ro', mount_path])

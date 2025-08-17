@@ -1,16 +1,17 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
+
 import curses
-from actionresult import ActionResult
+
 from action import Action
+
 
 class TextPane(Action):
     def __init__(self, starty, maxx, width, text_file_path, height, menu_items):
-        self.head_position = 0  #This is the start of showing
+        self.head_position = 0  # This is the start of showing
         self.menu_position = 0
         self.lines = []
         self.menu_items = menu_items
@@ -35,8 +36,8 @@ class TextPane(Action):
         if self.filled == 0:
             self.filled += 1
         for i in [1, 2]:
-            if ((self.num_items - self.text_height) >= i and
-                    (self.text_height - self.filled) == (i - 1)):
+            if ((self.num_items - self.text_height) >= i
+               and (self.text_height - self.filled) == (i - 1)):
                 self.filled -= 1
 
         self.window = curses.newwin(height, self.width)
@@ -66,7 +67,7 @@ class TextPane(Action):
                 while len(line) > actual_line_width:
                     sep_index = actual_line_width
 
-                    while sep_index > 0 and line[sep_index-1] != ' ' and line[sep_index] != ' ':
+                    while sep_index > 0 and line[sep_index - 1] != ' ' and line[sep_index] != ' ':
                         sep_index = sep_index - 1
 
                     current_line_width = sep_index
@@ -78,10 +79,10 @@ class TextPane(Action):
 
                     # Lengthen the line with spaces
                     self.lines.append(' ' * indent + currLine +
-                                      ' ' *(actual_line_width - len(currLine)))
+                                      ' ' * (actual_line_width - len(currLine)))
 
                 # lengthen the line with spaces
-                self.lines.append(' ' * indent + line + ' ' *(actual_line_width - len(line)))
+                self.lines.append(' ' * indent + line + ' ' * (actual_line_width - len(line)))
 
     def navigate(self, n):
         if self.show_scroll:
@@ -98,11 +99,10 @@ class TextPane(Action):
         elif self.menu_position >= len(self.menu_items):
             self.menu_position = len(self.menu_items) - 1
 
-
     def render_scroll_bar(self):
         if self.show_scroll:
             remaining_above = self.head_position
-            remaining_down = self.num_items - self.text_height - self.head_position#
+            remaining_down = self.num_items - self.text_height - self.head_position
 
             up = int(round(remaining_above * self.text_height / float(self.num_items)))
             down = self.text_height - up - self.filled
@@ -116,7 +116,6 @@ class TextPane(Action):
             if remaining_down == 0 and down != 0:
                 up += down
                 down = 0
-
 
             for index in range(up):
                 self.window.addch(index, self.width - 2, curses.ACS_CKBOARD)

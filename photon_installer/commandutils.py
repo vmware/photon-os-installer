@@ -1,8 +1,9 @@
 # /*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
-# pylint: disable=invalid-name,missing-docstring
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
+#
+
 import subprocess
 import os
 import re
@@ -15,10 +16,11 @@ import copy
 import json
 import tempfile
 import shlex
+import yaml
+
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from OpenSSL.crypto import load_certificate, FILETYPE_PEM
-import yaml
 
 
 class CommandUtils(object):
@@ -147,7 +149,7 @@ class CommandUtils(object):
     def _requests_get(url, verify):
         try:
             r = requests.get(url, verify=verify, stream=True, timeout=5.0)
-        except Exception as e:
+        except Exception:
             return None
         return r
 
@@ -179,7 +181,7 @@ class CommandUtils(object):
         try:
             result = urlparse(url)
             return all([result.scheme, result.netloc])
-        except:
+        except Exception:
             return False
 
     # read json from a file or URL
@@ -200,7 +202,7 @@ class CommandUtils(object):
         # Check URL
         try:
             u = urlparse(url)
-        except:
+        except Exception:
             return False, "Failed to parse URL"
         if not all([u.scheme, u.netloc]):
             return False, "Invalid URL"
@@ -218,7 +220,7 @@ class CommandUtils(object):
                 pem = ssl.get_server_certificate((u.netloc, port))
                 cert = load_certificate(FILETYPE_PEM, pem.encode('utf-8'))
                 fp = cert.digest("sha1").decode()
-            except:
+            except Exception:
                 return False, "Failed to get server certificate"
             if ask_fn is not None:
                 if not ask_fn(fp):
@@ -272,7 +274,7 @@ class CommandUtils(object):
         default = None
         key = node.value
 
-        assert type(key) is str, f"param name must be a string"
+        assert type(key) is str, "param name must be a string"
 
         if '=' in key:
             key, default = [t.strip() for t in key.split('=', maxsplit=1)]

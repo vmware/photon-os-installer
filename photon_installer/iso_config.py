@@ -1,8 +1,8 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
-import os
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
+
 import sys
 import re
 import secrets
@@ -11,6 +11,7 @@ import cracklib
 import curses
 import getopt
 import json
+
 from logger import Logger
 from custompartition import CustomPartition
 from packageselector import PackageSelector
@@ -78,9 +79,21 @@ class IsoConfig(object):
         exception_text = "Error: Invalid repo - missing config"
         ret = IsoConfig.validate_http_response(
             ostree_repo_url + "/config",
-            [ [".*\[core\]\s*", 1, "Error: Invalid config - 'core' group expected" ],
-              ["\s*mode[ \t]*=[ \t]*archive-z2[^ \t]", 1, "Error: can't pull from repo in 'bare' mode, 'archive-z2' mode required" ] ],
-            exception_text, exception_text)
+            [
+                [
+                    r".*\[core\]\s*",
+                    1,
+                    "Error: Invalid config - 'core' group expected",
+                ],
+                [
+                    r"\s*mode[ \t]*=[ \t]*archive-z2[^ \t]",
+                    1,
+                    "Error: can't pull from repo in 'bare' mode, 'archive-z2' mode required",
+                ],
+            ],
+            exception_text,
+            exception_text,
+        )
         if ret != "":
             return False, ret
 
@@ -103,16 +116,22 @@ class IsoConfig(object):
             return False, "Error: Invalid input"
 
         ret = IsoConfig.validate_http_response(
-                #'http://10.110.19.153:8000/repo/refs/heads/' + ostree_repo_ref,
-                IsoConfig.g_ostree_repo_url  + '/refs/heads/' + ostree_repo_ref,
-                [ ["^\s*[0-9A-Fa-f]{64}\s*$", 1, "Error: Incomplete Refspec path, or unexpected Refspec format"] ],
-                "Error: Invalid Refspec path",
-                "Error: Refspec not accessible")
+            # 'http://10.110.19.153:8000/repo/refs/heads/' + ostree_repo_ref,
+            IsoConfig.g_ostree_repo_url + '/refs/heads/' + ostree_repo_ref,
+            [
+                [
+                    r"^\s*[0-9A-Fa-f]{64}\s*$",
+                    1,
+                    "Error: Incomplete Refspec path, or unexpected Refspec format",
+                ]
+            ],
+            "Error: Invalid Refspec path",
+            "Error: Refspec not accessible",
+        )
         if ret != "":
             return False, ret
 
         return True, None
-
 
     @staticmethod
     def validate_http_response(url, checks, exception_text, error_text):
@@ -160,7 +179,7 @@ class IsoConfig(object):
         items = self.add_ui_pages(install_config, ui_config, maxy, maxx)
         index = 0
         # Used to continue direction if some screen was skipped
-        go_next=True
+        go_next = True
 
         # UI screens showing
         while True:
@@ -194,21 +213,21 @@ class IsoConfig(object):
         hostname_reader = WindowStringReader(
             maxy, maxx, 10, 70,
             'hostname',
-            None, # confirmation error msg if it's a confirmation text
-            None, # echo char
-            self.hostname_accepted_chars, # set of accepted chars
-            IsoConfig.validate_hostname, # validation function of the input
-            None, # post processing of the input field
+            None,  # confirmation error msg if it's a confirmation text
+            None,  # echo char
+            self.hostname_accepted_chars,  # set of accepted chars
+            IsoConfig.validate_hostname,  # validation function of the input
+            None,  # post processing of the input field
             'Choose the hostname for your system', 'Hostname:', 2, install_config,
             self.random_hostname,
             True)
         root_password_reader = WindowStringReader(
             maxy, maxx, 10, 70,
             'shadow_password',
-            None, # confirmation error msg if it's a confirmation text
-            '*', # echo char
-            None, # set of accepted chars
-            IsoConfig.validate_password, # validation function of the input
+            None,  # confirmation error msg if it's a confirmation text
+            '*',  # echo char
+            None,  # set of accepted chars
+            IsoConfig.validate_password,  # validation function of the input
             None,  # post processing of the input field
             'Set up root password', 'Root password:', 2, install_config)
         confirm_password_reader = WindowStringReader(
@@ -216,37 +235,44 @@ class IsoConfig(object):
             'shadow_password',
             # confirmation error msg if it's a confirmation text
             "Passwords don't match, please try again.",
-            '*', # echo char
-            None, # set of accepted chars
-            None, # validation function of the input
-            CommandUtils.generate_password_hash, # post processing of the input field
+            '*',  # echo char
+            None,  # set of accepted chars
+            None,  # validation function of the input
+            CommandUtils.generate_password_hash,  # post processing of the input field
             'Confirm root password', 'Confirm Root password:', 2, install_config)
 
         ostree_server_selector = OSTreeServerSelector(maxy, maxx, install_config)
         ostree_url_reader = OSTreeWindowStringReader(
             maxy, maxx, 10, 80,
             'repo_url',
-            None, # confirmation error msg if it's a confirmation text
-            None, # echo char
-            None, # set of accepted chars
-            IsoConfig.validate_ostree_url_input, # validation function of the input
-            None, # post processing of the input field
+            None,  # confirmation error msg if it's a confirmation text
+            None,  # echo char
+            None,  # set of accepted chars
+            IsoConfig.validate_ostree_url_input,  # validation function of the input
+            None,  # post processing of the input field
             'Please provide the URL of OSTree repo', 'OSTree Repo URL:', 2, install_config,
             "http://")
         ostree_ref_reader = OSTreeWindowStringReader(
             maxy, maxx, 10, 70,
             'repo_ref',
-            None, # confirmation error msg if it's a confirmation text
-            None, # echo char
-            None, # set of accepted chars
-            IsoConfig.validate_ostree_refs_input, # validation function of the input
-            None, # post processing of the input field
+            None,  # confirmation error msg if it's a confirmation text
+            None,  # echo char
+            None,  # set of accepted chars
+            IsoConfig.validate_ostree_refs_input,  # validation function of the input
+            None,  # post processing of the input field
             'Please provide the Refspec in OSTree repo', 'OSTree Repo Refspec:', 2, install_config,
-            "photon/3.0/x86_64/minimal")
-        confirm_window = ConfirmWindow(11, 60, maxy, maxx,
-                                      (maxy - 11) // 2 + 7,
-                                      'Start installation? All data on the selected disk will be lost.\n\n'
-                                      'Press <Yes> to confirm, or <No> to quit')
+            "photon/3.0/x86_64/minimal"
+        )
+
+        confirm_window = ConfirmWindow(
+            11,
+            60,
+            maxy,
+            maxx,
+            (maxy - 11) // 2 + 7,
+            'Start installation? All data on the selected disk will be lost.\n\n'
+            'Press <Yes> to confirm, or <No> to quit',
+        )
 
         # This represents the installer screens, the bool indicates if
         # we can go back to this window or not
@@ -288,8 +314,8 @@ def main():
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'D:f:')
-    except:
-        print ("invalid option")
+    except Exception:
+        print("invalid option")
         sys.exit(2)
 
     for o, a in opts:
@@ -300,7 +326,7 @@ def main():
         else:
             assert False, "unhandled option 'o'"
 
-    if config_file != None:
+    if config_file:
         f = open(config_file, 'r')
     else:
         f = sys.stdin
@@ -320,4 +346,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

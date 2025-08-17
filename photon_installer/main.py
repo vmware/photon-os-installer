@@ -1,13 +1,14 @@
-#/*
-# * Copyright © 2020-2023 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
-from os.path import dirname, join
-from argparse import ArgumentParser
+# /*
+#  * Copyright © 2020-2023 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
+
 import sys
 import traceback
-from commandutils import CommandUtils
 import yaml
+
+from argparse import ArgumentParser
+from commandutils import CommandUtils
 
 
 def main():
@@ -29,7 +30,7 @@ def main():
 
     params = {}
     for p in options.params:
-        k,v = p.split('=', maxsplit=1)
+        k, v = p.split('=', maxsplit=1)
         params[k] = yaml.safe_load(v)
 
     try:
@@ -38,7 +39,6 @@ def main():
             IsoInstaller(options, params=params)
         else:
             from installer import Installer
-            import json
             install_config = None
             if options.install_config_file:
                 with open(options.install_config_file) as f:
@@ -50,15 +50,19 @@ def main():
             if not options.working_directory:
                 raise Exception('Please provide "--working-directory"')
 
-            installer = Installer(working_directory=options.working_directory, repo_paths=options.repo_paths,
-                                log_path=options.log_path, photon_release_version=options.photon_release_version)
+            installer = Installer(
+                working_directory=options.working_directory,
+                repo_paths=options.repo_paths,
+                log_path=options.log_path,
+                photon_release_version=options.photon_release_version,
+            )
+
             installer.configure(install_config)
             installer.execute()
-    except Exception as err:
+    except Exception:
         traceback.print_exc()
         sys.exit(1)
 
 
 if __name__ == '__main__':
     main()
-

@@ -1,17 +1,15 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Yang Yao <yaoyang@vmware.com>
 
 import curses
-import sys
+
 from actionresult import ActionResult
 from action import Action
-from window import Window
 from confirmwindow import ConfirmWindow
+
 
 class ReadMulText(Action):
     def __init__(self, maxy, maxx, y, config, field,
@@ -31,25 +29,25 @@ class ReadMulText(Action):
         self.conversion_fn = conversion_fn
         self.default_string = default_string
         self.display_string = display_string
-        self.textwin_width = maxx - self.horizontal_padding -2
-        self.textwin_width = self.textwin_width* 2 // 3
+        self.textwin_width = maxx - self.horizontal_padding - 2
+        self.textwin_width = self.textwin_width * 2 // 3
         self.visible_text_width = self.textwin_width - 1
         self.position = 0
         self.height = len(self.display_string) * 4 + 2
         self.menu_pos = 0
-        #self.textwin_width)
+        # self.textwin_width)
         self.textwin = curses.newwin(self.height, self.textwin_width + 2)
         self.textwin.bkgd(' ', curses.color_pair(2))
         self.textwin.keypad(1)
 
         self.shadowwin = curses.newwin(self.height, self.textwin_width + 2)
-        self.shadowwin.bkgd(' ', curses.color_pair(0)) #Default shadow color
+        self.shadowwin.bkgd(' ', curses.color_pair(0))  # Default shadow color
 
         self.panel = curses.panel.new_panel(self.textwin)
-        self.panel.move((maxy-self.height) // 2, (maxx - self.textwin_width) // 2 -1)
+        self.panel.move((maxy - self.height) // 2, (maxx - self.textwin_width) // 2 - 1)
         self.panel.hide()
         self.shadowpanel = curses.panel.new_panel(self.shadowwin)
-        self.shadowpanel.move((maxy-self.height) // 2 + 1, (maxx - self.textwin_width) // 2)
+        self.shadowpanel.move((maxy - self.height) // 2 + 1, (maxx - self.textwin_width) // 2)
         self.shadowpanel.hide()
         curses.panel.update_panels()
 
@@ -57,7 +55,7 @@ class ReadMulText(Action):
         self.textwin.box()
         self.maxlength = 255
 
-        #initialize the accepted characters
+        # initialize the accepted characters
         if accepted_chars:
             self.accepted_chars = accepted_chars
         else:
@@ -71,7 +69,7 @@ class ReadMulText(Action):
         curses.panel.update_panels()
 
         self.x = 0
-        #initialize the ----
+        # initialize the ----
         dashes = '_' * self.textwin_width
         cury = self.y + 1
         self.str = []
@@ -82,16 +80,16 @@ class ReadMulText(Action):
             cury = cury + 4
             self.str.append('')
 
-        #remove the error messages
-        spaces = ' ' * self.textwin_width
-        #self.textwin.addstr(self.y + 2, 0, spaces)
+        # remove the error messages
+        # spaces = ' ' * self.textwin_width
+        # self.textwin.addstr(self.y + 2, 0, spaces)
         self.update_menu()
 
     def do_action(self):
         self.init_text()
         curses.curs_set(1)
 
-        if self.default_string != None:
+        if self.default_string:
             self.textwin.addstr(self.y, 0, self.default_string)
             self.str = self.default_string
 
@@ -99,7 +97,7 @@ class ReadMulText(Action):
             if len(self.str[self.position]) > self.visible_text_width:
                 curs_loc = self.visible_text_width + 1
             else:
-                curs_loc = len(self.str[self.position]) +1
+                curs_loc = len(self.str[self.position]) + 1
             ch = self.textwin.getch(self.y + 2 + self.position * 4, curs_loc)
 
             update_text = False
@@ -164,17 +162,15 @@ class ReadMulText(Action):
 
     def update_menu(self):
         if self.menu_pos == 1:
-            self.textwin.addstr(self.height-2, 5, '<Cancel>', curses.color_pair(3))
+            self.textwin.addstr(self.height - 2, 5, '<Cancel>', curses.color_pair(3))
         else:
-            self.textwin.addstr(self.height-2, 5, '<Cancel>')
+            self.textwin.addstr(self.height - 2, 5, '<Cancel>')
         if self.menu_pos == 0:
-            self.textwin.addstr(self.height-2, self.textwin_width-len('<OK>')-5, '<OK>',
+            self.textwin.addstr(self.height - 2, self.textwin_width - len('<OK>') - 5, '<OK>',
                                 curses.color_pair(3))
         else:
-            self.textwin.addstr(self.height-2, self.textwin_width-len('<OK>')-5,
+            self.textwin.addstr(self.height - 2, self.textwin_width - len('<OK>') - 5,
                                 '<OK>')
-
-
 
     def update_text(self):
         if len(self.str[self.position]) > self.visible_text_width:
@@ -195,16 +191,16 @@ class ReadMulText(Action):
             if reset:
                 self.position = 0
             else:
-                self.position = len(self.display_string)-1
+                self.position = len(self.display_string) - 1
 
     def set_field(self):
         i = 0
         for string in self.display_string:
             if self.conversion_fn:
-                self.config[self.field+str(i)] = self.conversion_fn(self.str[i])
+                self.config[self.field + str(i)] = self.conversion_fn(self.str[i])
             else:
-                self.config[self.field+str(i)] = self.str[i]
-            i = i + 1
+                self.config[self.field + str(i)] = self.str[i]
+            i += 1
 
     def validate_input(self):
         if self.validation_fn:

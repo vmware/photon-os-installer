@@ -1,16 +1,14 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
-
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 from window import Window
 from actionresult import ActionResult
 from textpane import TextPane
 from os.path import join, dirname
+
 
 class License(object):
     def __init__(self, maxy, maxx, eula_file_path, display_title):
@@ -50,7 +48,6 @@ class License(object):
         self.window.set_action_panel(self.text_pane)
 
         return self.window.do_action()
-
 
     def accept_function(self):
         return ActionResult(True, None)

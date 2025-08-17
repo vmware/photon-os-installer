@@ -1,15 +1,14 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 import curses
 import threading
 import math
 from curses import panel
+
 
 class ProgressBar(object):
     def __init__(self, starty, startx, width, new_win=False):
@@ -25,7 +24,7 @@ class ProgressBar(object):
         self.width = width - 1
 
         self.window = curses.newwin(5, width)
-        self.window.bkgd(' ', curses.color_pair(2)) #defaultbackground color
+        self.window.bkgd(' ', curses.color_pair(2))  # defaultbackground color
         self.progress = 0
 
         self.new_win = new_win
@@ -34,13 +33,12 @@ class ProgressBar(object):
 
         if new_win:
             self.contentwin = curses.newwin(7, width + 2)
-            self.contentwin.bkgd(' ', curses.color_pair(2)) #Default Window color
+            self.contentwin.bkgd(' ', curses.color_pair(2))  # Default Window color
             self.contentwin.erase()
             self.contentwin.box()
             self.contentpanel = curses.panel.new_panel(self.contentwin)
-            self.contentpanel.move(starty-1, startx-1)
+            self.contentpanel.move(starty - 1, startx - 1)
             self.contentpanel.hide()
-
 
         self.panel = panel.new_panel(self.window)
         self.panel.move(starty, startx)
@@ -68,7 +66,7 @@ class ProgressBar(object):
 
     def update_time(self):
         with self.timer_lock:
-            if self.timer != None:
+            if self.timer:
                 self.timer = threading.Timer(1, self.update_time)
                 self.timer.start()
 
@@ -107,7 +105,7 @@ class ProgressBar(object):
 
     def render_time(self):
         timemessage = 'Elapsed time: {0} secs'.format(self.time_elapsed)
-        #timemessage += ', remaining time: {0} secs'.format(self.time_remaining)
+        # timemessage += ', remaining time: {0} secs'.format(self.time_remaining)
         text = timemessage + (' ' * (self.width - len(timemessage)))
         self.window.addstr(4, 0, text)
         self.window.refresh()
@@ -121,7 +119,7 @@ class ProgressBar(object):
     def show(self):
         if self.new_win:
             self.contentpanel.top()
-            self.contentpanel.move(self.y-1, self.x-1)
+            self.contentpanel.move(self.y - 1, self.x - 1)
             self.contentpanel.show()
 
         self.refresh()
@@ -132,7 +130,7 @@ class ProgressBar(object):
 
     def update_loading_symbol(self):
         with self.loadding_timer_lock:
-            if self.loadding_timer != None:
+            if self.loadding_timer:
                 self.loadding_timer = threading.Timer(self.loading_interval,
                                                       self.update_loading_symbol)
                 self.loadding_timer.start()
@@ -161,11 +159,11 @@ class ProgressBar(object):
 
     def hide(self):
         with self.timer_lock:
-            if self.timer != None:
+            if self.timer:
                 self.timer.cancel()
                 self.timer = None
         with self.loadding_timer_lock:
-            if self.loadding_timer != None:
+            if self.loadding_timer:
                 self.loadding_timer.cancel()
                 self.loadding_timer = None
 

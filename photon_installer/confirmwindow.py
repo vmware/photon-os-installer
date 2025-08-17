@@ -1,15 +1,13 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
-import curses
 from window import Window
 from menu import Menu
 from actionresult import ActionResult
+
 
 class ConfirmWindow(Window):
 
@@ -20,7 +18,7 @@ class ConfirmWindow(Window):
             items = [
                 ('Yes', self.exit_function, True),
                 ('No', self.exit_function, False)
-                ]
+            ]
         self.menu = Menu(menu_starty, maxx, items, can_navigate_outside=False, horizontal=True)
         super(ConfirmWindow, self).__init__(height, width, maxy, maxx, 'Confirm', False, self.menu)
         self.addstr(0, 0, message)

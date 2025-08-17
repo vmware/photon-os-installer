@@ -1,18 +1,19 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
+
 import curses
-from actionresult import ActionResult
+
 from action import Action
+
 
 class PartitionPane(Action):
     def __init__(self, starty, maxx, width, height, menu_items,
                  config={}, text_items=[], table_space=0,
                  info=[], size_left=[]):
-        self.head_position = 0  #This is the start of showing
+        self.head_position = 0  # This is the start of showing
         self.menu_position = 1
         self.lines = []
         self.menu_items = menu_items
@@ -44,7 +45,7 @@ class PartitionPane(Action):
             self.filled += 1
         for i in [1, 2]:
             if ((self.num_items - self.text_height) >= i and
-                    (self.text_height - self.filled) == (i - 1)):
+               (self.text_height - self.filled) == (i - 1)):
                 self.filled -= 1
 
         self.window = curses.newwin(height, self.width)
@@ -63,17 +64,17 @@ class PartitionPane(Action):
             return
 
         tstring = ''
-        #calculate the start index for each item and draw the title
+        # calculate the start index for each item and draw the title
         for index, item in enumerate(self.text_items):
-            tstring = tstring + item[0] + ' '*(item[1] - len(item[0])) + ' '*self.table_space
+            tstring = tstring + item[0] + ' ' * (item[1] - len(item[0])) + ' ' * self.table_space
 
         self.lines.append(tstring)
-        #draw the table
+        # draw the table
         for i in range(int(self.config['partitionsnumber'])):
             pdisk = self.config['partition_disk']
             if len(pdisk) > self.text_items[0][1]:
                 pdisk = pdisk[-self.text_items[0][1]:]
-            psize = self.config[str(i)+'partition_info'+str(0)]
+            psize = self.config[str(i) + 'partition_info' + str(0)]
             if len(psize) > self.text_items[1][1]:
                 psize = psize[-self.text_items[1][1]:]
             if len(psize) == 0:
@@ -84,12 +85,14 @@ class PartitionPane(Action):
             pmountpoint = self.config[str(i) + 'partition_info' + str(2)]
             if len(pmountpoint) > self.text_items[3][1]:
                 pmountpoint = pmountpoint[-self.text_items[3][1]:]
-            pstring = (pdisk + ' '*(self.text_items[0][1] - len(pdisk)) +
+
+            pstring = (pdisk + ' ' * (self.text_items[0][1] - len(pdisk)) +
                        ' ' * self.table_space + psize +
-                       ' '*(self.text_items[1][1] - len(psize)) +
+                       ' ' * (self.text_items[1][1] - len(psize)) +
                        ' ' * self.table_space + ptype +
-                       ' '*(self.text_items[2][1] - len(ptype) +
-                            self.table_space) + pmountpoint)
+                       ' ' * (self.text_items[2][1] - len(ptype) +
+                              self.table_space) + pmountpoint)
+
             self.lines.append(pstring)
 
     def navigate(self, n):
@@ -107,11 +110,10 @@ class PartitionPane(Action):
         elif self.menu_position >= len(self.menu_items):
             self.menu_position = len(self.menu_items) - 1
 
-
     def render_scroll_bar(self):
         if self.show_scroll:
             remaining_above = self.head_position
-            remaining_down = self.num_items - self.text_height - self.head_position#
+            remaining_down = self.num_items - self.text_height - self.head_position
 
             up = int(round(remaining_above * self.text_height / float(self.num_items)))
             down = self.text_height - up - self.filled
@@ -125,7 +127,6 @@ class PartitionPane(Action):
             if remaining_down == 0 and down != 0:
                 up += down
                 down = 0
-
 
             for index in range(up):
                 self.window.addch(index, self.width - 2, curses.ACS_CKBOARD)
@@ -158,7 +159,7 @@ class PartitionPane(Action):
             self.window.addstr(self.text_height + 3, xpos - len(item[0]) - 4, item[0], mode)
             xpos = xpos - len(item[0]) - 4
 
-        self.window.addstr(self.text_height+1, 5, self.info)
+        self.window.addstr(self.text_height + 1, 5, self.info)
 
         self.render_scroll_bar()
 

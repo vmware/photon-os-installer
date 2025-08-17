@@ -3,7 +3,6 @@
 # Copyright © 2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 #
-# pylint: disable=invalid-name,missing-docstring,no-member
 
 
 import glob
@@ -21,8 +20,9 @@ from commandutils import CommandUtils
 from tdnf import Tdnf, create_repo_conf
 
 DEFAULT_INSTALL_OPTIONS_FILE = "build_install_options_custom.json"
-SUPPORTED_RELEASES = [ "4.0", "5.0" ]
-DEV_RELEASES = [ "6.0" ]
+SUPPORTED_RELEASES = ["4.0", "5.0"]
+DEV_RELEASES = ["6.0"]
+
 
 class IsoBuilder(object):
     def __init__(self, **kwargs):
@@ -236,7 +236,7 @@ class IsoBuilder(object):
                 do_json=False
             )
             if retval != 0:
-                raise Exception(f"tdnf failed")
+                raise Exception("tdnf failed")
             self.logger.info("...done.")
 
         # Separate out packages downloaded into arch specific directories.
@@ -437,8 +437,8 @@ class IsoBuilder(object):
 
     def validate_options(self):
         assert self.photon_release_version is not None, "the Photon release version is required"
-        assert type(self.photon_release_version) is str, "the Photon relase version must be a string"
-        assert type(self.photon_release_version) != "", "the Photon release version must not be empty"
+        assert isinstance(self.photon_release_version, str), "the Photon relase version must be a string"
+        assert self.photon_release_version != "", "the Photon release version must not be empty"
         assert self.photon_release_version in (SUPPORTED_RELEASES + DEV_RELEASES), f"Photon release {self.photon_release_version} is not supported"
 
         if self.function == "build-rpm-ostree-iso":
