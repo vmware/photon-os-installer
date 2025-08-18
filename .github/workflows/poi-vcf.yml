@@ -282,7 +282,9 @@ jobs:
             - cayman_poi
             - ova-poi-harness
             - iso-poi-harness
-        if: github.ref_name == 'master'
+#        if: github.ref_name == 'master'
+        # disable until we figured out the authentication problem
+        if: false
         steps:
            - name: Checkout code
              uses: actions/checkout@master
