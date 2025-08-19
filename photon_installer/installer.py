@@ -48,6 +48,14 @@ class PartitionType(Enum):
     BIOS = 5
 
 
+class InstallerError(Exception):
+    pass
+
+
+class InstallerConfigError(InstallerError):
+    pass
+
+
 class Installer(object):
     """
     Photon installer
@@ -188,10 +196,8 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
-        issue = self._check_install_config(install_config)
-        if issue:
-            self.logger.error(issue)
-            raise Exception(issue)
+        # _check_install_config will raise InstallerConfigError if there's an issue
+        self._check_install_config(install_config)
 
         self._add_defaults(install_config)
 
@@ -541,30 +547,30 @@ class Installer(object):
     def _check_install_config(self, install_config):
         """
         Sanity check of install_config before its execution.
-        Return error string or None
+        Raises InstallerConfigError if the configuration is invalid.
         """
 
         unknown_keys = install_config.keys() - Installer.known_keys
         if len(unknown_keys) > 0:
-            return "Unknown install_config keys: " + ", ".join(unknown_keys)
+            raise InstallerConfigError("Unknown install_config keys: " + ", ".join(unknown_keys))
 
         if 'disk' not in install_config and 'disks' not in install_config:
-            return "No disk configured"
+            raise InstallerConfigError("No disk configured")
 
         if 'disk' in install_config:
             self.logger.warning("'disk' will be deprecated, use 'disks' instead")
 
         if 'disks' in install_config:
             if 'disk' in install_config:
-                return "only one of 'disk' or 'disks' can be set"
+                raise InstallerConfigError("only one of 'disk' or 'disks' can be set")
             if 'default' not in install_config['disks']:
-                return "a 'default' disk needs to be set in for 'disks'"
+                raise InstallerConfigError("a 'default' disk needs to be set in for 'disks'")
             for disk_id, disk in install_config['disks'].items():
                 if 'device' not in disk:
                     if 'filename' not in disk:
-                        return f"a filename or a device needs to be set for disk '{disk_id}'"
+                        raise InstallerConfigError(f"a filename or a device needs to be set for disk '{disk_id}'")
                     if 'size' not in disk:
-                        return f"a size needs to be set for disk image '{disk_id}'"
+                        raise InstallerConfigError(f"a size needs to be set for disk image '{disk_id}'")
 
         # if not we'll use Installer.default_partitions in _add_defaults()
         if 'partitions' in install_config:
@@ -581,7 +587,7 @@ class Installer(object):
 
             for partition in install_config['partitions']:
                 if 'disk' in partition and 'disks' in install_config:
-                    return "cannot use 'disk' for partitions, use 'disk_id' from 'disks'"
+                    raise InstallerConfigError("cannot use 'disk' for partitions, use 'disk_id' from 'disks'")
 
                 disk_id = partition.get('disk_id', 'default')
                 mntpoint = partition.get('mountpoint', '')
@@ -593,111 +599,112 @@ class Installer(object):
                     has_nopartition[disk_id] = False
                 elif partition.get('all_disk', False) or has_nopartition[disk_id]:
                     if 'lvm' not in partition or disk_id not in vg_names:
-                        return f"Cannot have multiple partitions for disk '{disk_id}', 'all_disk' is enabled"
+                        raise InstallerConfigError(f"Cannot have multiple partitions for disk '{disk_id}', 'all_disk' is enabled")
                     else:
                         # if we have multiple logical volumes on a single disk, the vg_names must match
                         if partition['lvm']['vg_name'] != vg_names[disk_id]:
-                            return f"multiple logical volumes on disk '{disk_id}' must share the volume group '{vg_names[disk_id]}' when 'all_disk' is enabled"
+                            raise InstallerConfigError(f"multiple logical volumes on disk '{disk_id}' must share the volume group '{vg_names[disk_id]}' when 'all_disk' is enabled")
 
                 if partition.get('all_disk', False):
                     if disk_id == 'default':
-                        return "Default disk needs to partitioned. Define default disk configuration under 'partitions'"
+                        raise InstallerConfigError("Default disk needs to partitioned. Define default disk configuration under 'partitions'")
                     if partition.get('ab', False):
-                        return f"ab requires disk to be partitioned but 'all_disk' was defined for {disk_id}"
+                        raise InstallerConfigError(f"ab requires disk to be partitioned but 'all_disk' was defined for {disk_id}")
                     has_nopartition[disk_id] = True
                     if 'lvm' in partition:
                         vg_names[disk_id] = partition['lvm']['vg_name']
 
                 if 'size' not in partition and 'sizepercent' not in partition and not partition.get('all_disk', False):
-                    return "Need to specify 'size' or 'sizepercent'"
+                    raise InstallerConfigError("Need to specify 'size' or 'sizepercent'")
 
                 if 'size' in partition:
                     if not isinstance(partition['size'], int):
-                        return "'size' must be an integer"
+                        raise InstallerConfigError("'size' must be an integer")
                     if 'sizepercent' in partition:
-                        return "only one of 'size' or 'sizepercent' can be specified"
+                        raise InstallerConfigError("only one of 'size' or 'sizepercent' can be specified")
                     size = partition['size']
                     if size == 0:
                         if has_extensible[disk_id]:
-                            return f"disk '{disk_id}' has more than one extensible partition"
+                            raise InstallerConfigError(f"disk '{disk_id}' has more than one extensible partition")
                         else:
                             has_extensible[disk_id] = True
 
                 if 'sizepercent' in partition:
                     if not isinstance(partition['sizepercent'], int):
-                        return "'sizepercent' must be an integer"
+                        raise InstallerConfigError("'sizepercent' must be an integer")
                     if partition['sizepercent'] <= 0:
-                        return "'sizepercent' must be greater than 0"
+                        raise InstallerConfigError("'sizepercent' must be greater than 0")
                     elif partition['sizepercent'] > 100:
-                        return "'sizepercent' must not be greater than 100"
+                        raise InstallerConfigError("'sizepercent' must not be greater than 100")
 
                 if mntpoint != '':
                     mountpoints.append(mntpoint)
                 if mntpoint == '/boot' and 'lvm' in partition:
-                    return "/boot on LVM is not supported"
+                    raise InstallerConfigError("/boot on LVM is not supported")
                 elif mntpoint == '/boot/efi' and partition['filesystem'] != 'vfat':
-                    return "/boot/efi filesystem must be vfat"
+                    raise InstallerConfigError("/boot/efi filesystem must be vfat")
                 elif mntpoint == '/':
                     has_root = True
             if not has_root:
-                return "There is no partition assigned to root '/'"
+                raise InstallerConfigError("There is no partition assigned to root '/'")
 
             if len(mountpoints) != len(set(mountpoints)):
-                return "Duplicate mountpoints exist in partition table!!"
+                raise InstallerConfigError("Duplicate mountpoints exist in partition table!!")
 
             for partition in install_config['partitions']:
                 if partition.get('ab', False):
                     if partition.get('lvm', None):
-                        return "ab partition cannot be LVM"
+                        raise InstallerConfigError("ab partition cannot be LVM")
 
         if 'arch' in install_config:
             if install_config['arch'] not in ["aarch64", "x86_64"]:
-                return f"Unsupported target architecture {install_config['arch']}"
+                raise InstallerConfigError(f"Unsupported target architecture {install_config['arch']}")
 
             # No BIOS for aarch64
             if install_config['arch'] == 'aarch64' and install_config['bootmode'] in ['dualboot', 'bios']:
-                return "aarch64 targets do not support BIOS boot. Set 'bootmode' to 'efi'."
+                raise InstallerConfigError("aarch64 targets do not support BIOS boot. Set 'bootmode' to 'efi'.")
 
         if 'age' in install_config.get('password', {}):
             if install_config['password']['age'] < -1:
-                return "Password age should be -1, 0 or positive"
+                raise InstallerConfigError("Password age should be -1, 0 or positive")
 
         if 'docker' in install_config:
             images = install_config['docker'].get('images', [])
             for image in images:
                 if 'method' not in image:
-                    return "no 'method' set for docker image"
+                    raise InstallerConfigError("no 'method' set for docker image")
                 method = image['method']
                 if method not in ["pull", "load"]:
-                    return f"unknown method '{method}' for docker image"
+                    raise InstallerConfigError(f"unknown method '{method}' for docker image")
                 if method == "pull":
                     if 'name' not in image:
-                        return "no 'name' set for docker image with 'pull' method"
+                        raise InstallerConfigError("no 'name' set for docker image with 'pull' method")
                 elif method == "load":
                     if 'filename' not in image:
-                        return "no 'filename' set for docker image with 'load' method"
+                        raise InstallerConfigError("no 'filename' set for docker image with 'load' method")
 
         if 'security' in install_config:
             security = install_config['security']
             if security.get('selinux', None) is not None:
                 if security['selinux'] not in ["enforcing", "permissive", "disabled"]:
-                    return "selinux must be enforcing, permissive, disabled or null"
+                    raise InstallerConfigError("selinux must be enforcing, permissive, disabled or null")
             if security.get('fips', None) is not None:
                 if not isinstance(security['fips'], bool):
-                    return "fips mode must be boolean or null"
+                    raise InstallerConfigError("fips mode must be boolean or null")
 
         if 'environment' in install_config:
             env_vars = install_config['environment']
             if not isinstance(env_vars, dict):
-                return "'environment' must be a dictionary of key-value pairs"
+                raise InstallerConfigError("'environment' must be a dictionary of key-value pairs")
             for key, value in env_vars.items():
                 if not isinstance(key, str):
-                    return f"Environment variable name must be a string: {key}"
+                    raise InstallerConfigError(f"Environment variable name must be a string: {key}")
                 if not isinstance(value, str):
-                    return f"Environment variable value must be a string: {value} for key {key}"
+                    raise InstallerConfigError(f"Environment variable value must be a string: {value} for key {key}")
                 if not key.strip():
-                    return "Environment variable name cannot be empty or whitespace"
+                    raise InstallerConfigError("Environment variable name cannot be empty or whitespace")
 
+        # No error found
         return None
 
     def _is_ab_present(self):
