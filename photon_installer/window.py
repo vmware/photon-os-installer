@@ -1,14 +1,13 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 import curses
 from actionresult import ActionResult
 from action import Action
+
 
 class Window(Action):
 
@@ -23,8 +22,8 @@ class Window(Action):
         self.x = (maxx - width) // 2
         title = ' ' + title + ' '
 
-        self.contentwin = curses.newwin(height - 1, width -1)
-        self.contentwin.bkgd(' ', curses.color_pair(2)) #Default Window color
+        self.contentwin = curses.newwin(height - 1, width - 1)
+        self.contentwin.bkgd(' ', curses.color_pair(2))  # Default Window color
         self.contentwin.erase()
         self.contentwin.box()
         self.tab_enabled = tab_enabled
@@ -36,7 +35,7 @@ class Window(Action):
         else:
             self.items = []
         self.menu_helper = menu_helper
-        self.contentwin.addstr(0, (width - 1 - len(title)) // 2, title)#
+        self.contentwin.addstr(0, (width - 1 - len(title)) // 2, title)
         newy = 5
 
         if self.can_go_back:
@@ -47,9 +46,9 @@ class Window(Action):
         self.dist = 0
 
         if len(self.items) > 0:
-        #To select items, we need to identify up left right keys
+            # To select items, we need to identify up left right keys
 
-            self.dist = self.width-11
+            self.dist = self.width - 11
             self.dist -= len('<Go Back>')
             count = 0
             for item in self.items:
@@ -65,24 +64,23 @@ class Window(Action):
                 newy += self.dist
 
         self.textwin = curses.newwin(height - 5, width - 5)
-        self.textwin.bkgd(' ', curses.color_pair(2)) #Default Window color
+        self.textwin.bkgd(' ', curses.color_pair(2))  # Default Window color
 
         self.shadowwin = curses.newwin(height - 1, width - 1)
-        self.shadowwin.bkgd(' ', curses.color_pair(0)) #Default shadow color
+        self.shadowwin.bkgd(' ', curses.color_pair(0))  # Default shadow color
 
         self.contentpanel = curses.panel.new_panel(self.contentwin)
         self.textpanel = curses.panel.new_panel(self.textwin)
         self.shadowpanel = curses.panel.new_panel(self.shadowwin)
 
         self.action_panel = action_panel
-#        self.refresh(0, True)
+        # self.refresh(0, True)
         self.hide_window()
 
     def update_next_item(self):
         self.position = 1
         self.items.append(('<Next>', self.next_function, False))
         self.tab_enabled = False
-
 
     def next_function(self):
         return ActionResult(True, None)
@@ -91,9 +89,9 @@ class Window(Action):
         self.action_panel = action_panel
 
     def update_menu(self, action_result):
-        if (action_result.result and
-                'goNext' in action_result.result and
-                action_result.result['goNext']):
+        if (action_result.result
+           and 'goNext' in action_result.result
+           and action_result.result['goNext']):
             return ActionResult(True, None)
         if self.position == 0:
             self.contentwin.addstr(self.height - 3, 5, '<Go Back>')
@@ -102,13 +100,13 @@ class Window(Action):
             self.action_panel.hide()
             return ActionResult(False, None)
         else:
-            if (action_result.result != None and
-                    'diskIndex' in action_result.result):
+            if (action_result.result
+               and 'diskIndex' in action_result.result):
                 params = action_result.result['diskIndex']
                 if self.menu_helper:
                     self.menu_helper(params)
 
-            result = self.items[self.position-1][1]()
+            result = self.items[self.position - 1][1]()
             if result.success:
                 self.hide_window()
                 self.action_panel.hide()
@@ -129,32 +127,32 @@ class Window(Action):
         action_result = self.action_panel.do_action()
 
         if action_result.success:
-            if (action_result.result and
-                    'goNext' in action_result.result and
-                    action_result.result['goNext']):
+            if (action_result.result
+               and 'goNext' in action_result.result
+               and action_result.result['goNext']):
                 return ActionResult(True, None)
-            if self.position != 0:    #saving the disk index
-                self.items[self.position-1][1]()
+            if self.position != 0:    # saving the disk index
+                self.items[self.position - 1][1]()
             if self.items:
                 return self.update_menu(action_result)
             self.hide_window()
             return action_result
         else:
-            if (not self.tab_enabled and
-                    action_result.result != None and
-                    'direction' in action_result.result):
+            if (not self.tab_enabled
+               and action_result.result
+               and 'direction' in action_result.result):
                 self.refresh(action_result.result['direction'], True)
-            if (action_result.result != None and
-                    'goBack' in action_result.result
-                    and action_result.result['goBack']):
+            if (action_result.result
+               and 'goBack' in action_result.result
+               and action_result.result['goBack']):
                 self.hide_window()
                 self.action_panel.hide()
                 return action_result
             else:
-                #highlight the GoBack and keep going
+                # highlight the GoBack and keep going
                 self.refresh(0, True)
 
-        while action_result.success == False:
+        while not action_result.success:
             if self.read_text:
                 is_go_back = self.position == 0
                 action_result = self.action_panel.do_action(returned=True, go_back=is_go_back)
@@ -164,9 +162,9 @@ class Window(Action):
                     self.hide_window()
                     return action_result
                 else:
-                    if (action_result.result != None and
-                            'goBack' in action_result.result and
-                            action_result.result['goBack']):
+                    if (action_result.result
+                       and 'goBack' in action_result.result
+                       and action_result.result['goBack']):
                         self.hide_window()
                         self.action_panel.hide()
                         return action_result
@@ -175,7 +173,7 @@ class Window(Action):
             else:
                 key = self.contentwin.getch()
                 if key in [curses.KEY_ENTER, ord('\n')]:
-                    #remove highlight from Go Back
+                    # remove highlight from Go Back
                     if self.position == 0:
                         self.contentwin.addstr(self.height - 3, 5, '<Go Back>')
                         self.contentwin.refresh()
@@ -183,12 +181,12 @@ class Window(Action):
                         self.action_panel.hide()
                         return ActionResult(False, None)
                     else:
-                        if (action_result.result != None and
-                                'diskIndex' in action_result.result):
+                        if (action_result.result and
+                           'diskIndex' in action_result.result):
                             params = action_result.result['diskIndex']
                             if self.menu_helper:
                                 self.menu_helper(params)
-                        result = self.items[self.position-1][1]()
+                        result = self.items[self.position - 1][1]()
                         if result.success:
                             self.hide_window()
                             self.action_panel.hide()
@@ -202,7 +200,7 @@ class Window(Action):
                 elif key in [ord('\t')]:
                     if not self.tab_enabled:
                         continue
-                    #remove highlight from Go Back
+                    # remove highlight from Go Back
                     self.refresh(0, False)
                     # go do the action inside the panel
                     action_result = self.action_panel.do_action()
@@ -210,10 +208,10 @@ class Window(Action):
                         self.hide_window()
                         return action_result
                     else:
-                        #highlight the GoBack and keep going
+                        # highlight the GoBack and keep going
                         self.refresh(0, True)
                 elif key == curses.KEY_UP or key == curses.KEY_LEFT:
-                    if key == curses.KEY_UP and self.tab_enabled == False:
+                    if key == curses.KEY_UP and not self.tab_enabled:
                         self.action_panel.navigate(-1)
                         action_result = self.action_panel.do_action()
                         if action_result.success:
@@ -223,13 +221,13 @@ class Window(Action):
                             return action_result
                         else:
                             if 'direction' in action_result.result:
-                            #highlight the GoBack and keep going
+                                # highlight the GoBack and keep going
                                 self.refresh(action_result.result['direction'], True)
                     else:
                         self.refresh(-1, True)
 
                 elif key == curses.KEY_DOWN or key == curses.KEY_RIGHT:
-                    if key == curses.KEY_DOWN and self.tab_enabled == False:
+                    if key == curses.KEY_DOWN and not self.tab_enabled:
                         self.action_panel.navigate(1)
                         action_result = self.action_panel.do_action()
                         if action_result.success:
@@ -239,11 +237,10 @@ class Window(Action):
                             return action_result
                         else:
                             if 'direction' in action_result.result:
-                            #highlight the GoBack and keep going
+                                # highlight the GoBack and keep going
                                 self.refresh(action_result.result['direction'], True)
                     else:
                         self.refresh(1, True)
-
 
     def refresh(self, n, select):
         if not self.can_go_back:
@@ -251,19 +248,19 @@ class Window(Action):
         self.position += n
         if self.position < 0:
             self.position = 0
-        elif self.items and self.position > len(self.items):  #add 1 for the <go back>
+        elif self.items and self.position > len(self.items):  # add 1 for the <go back>
             self.position = len(self.items)
 
         if not self.items and not self.can_go_next:
             self.position = 0
-        #add the highlight
+        # add the highlight
         newy = 5
-        if self.position == 0:   #go back
+        if self.position == 0:   # go back
             if select:
                 self.contentwin.addstr(self.height - 3, 5, '<Go Back>', curses.color_pair(3))
-            elif self.items: #show user the last selected items
+            elif self.items:  # show user the last selected items
                 self.contentwin.addstr(self.height - 3, 5, '<Go Back>', curses.color_pair(1))
-            else: #if Go back is the only one shown, do not highlight at all
+            else:  # if Go back is the only one shown, do not highlight at all
                 self.contentwin.addstr(self.height - 3, 5, '<Go Back>')
 
             newy += len('<Go Back>')

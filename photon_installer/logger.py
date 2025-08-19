@@ -1,9 +1,12 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
+#
+
 import os
 import logging
+
 
 class Logger(object):
     @staticmethod
@@ -29,18 +32,18 @@ class Logger(object):
             fhandler = logging.FileHandler(logfile)
             fhformatter = logging.Formatter('%(asctime)s - %(message)s')
             fhandler.setFormatter(fhformatter)
-            #fhandler.setLevel(logging.DEBUG)
+            # fhandler.setLevel(logging.DEBUG)
             logger.addHandler(fhandler)
 
             # console handler
             if console:
                 ch = logging.StreamHandler()
-                if loglevel=="debug":
+                if loglevel == "debug":
                     chformatter = logging.Formatter('%(asctime)s - %(message)s')
                 else:
                     chformatter = logging.Formatter('%(message)s')
                 ch.setFormatter(chformatter)
-                #ch.setLevel(Logger.string_to_loglevel(loglevel))
+                # ch.setLevel(Logger.string_to_loglevel(loglevel))
                 logger.addHandler(ch)
 
             logger.setLevel(Logger.string_to_loglevel(loglevel))
@@ -48,4 +51,3 @@ class Logger(object):
             logger.debug("Starting Log")
             logger.debug("-" * 75)
         return logger
-

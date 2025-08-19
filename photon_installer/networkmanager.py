@@ -1,14 +1,13 @@
-#/*
-# * Copyright © 2020-2023 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020-2023 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 
 import getopt
 import json
 import os
 import re
 import subprocess
-import shutil
 import sys
 
 
@@ -77,13 +76,15 @@ is represented as:
 
 {'Network' : {'DNS':["8.8.8.8", "8.8.4.4"], 'DHCP':'yes'}}
 """
+
+
 def write_systemd_config(fout, config):
     for sname, section in config.items():
         fout.write(f"[{sname}]\n")
         for option in section:
             if type(section[option]) in [str, int]:
                 fout.write(f"{option}={section[option]}\n")
-            elif type(section[option]) == list:
+            elif isinstance(section[option], list):
                 for val in section[option]:
                     fout.write(f"{option}={val}\n")
         fout.write("\n")
@@ -93,7 +94,7 @@ def write_systemd_config(fout, config):
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
         return False
-    allowed = re.compile("(?!-)[A-Z\d_-]{1,63}(?<!-)$", re.IGNORECASE)
+    allowed = re.compile(r"(?!-)[A-Z\d_-]{1,63}(?<!-)$", re.IGNORECASE)
     return allowed.match(hostname)
 
 
@@ -134,28 +135,25 @@ class NetworkManager:
 
         self.config = config
 
-
     # convert legacy config to new one
     def _convert_legacy_config(self, old_config):
-        if not 'type' in old_config:
-            raise Exception (f"property 'type' must be set for legacy network configuration, or use 'version':'2'")
+        if 'type' not in old_config:
+            raise Exception("property 'type' must be set for legacy network configuration, or use 'version':'2'")
 
-        config = {'version' : '2'}
+        config = {'version': '2'}
 
         if 'hostname' in old_config:
             config['hostname'] = old_config['hostname']
 
         type = old_config['type']
         if type == 'dhcp':
-            config['ethernets'] = {'dhcp-en' :
-                {'match' : {'name' : 'e*'}, 'dhcp4' : True }
+            config['ethernets'] = {
+                'dhcp-en': {'match': {'name': 'e*'}, 'dhcp4': True}
             }
         elif type == 'static':
-            config['ethernets'] = {'static-en':
-                {'match' : {'name' : 'eth0'}}
-            }
+            config['ethernets'] = {'static-en': {'match': {'name': 'eth0'}}}
 
-            if not 'ip_addr' in old_config:
+            if 'ip_addr' not in old_config:
                 raise Exception("need 'ip_addr' property for static network configuration")
             address = old_config['ip_addr']
 
@@ -171,37 +169,35 @@ class NetworkManager:
                 if_cfg['gateway'] = old_config['gateway']
             if 'nameserver' in old_config:
                 nameserver = old_config['nameserver']
-                if_cfg['nameservers'] = {'addresses' : [nameserver]}
+                if_cfg['nameservers'] = {'addresses': [nameserver]}
 
         elif type == 'vlan':
             # phys iface same as for type 'dhcp', but 'eth0' instead of 'e*'
-            config['ethernets'] = {'dhcp-en' :
-                {'match' : {'name' : 'eth0'}, 'dhcp4' : True }
+            config['ethernets'] = {
+                'dhcp-en': {'match': {'name': 'eth0'}, 'dhcp4': True}
             }
 
             # '99-dhcp-en.vlan_' + vlan + '.network'
-            if not 'vlan_id' in old_config:
+            if 'vlan_id' not in old_config:
                 raise Exception("need 'vlan_id' property for VLAN configuration")
             vlan_id = old_config['vlan_id']
             if_id = f'dhcp-en.vlan_{vlan_id}'
             if_name = f'eth0.{vlan_id}'
-            config['vlans'] = {if_id :
-                {
-                    'match' : {'name' : if_name},
-                    'dhcp4' : True,
-                    'link' : 'dhcp-en',
-                    'id' : int(vlan_id)
+            config['vlans'] = {
+                if_id: {
+                    'match': {'name': if_name},
+                    'dhcp4': True,
+                    'link': 'dhcp-en',
+                    'id': int(vlan_id),
                 }
             }
         else:
-            raise Exception (f"unknown network type '{type}")
+            raise Exception(f"unknown network type '{type}'")
 
         return config
 
-
     def prepare_filesystem(self):
         os.makedirs(os.path.join(self.root_dir, SYSTEMD_NETWORK_DIR), exist_ok=True)
-
 
     # find if if_id is in any VLAN, return list of ids that match
     def _find_vlan_configs(self, if_id):
@@ -213,14 +209,13 @@ class NetworkManager:
 
         return vif_ids
 
-
     # construct name for VLAN interface from physical iface name and id
     def _get_vlan_iface_name(self, vif_id):
         vif_cfg = self.config['vlans'][vif_id]
         if 'link' in vif_cfg:
             link = vif_cfg['link']
             pif_cfg = self.config['ethernets'][link]
-            if not 'name' in pif_cfg['match']:
+            if 'name' not in pif_cfg['match']:
                 raise Exception("physical interface configuration needs a name to set for VLAN")
             if 'id' in vif_cfg:
                 name = f"{pif_cfg['match']['name']}.{vif_cfg['id']}"
@@ -231,13 +226,11 @@ class NetworkManager:
 
         return name
 
-
     # type is "network" or "netdev" (maybe "link" in the future)
     def _get_iface_filename(self, if_id, type):
         return os.path.join(self.root_dir,
                             SYSTEMD_NETWORK_DIR,
                             f"{self.SYSTEMD_NETWORKD_PREFIX}{if_id}.{type}")
-
 
     # write the "*.network" file for the interface
     def write_network_file(self, if_id, iface_config, type=IFACE_TYPE_ETHERNET):
@@ -306,7 +299,6 @@ class NetworkManager:
         with open(self._get_iface_filename(if_id, "network"), "w") as f:
             write_systemd_config(f, sysdict)
 
-
     # write the "*.netdev" file for the interface
     def write_netdev_file(self, if_id, iface_config, type):
         sysdict = {}
@@ -314,9 +306,9 @@ class NetworkManager:
         if type == self.IFACE_TYPE_VLAN:
             name = self._get_vlan_iface_name(if_id)
 
-            sysdict['NetDev'] = {'Name': name, 'Kind':'vlan'}
+            sysdict['NetDev'] = {'Name': name, 'Kind': 'vlan'}
 
-            if not 'id' in iface_config:
+            if 'id' not in iface_config:
                 raise Exception("need 'id' property for vlan configuration")
             id = iface_config['id']
             if not 1 <= id <= 4094:
@@ -326,11 +318,10 @@ class NetworkManager:
         with open(self._get_iface_filename(if_id, "netdev"), "w") as f:
             write_systemd_config(f, sysdict)
 
-
     # write all network config files
     def write_interfaces(self):
         ethernets = self.config['ethernets']
-        for if_id, if_cfg in self.config['ethernets'].items():
+        for if_id, if_cfg in ethernets.items():
             self.write_network_file(if_id, if_cfg)
 
         if 'vlans' in self.config:
@@ -340,7 +331,6 @@ class NetworkManager:
 
                 self.write_network_file(if_id, if_cfg, type=self.IFACE_TYPE_VLAN)
                 self.write_netdev_file(if_id, if_cfg, type=self.IFACE_TYPE_VLAN)
-
 
     # set the hostname in /etc/hostname and add it to /etc/hosts
     def set_hostname(self):
@@ -373,7 +363,6 @@ class NetworkManager:
             with open(hostname_file, 'w') as fout:
                 fout.write(hostname)
 
-
     def exec_cmd(self, cmd):
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, shell=True)
         retval = process.wait()
@@ -381,13 +370,11 @@ class NetworkManager:
             return False
         return True
 
-
     def restart_networkd(self):
         if self.root_dir != "/":
             return
         if not self.exec_cmd('systemctl restart systemd-networkd'):
             raise Exception('Failed to restart networkd')
-
 
     def setup_network(self, do_clean=True):
         if do_clean and os.path.isdir(self.systemd_network_dir):
@@ -402,7 +389,6 @@ class NetworkManager:
 
         # we'd have thrown an exception on error:
         return True
-
 
     def set_perms(self, uid=SYSTEMD_NETWORK_UID, gid=SYSTEMD_NETWORK_UID, mode=SYSTEMD_NETWORK_MODE):
         try:
@@ -423,8 +409,8 @@ def main():
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'D:f:p')
-    except:
-        print ("invalid option")
+    except Exception:
+        print("invalid option")
         sys.exit(2)
 
     for o, a in opts:
@@ -437,7 +423,7 @@ def main():
         else:
             assert False, "unhandled option 'o'"
 
-    if config_file != None:
+    if config_file:
         f = open(config_file, 'r')
     else:
         f = sys.stdin

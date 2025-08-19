@@ -1,16 +1,15 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 import curses
-import sys
+
 from actionresult import ActionResult
 from action import Action
 from confirmwindow import ConfirmWindow
+
 
 class ReadText(Action):
     def __init__(self, maxy, maxx, textwin, y, install_config, field,
@@ -38,7 +37,7 @@ class ReadText(Action):
         if not tab_enabled:
             self.textwin.keypad(1)
 
-        #initialize the accepted characters
+        # initialize the accepted characters
         if accepted_chars:
             self.accepted_chars = accepted_chars
         else:
@@ -49,12 +48,12 @@ class ReadText(Action):
 
     def init_text(self):
         self.x = 0
-        #initialize the ----
+        # initialize the ----
         dashes = '_' * self.textwin_width
         self.textwin.addstr(self.y, 0, dashes)
         self.str = ''
 
-        #remove the error messages
+        # remove the error messages
         spaces = ' ' * self.textwin_width
         self.textwin.addstr(self.y + 2, 0, spaces)
 
@@ -72,7 +71,7 @@ class ReadText(Action):
         if not returned:
             curses.curs_set(1)
             self.init_text()
-            if self.default_string != None:
+            if self.default_string:
                 self.textwin.addstr(self.y, 0, self.default_string)
                 self.str = self.default_string
 
@@ -113,7 +112,7 @@ class ReadText(Action):
             elif ch in [ord('\t')]:
                 curses.curs_set(0)
                 return ActionResult(False, None)
-            elif ch == curses.KEY_BACKSPACE: #originally ==127
+            elif ch == curses.KEY_BACKSPACE:  # originally ==127
                 # Handle the backspace case
                 self.str = self.str[:len(self.str) - 1]
 

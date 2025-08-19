@@ -1,19 +1,17 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#     Date: Fri Aug 30 11:28:18 IST 2019
-#   Author: Ankit Jain <ankitja@vmware.com>
 
 import secrets
-from networkmanager import NetworkManager
+
 from menu import Menu
 from window import Window
 from windowstringreader import WindowStringReader
 from readmultext import ReadMulText
 from actionresult import ActionResult
+
 
 class NetworkConfigure(object):
 
@@ -128,9 +126,9 @@ class NetworkConfigure(object):
             network_config = {}
             random_id = '%12x' % secrets.randbelow(16**12)
             random_hostname = 'photon-' + random_id.strip()
-            accepted_chars = list(range(ord('A'), ord('Z')+1))
-            accepted_chars = list(range(ord('a'), ord('z')+1))
-            accepted_chars.extend(range(ord('0'), ord('9')+1))
+            accepted_chars = list(range(ord('A'), ord('Z') + 1))
+            accepted_chars = list(range(ord('a'), ord('z') + 1))
+            accepted_chars.extend(range(ord('0'), ord('9') + 1))
             accepted_chars.extend([ord('.'), ord('-')])
             result = WindowStringReader(self.maxy, self.maxx, 13, 80, 'hostname', None, None,
                                         accepted_chars, NetworkConfigure.validate_hostname,
@@ -145,11 +143,22 @@ class NetworkConfigure(object):
 
         elif selection == self.NET_CONFIG_OPTION_MANUAL:
             network_config = {}
-            items = [ 'IP Address', 'Netmask', 'Gateway', 'Nameserver' ]
-            keys =  [ 'ip_addr',    'netmask', 'gateway', 'nameserver' ]
-            self.create_window = ReadMulText(self.maxy, self.maxx, 0, network_config,
-                                             '_conf_', items, None, None, None,
-                                              self.validate_static_conf, None, True)
+            items = ['IP Address', 'Netmask', 'Gateway', 'Nameserver']
+            keys = ['ip_addr', 'netmask', 'gateway', 'nameserver']
+            self.create_window = ReadMulText(
+                self.maxy,
+                self.maxx,
+                0,
+                network_config,
+                '_conf_',
+                items,
+                None,
+                None,
+                None,
+                self.validate_static_conf,
+                None,
+                True,
+            )
             result = self.create_window.do_action()
             if not result.success:
                 return ActionResult(False, {'goBack': True})

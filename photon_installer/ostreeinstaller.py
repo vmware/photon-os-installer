@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/env python3
 # /*
 #  * Copyright © 2020 VMware, Inc.
 #  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
@@ -10,8 +10,6 @@ from commandutils import CommandUtils
 
 
 class OstreeInstaller(object):
-
-
     def __init__(self, installer):
         self.installer = installer
         self.repo_config = {}
@@ -30,13 +28,11 @@ class OstreeInstaller(object):
         self._get_partuuid = installer._get_partuuid
         self.cmd = CommandUtils(self.logger)
 
-
     def get_ostree_repo_url(self):
         self.default_repo = self.install_config['ostree'].get('default_repo', False)
         if not self.default_repo:
             self.ostree_repo_url = self.install_config['ostree']['repo_url']
             self.ostree_ref = self.install_config['ostree']['repo_ref']
-
 
     def repo_read_conf(self):
         conf_path = os.path.abspath(self.installer_path + "/ostree-release-repo.conf")
@@ -44,7 +40,6 @@ class OstreeInstaller(object):
             for line in repo_conf:
                 name, value = line.partition("=")[::2]
                 self.repo_config[name] = str(value.strip(' \n\t\r')).format(self.photon_release_version, self.install_config['arch'])
-
 
     def pull_repo(self, repo_url, repo_ref):
         self.run([['ostree', 'remote', 'add', '--repo={}/ostree/repo'.format(self.photon_root), '--set=gpg-verify=false', 'photon', repo_url]], "Adding OSTree remote")
@@ -57,13 +52,11 @@ class OstreeInstaller(object):
         else:
             self.run([['ostree', 'pull', '--repo={}/ostree/repo'.format(self.photon_root), 'photon', repo_ref]], "Pulling OSTree remote repo")
 
-
     def deploy_ostree(self, repo_url, repo_ref):
         self.run([['ostree', 'admin', '--sysroot={}'.format(self.photon_root), 'init-fs', self.photon_root]], "Initializing OSTree filesystem")
         self.pull_repo(repo_url, repo_ref)
         self.run([['ostree', 'admin', '--sysroot={}'.format(self.photon_root), 'os-init', 'photon']], "OSTree OS Initializing")
         self.run([['ostree', 'admin', '--sysroot={}'.format(self.photon_root), 'deploy', '--os=photon', 'photon:{}'.format(repo_ref)]], "Deploying")
-
 
     def do_systemd_tmpfiles_commands(self, commit_number):
         prefixes = [
@@ -81,14 +74,12 @@ class OstreeInstaller(object):
                        .format(self.photon_root, commit_number), '--prefix={}'.format(prefix)]
             self.run([command], "systemd-tmpfiles command done")
 
-
     def create_symlink_directory(self, deployment):
         command = []
         command.append(['mkdir', '-p', '{}/sysroot/tmp'.format(deployment)])
         command.append(['mkdir', '-p', '{}/sysroot/ostree'.format(deployment)])
         command.append(['mkdir', '-p', '{}/run/media'.format(deployment)])
         self.run(command, "symlink directory created")
-
 
     def mount_devices_in_deployment(self, commit_number):
         for d in ["/proc", "/dev", "/dev/pts", "/sys"]:
@@ -99,7 +90,6 @@ class OstreeInstaller(object):
             path = f"ostree/deploy/photon/deploy/{commit_number}.0/{d}"
             self.installer._mount(d, path, fstype='tmpfs')
 
-
     def bind_mount_deployment(self, partition_data, commit_number):
         bootmode = self.install_config['bootmode']
         dplymnt = f"ostree/deploy/photon/deploy/{commit_number}.0"
@@ -108,14 +98,12 @@ class OstreeInstaller(object):
         if bootmode == 'dualboot' or bootmode == 'efi':
             self.installer._mount(partition_data['bootefi'], f"{dplymnt}/boot/efi", bind=True)
 
-
     def get_commit_number(self, ref):
         fileName = os.path.join(self.photon_root, "ostree/repo/refs/remotes/photon/{}".format(ref))
         commit_number = None
         with open(fileName, "r") as file:
             commit_number = file.read().replace('\n', '')
         return commit_number
-
 
     def install(self):
         """
@@ -237,7 +225,6 @@ class OstreeInstaller(object):
 
         self.run_lambdas([lambda: self.installer._mount(deployment, "/", bind=True)], "Bind deployment to photon root")
 
-
     def run_lambdas(self, lambdas, comment=None):
         if comment is not None:
             self.logger.info("Installer: {} ".format(comment))
@@ -246,7 +233,6 @@ class OstreeInstaller(object):
 
         for lmb in lambdas:
             lmb()
-
 
     def run(self, commands, comment=None):
         if comment is not None:

@@ -1,10 +1,8 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Xiaolin Li <xiaolinl@vmware.com>
 
 from menu import Menu
 from window import Window
@@ -25,17 +23,21 @@ class LinuxSelector(object):
 
         self.menu_starty = self.win_starty + 6
 
-
     def set_linux_installation(self, selected_linux_package):
         self.install_config['linux_flavor'] = selected_linux_package
         return ActionResult(True, None)
 
-
     def create_available_linux_menu(self):
-        linux_flavors = {"linux":"Generic", "linux-esx":"VMware hypervisor optimized", "linux-aws":"AWS optimized", "linux-secure":"Security hardened", "linux-rt":"Real Time"}
+        linux_flavors = {
+            "linux": "Generic",
+            "linux-esx": "VMware hypervisor optimized",
+            "linux-aws": "AWS optimized",
+            "linux-secure": "Security hardened",
+            "linux-rt": "Real Time"
+        }
 
         self.menu_items = []
-        for flavor,menu_entry in linux_flavors.items():
+        for flavor, menu_entry in linux_flavors.items():
             if flavor in self.install_config['packages']:
                 if flavor == "linux-esx" and not CommandUtils.is_vmware_virtualization():
                     continue
@@ -51,7 +53,6 @@ class LinuxSelector(object):
                              'Select Linux kernel to install', True, tab_enabled=False,
                              position=1, can_go_next=True)
         self.window.set_action_panel(self.host_menu)
-
 
     def display(self):
         if 'ostree' in self.install_config:

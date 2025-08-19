@@ -1,13 +1,12 @@
-#/*
-# * Copyright © 2020 VMware, Inc.
-# * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
-# */
+# /*
+#  * Copyright © 2020 VMware, Inc.
+#  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
+#  */
 #
-#
-#    Author: Mahmoud Bassiouny <mbassiouny@vmware.com>
 
 from window import Window
 from readtext import ReadText
+
 
 class WindowStringReader(object):
     def __init__(self, maxy, maxx, height, width, field, confirmation_err_msg,
