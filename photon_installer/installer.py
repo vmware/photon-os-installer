@@ -230,7 +230,7 @@ class Installer(object):
                 vg_name = p['lvm']['vg_name']
                 if vg_name in host_vg_names:
                     # creating a VG with the same name as on the host will cause trouble
-                    raise Exception(f"vg name {vg_name} is in use by the host - if left over from a previous install remove it with 'vgremove'")
+                    raise InstallerError(f"vg name {vg_name} is in use by the host - if left over from a previous install remove it with 'vgremove'")
                 self.vg_names.add(vg_name)
         self.logger.info(f"using VG names: {self.vg_names}")
 
@@ -242,7 +242,7 @@ class Installer(object):
                 size = disk['size']
                 retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
                 if retval != 0:
-                    raise Exception(f"failed to create disk image '{filename}'")
+                    raise InstallerError(f"failed to create disk image '{filename}'")
                 device = subprocess.check_output(["losetup", "--show", "-f", filename], text=True).strip()
                 disk['device'] = device
 
@@ -262,7 +262,7 @@ class Installer(object):
             retval, size = CommandUtils.get_disk_size_bytes(device)
             if retval != 0:
                 self.logger.info(f"Error code: {retval}")
-                raise Exception(f"Failed to get disk '{device}' size")
+                raise InstallerError(f"Failed to get disk '{device}' size")
             disk_sizes[device] = int(size)
         self.disk_sizes = disk_sizes
 
@@ -286,7 +286,7 @@ class Installer(object):
         for device, size in disk_totals.items():
             disk_size = self.disk_sizes[device] / 1024**2
             if size > disk_size:
-                raise Exception(f"Total space requested for {device} ({size} MB) exceeds disk size ({disk_size} MB)")
+                raise InstallerError(f"Total space requested for {device} ({size} MB) exceeds disk size ({disk_size} MB)")
 
     def execute(self):
         if self.install_config['ui']:
@@ -323,13 +323,13 @@ class Installer(object):
 
         env_vars = install_config['environment']
         if not isinstance(env_vars, dict):
-            raise Exception("'environment' must be a dictionary of key-value pairs")
+            raise InstallerConfigError("'environment' must be a dictionary of key-value pairs")
 
         for key, value in env_vars.items():
             if not isinstance(key, str):
-                raise Exception(f"Environment variable name must be a string: {key}")
+                raise InstallerConfigError(f"Environment variable name must be a string: {key}")
             if not isinstance(value, str):
-                raise Exception(f"Environment variable value must be a string: {value} for key {key}")
+                raise InstallerConfigError(f"Environment variable value must be a string: {value} for key {key}")
 
             # Set the environment variable
             os.environ[key] = value
@@ -837,7 +837,7 @@ class Installer(object):
 
             self._cleanup_install_repo()
             self._unmount_all()
-        raise Exception("Installer failed")
+        raise InstallerError("Installer failed")
 
     def _setup_network(self):
         if 'network' not in self.install_config:
@@ -933,7 +933,7 @@ class Installer(object):
                     break
             time.sleep(1)
         else:
-            raise Exception("timed out waiting for docker")
+            raise InstallerError("timed out waiting for docker")
 
         images = self.install_config['docker'].get('images', [])
         for image in images:
@@ -1182,8 +1182,6 @@ class Installer(object):
 
         boot_map = {'efi': 'EFI', 'bios': 'BIOS', 'dualboot': 'BOTH'}
         bootmode = self.install_config['bootmode']
-        if bootmode not in boot_map:
-            raise Exception(f"invalid boot mode '{bootmode}'")
 
         ab_map = {}
         for partition in self.install_config['partitions']:
@@ -1432,7 +1430,7 @@ class Installer(object):
                                        f"--boot-directory={path}",
                                        device])
                 if retval != 0:
-                    raise Exception("Unable to setup grub")
+                    raise InstallerError("Unable to setup grub")
 
         # Setup efi grub
         if bootmode == 'dualboot' or bootmode == 'efi':
@@ -1469,7 +1467,7 @@ class Installer(object):
         )
 
         if retval != 0:
-            raise Exception("Bootloader (grub2) setup failed")
+            raise InstallerError("Bootloader (grub2) setup failed")
 
     def _execute_modules(self, phase):
         """
@@ -1580,13 +1578,13 @@ class Installer(object):
             return
 
         if not os.path.exists(rpms_path):
-            raise Exception(f"additional rpms path '{rpms_path}' not found")
+            raise InstallerError(f"additional rpms path '{rpms_path}' not found")
 
         pkgs = glob.glob(os.path.join(rpms_path, "*.rpm"))
         retval = self.tdnf.run(['install'] + pkgs, do_json=False)
 
         if retval != 0:
-            raise Exception(f"failed to install additional rpms from '{rpms_path}'")
+            raise InstallerError(f"failed to install additional rpms from '{rpms_path}'")
 
     def _install_packages(self):
         """
@@ -1768,7 +1766,7 @@ class Installer(object):
             return '8e00'
         if ptype == PartitionType.LINUX:
             return '8300'
-        raise Exception(f"Unknown partition type: {ptype}")
+        raise InstallerError(f"Unknown partition type: {ptype}")
 
     def _mount(self, device, mntpoint, bind=False, options=None, fstype=None, create=False):
         mntpoint = os.path.join(self.photon_root, mntpoint.strip("/"))
@@ -1869,13 +1867,13 @@ class Installer(object):
         command = ['pvcreate', '-ff', '-y', physical_partition]
         retval = self.cmd.run(command)
         if retval != 0:
-            raise Exception(f"Error: Failed to create physical volume, command : {command}")
+            raise InstallerError(f"Error: Failed to create physical volume, command : {command}")
 
         # create volume group
         command = ['vgcreate', vg_name, physical_partition]
         retval = self.cmd.run(command)
         if retval != 0:
-            raise Exception(f"Error: Failed to create volume group, command = {command}")
+            raise InstallerError(f"Error: Failed to create volume group, command = {command}")
 
         # create logical volumes
         for partition in lv_partitions:
@@ -1890,7 +1888,7 @@ class Installer(object):
                 lv_cmd.extend(['-L', f'{size}M', '-n', lv_name, vg_name])
                 retval = self.cmd.run(lv_cmd)
                 if retval != 0:
-                    raise Exception(f"Error: Failed to create logical volumes , command: {lv_cmd}")
+                    raise InstallerError(f"Error: Failed to create logical volumes , command: {lv_cmd}")
             if "loop" not in partition['device']:
                 partition['path'] = os.path.join("/dev", vg_name, lv_name)
             else:
@@ -1898,7 +1896,7 @@ class Installer(object):
 
         # create extensible logical volume
         if not extensible_logical_volume:
-            raise Exception("Can not fully partition VG: " + vg_name)
+            raise InstallerError("Can not fully partition VG: " + vg_name)
 
         lv_name = extensible_logical_volume['lvm']['lv_name']
         lv_cmd = ['lvcreate', '-y', '--zero', 'n']
@@ -1906,7 +1904,7 @@ class Installer(object):
 
         retval = self.cmd.run(lv_cmd)
         if retval != 0:
-            raise Exception(f"Error: Failed to create extensible logical volume, command = {lv_cmd}")
+            raise InstallerError(f"Error: Failed to create extensible logical volume, command = {lv_cmd}")
 
         # remember pv/vg for detaching it later.
         self.lvs_to_detach['pvs'].append(os.path.basename(physical_partition))
@@ -2067,7 +2065,7 @@ class Installer(object):
         with open("/proc/mounts", "rt") as f:
             for line in f:
                 if line.startswith(device):
-                    raise Exception("device '{device}' appears to be in use (mounted)")
+                    raise InstallerError("device '{device}' appears to be in use (mounted)")
 
     def _partition_disks(self):
         """
@@ -2093,7 +2091,7 @@ class Installer(object):
             # Clear the disk first
             retval = self.cmd.run(["sgdisk", "-Z", device])
             if retval != 0:
-                raise Exception(f"failed clearing disk '{device}'")
+                raise InstallerError(f"failed clearing disk '{device}'")
 
             if not l2entries[0].get('all_disk', False):
                 # Build partition command and insert 'part' into 'partitions'
@@ -2126,7 +2124,7 @@ class Installer(object):
                 # Run the partitioning command (all physical partitions in one shot)
                 retval = self.cmd.run(partition_cmd)
                 if retval != 0:
-                    raise Exception(f"failed partition disk, command: {partition_cmd}")
+                    raise InstallerError(f"failed to partition disk, command: {partition_cmd}")
 
                 # For RPi image we used 'parted' instead of 'sgdisk':
                 # parted -s $IMAGE_NAME mklabel msdos mkpart primary fat32 1M 30M mkpart primary ext4 30M 100%
@@ -2136,13 +2134,13 @@ class Installer(object):
                     m = ":".join([str(i) for i in range(1, part_idx)])
                     retval = self.cmd.run(['sgdisk', '-m', m, device])
                     if retval != 0:
-                        raise Exception("Failed to setup efi partition")
+                        raise InstallerError("Failed to setup efi partition")
 
                 # Make loop disk partitions available
                 if 'loop' in device:
                     retval = self.cmd.run(['kpartx', '-avs', device])
                     if retval != 0:
-                        raise Exception(f"failed to rescan partitions of the disk image {device}")
+                        raise InstallerError(f"failed to rescan partitions of the disk image {device}")
 
             # Go through l2 entries again and create logical partitions
             for l2 in l2entries:
@@ -2202,9 +2200,8 @@ class Installer(object):
             retval = self.cmd.run(mkfs_cmd)
 
             if retval != 0:
-                raise Exception(
-                    "Failed to format {} partition @ {}".format(partition['filesystem'],
-                                                                partition['path']))
+                raise InstallerError(
+                    f"Failed to format {partition['filesystem']} partition at {partition['path']}")
 
     def _final_check(self):
         """
@@ -2235,4 +2232,4 @@ class Installer(object):
             filepath = os.path.join(dirname, filename)
             if os.path.exists(filepath):
                 return filepath
-        raise Exception(f"File {filename} not found in the following directories {self.install_config['search_path']}")
+        raise InstallerError(f"File {filename} not found in the following directories {self.install_config['search_path']}")
