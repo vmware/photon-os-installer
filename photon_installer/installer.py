@@ -1288,7 +1288,8 @@ class Installer(object):
         # the following is neded on CentOS8, but not on Ubuntu 22.04
         for dev in ["hugetlb", "memory", "blkio", "cpu,cpuacct", "devices", "freezer", "cpuset"]:
             d = f"/sys/fs/cgroup/{dev}"
-            self._mount(d, d, bind=True, create=True)
+            if os.path.exists(d):
+                self._mount(d, d, bind=True, create=True)
 
         for d in ["/tmp", "/run"]:
             self._mount('tmpfs', d, fstype='tmpfs', create=True)
@@ -1769,7 +1770,16 @@ class Installer(object):
         assert mntpoint.startswith(self.photon_root)
 
         if create:
-            os.makedirs(mntpoint, exist_ok=True)
+            if bind and not os.path.isdir(device):
+                assert os.path.isfile(device), f"mount source {device} must be a directory or file for bind mounting"
+                if not os.path.exists(mntpoint):
+                    # we need to create the parent directory
+                    os.makedirs(os.path.dirname(mntpoint), exist_ok=True)
+                    # then "touch" the file
+                    with open(mntpoint, "w"):
+                        pass
+            else:
+                os.makedirs(mntpoint, exist_ok=True)
 
         cmd = ['mount', '-v']
         if fstype is not None:
