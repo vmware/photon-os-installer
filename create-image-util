@@ -17,7 +17,7 @@ init_env()
     fi
 
     #map user arch to docker arch
-    if [ ! -z "${ARCH}" ] ; then
+    if [ -n "${ARCH}" ] ; then
         if [ ${ARCH} = "aarch64" ]; then
             ARCH="arm64"
         elif [ ${ARCH} = "x86_64" ]; then
@@ -31,7 +31,7 @@ init_env()
         echo "setting default system arch: $ARCH"
     fi
 
-    cd ${POI_PATH}/docker
+    cd ${POI_PATH}/docker || exit 1
     #set POI_IMAGE_NAME if empty
     if [ -z "${POI_IMAGE_NAME}" ] ; then
         POI_IMAGE_NAME="photon/installer"
@@ -67,7 +67,7 @@ create_repo_and_raw_image()
     exec_docker_cmd=""
 
     #create repo path if not exist
-    cd ${POI_PATH}/examples/${IMAGE_FLAVOR}
+    cd ${POI_PATH}/examples/${IMAGE_FLAVOR} || exit 1
     if [ ! -d "${LOCAL_REPO_PATH}" ] ; then
         echo "repo $RELEASE_VERSION does not exist"
         mkdir -p ${LOCAL_REPO_PATH}
@@ -101,7 +101,7 @@ create_repo_and_raw_image()
     fi
 
     # create raw image using public repo
-    if [ ! -z "${SRC_REPO_URL}" ] ; then
+    if [ -n "${SRC_REPO_URL}" ] ; then
         exec_docker_cmd="$exec_docker_cmd --repo-paths=$SRC_REPO_URL"
     fi
 
@@ -130,17 +130,17 @@ create_flavor_image()
 	exec_docker_cmd="$exec_docker_cmd create-ova --installer-config ${KS_CONFIG_FILE} --ova-config ${OVA_CONFIG} --ova-name ${OVA_NAME} --raw-image ${RAW_IMAGE}"
 
 	#build ovf
-	if [ $CREATE_OVF = "true" -a $VMDK_ONLY != "true" ]; then
-            exec_docker_cmd="$exec_docker_cmd --ovf"
+	if [[ "$CREATE_OVF" = "true" && "$VMDK_ONLY" != "true" ]]; then
+    exec_docker_cmd="$exec_docker_cmd --ovf"
 	fi
 
 	#build manifest file, applicable for ovf
-        if [ $VMDK_ONLY != "true" -a $CREATE_MF = "true" ]; then
+        if [[ "$VMDK_ONLY" != "true" && "$CREATE_MF" = "true" ]]; then
             exec_docker_cmd="$exec_docker_cmd --mf"
 	fi
 
 	#build vmdk
-	if [ $CREATE_OVF != "true" -a $VMDK_ONLY = "true" ]; then
+	if [[ "$CREATE_OVF" != "true" && "$VMDK_ONLY" = "true" ]]; then
             exec_docker_cmd="$exec_docker_cmd --vmdk-only"
 	fi
     fi
@@ -271,7 +271,7 @@ while true; do
 done
 
 if [ -z "${RAW_IMAGE}" ]; then
-    if [ $IMAGE_FLAVOR != "ami" -a $IMAGE_FLAVOR != "rpi" ] ; then
+    if [[ "$IMAGE_FLAVOR" != "ami" && "$IMAGE_FLAVOR" != "rpi" ]] ; then
         echo "raw image is missing" >&2
         usage
         echo "Terminating." >&2
@@ -308,14 +308,14 @@ if [ -z "${IMAGE_FLAVOR}" ] ; then
 fi
 
 if [ ${IMAGE_FLAVOR} = "ova" ] ; then
-    if [ -z "${OVA_CONFIG}" -o -z "${OVA_NAME}" ] ; then
+    if [[ -z "${OVA_CONFIG}" || -z "${OVA_NAME}" ]] ; then
         echo "ova config or ova name is missing" >&2
         usage
         echo "Terminating." >&2
         exit 1
     fi
 
-    if [ $CREATE_OVF = "true" -a $VMDK_ONLY = "true" ] ; then
+    if [[ "$CREATE_OVF" = "true" && "$VMDK_ONLY" = "true" ]] ; then
         echo "cannot use simultaneously, either --ovf or --vmdk-only can be used at once" >&2
         usage
         echo "Terminating." >&2
@@ -330,6 +330,6 @@ init_env
 create_repo_and_raw_image
 
 #Create final image
-if [ ${IMAGE_FLAVOR} = "ova" -o ${IMAGE_FLAVOR} = "azure" ] ; then
+if [[ "${IMAGE_FLAVOR}" = "ova" || "${IMAGE_FLAVOR}" = "azure" ]] ; then
     create_flavor_image
 fi

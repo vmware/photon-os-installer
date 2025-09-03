@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+
 set -x
 set -e
 
@@ -7,11 +8,11 @@ set -e
 # * run container as root because of "error: Failed to initialize NSS library"
 #   for rpm (problem with old nspr library)
 
-RELEASEVER=$(cat /etc/os-release | grep VERSION=|cut -d'=' -f2|tr -d '"')
+RELEASEVER=$(grep VERSION= /etc/os-release | cut -d'=' -f2 | tr -d '"')
 
 BUILDROOT=/buildroot
 PKGS_ESSENTIAL="build-essential rpm-build findutils photon-release bzip2 tar sed file gzip cpio"
-SOURCES_BASEURL=http://10.126.62.2/sources/1.0
+SOURCES_BASEURL=https://discus-filer.lvn.broadcom.net/sources/1.0
 USE_ORIG_URL=false
 WITH_CHECK=0
 
@@ -104,7 +105,7 @@ install_builddeps()
     deps=$(chroot ${BUILDROOT} rpmspec -q --srpm --requires ${specfile})
     extra_deps=$(cat $specfile | grep ExtraBuildRequires | grep ^%define | awk '{for (i = 3; i <= NF; i++) {printf "%s ", $i}; printf "\n"}' | sed s/,/\ /g)
 
-    if [ -z "${deps}" -a -z "${extra_deps}" ] ; then
+    if [[ -z "${deps}" && -z "${extra_deps}" ]] ; then
         echo "no dependencies found"
     else
         echo installing packages: ${deps}

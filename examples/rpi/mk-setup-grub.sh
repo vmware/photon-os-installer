@@ -3,14 +3,17 @@
 set -o errexit        # exit if error...insurance ;)
 set -o nounset        # exit if variable not initalized
 set +h            # deactivate hashall
-SCRIPT_PATH=$(dirname $(realpath -s $0))
+#SCRIPT_PATH=$(dirname $(realpath -s $0))
 
 BUILDROOT=$1
 ROOT_PARTITION_PATH=$2
 BOOT_PARTITION_PATH=$3
-BOOT_DIRECTORY=$4
+
+# remove trailing '/' if present
+BOOT_DIRECTORY="$(echo "$4" | sed 's/\/$//')"
 
 FSUUID=$(blkid -s UUID -o value $ROOT_PARTITION_PATH)
+BOOT_UUID="$(blkid -s UUID -o value "${BOOT_PARTITION_PATH}")"
 
 EXTRA_PARAMS="rootwait rw console=ttyS0,115200n8 console=tty0"
 
@@ -19,6 +22,7 @@ cat > $BUILDROOT/boot/grub2/grub.cfg << EOF
 
 set default=0
 set timeout=2
+search -n -u ${BOOT_UUID} -s
 loadfont ascii
 
 insmod all_video

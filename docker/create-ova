@@ -13,7 +13,7 @@ CREATE_VMDK="false"
 create_ova()
 {
     img_list=(${RAW_IMAGES})
-    if [ "${CREATE_VMDK}" == "true" -o "${CREATE_OVA}" == "true" ] ; then
+    if [[ "${CREATE_VMDK}" = "true" || "${CREATE_OVA}" = "true" ]] ; then
         # TODO: tools version
         for img in ${img_list[@]} ; do
             name=${img%.*} # remove extension
@@ -21,17 +21,17 @@ create_ova()
         done
     fi
 
-    if [ "${CREATE_OVA}" == "true" -o "${CREATE_OVF}" == "true" ] ; then
+    if [[ "${CREATE_OVA}" = "true" || "${CREATE_OVF}" = "true" ]] ; then
         img0=${img_list[0]}
         name0=${img0%.*}
 
-        if [ "${CREATE_OVA}" == "true" ] ; then
+        if [ "${CREATE_OVA}" = "true" ] ; then
             output_file=${OVA_NAME}.ova
         else
             output_file=${OVA_NAME}.ovf
         fi
 
-        if [ "${CREATE_MF}" == "true" ] ; then
+        if [ "${CREATE_MF}" = "true" ] ; then
             opt_mf="--manifest"
         fi
 
@@ -44,7 +44,7 @@ create_ova()
         printf "%s\0" "${params[@]}" | xargs -0 ova-compose -i ${OVA_CFG_FILE} -o ${output_file} ${opt_mf}
 
         # nuke vmdk's if we created an OVA
-        if [ "${CREATE_OVA}" == "true" ] ; then
+        if [ "${CREATE_OVA}" = "true" ] ; then
             for img in ${img_list[@]} ; do
                 name=${img%.*}
                 rm -f ${name}.vmdk
@@ -118,7 +118,7 @@ if [ -z "${OVA_NAME}" ] ; then
     OVA_NAME=$(printf "%s\0" "${ova_params[@]}" | xargs -0 yjson -i ${OVA_CFG_FILE} | jq -r '.system.name')
 fi
 
-if [ -z "${RAW_IMAGES}" -a -z "${CFG_FILE}" ] ; then
+if [[ -z "${RAW_IMAGES}" && -z "${CFG_FILE}" ]] ; then
     echo "need a config file or image" >&2
     usage
     echo "Terminating." >&2

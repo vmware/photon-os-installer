@@ -7,12 +7,10 @@ SPEC=${PACKAGE}.spec
 VERSION=$(rpmspec -q --srpm --queryformat "[%{VERSION}\n]" ${SPEC})
 FULLNAME=${PACKAGE}-${VERSION}
 
-saved_IFS=${IFS}
-IFS=$'\n' BUILD_REQUIRES=( $(rpmspec -q --buildrequires ${SPEC} 2>/dev/null) )
-IFS=${saved_IFS}
+mapfile -t BUILD_REQUIRES < <(rpmspec -q --buildrequires "${SPEC}" 2>/dev/null)
 
 TARBALL=$(rpmspec -q --srpm --queryformat "[%{SOURCE}\n]" ${SPEC})
-ARCH=$(uname -m)
+#ARCH=$(uname -m)
 RPM_BUILD_DIR="/usr/src/photon"
 DIST=.ph5
 

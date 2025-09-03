@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /lib/systemd/system/multi-user.target.wants/
+cd /lib/systemd/system/multi-user.target.wants/ || exit 1
 
 # Create links in multi-user.target to auto-start these scripts and services.
 
@@ -21,32 +21,36 @@ rm /root/.ssh/authorized_keys
 # Override old values
 rm /etc/ssh/sshd_config
 
-echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config
-echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
-echo "PermitRootLogin without-password" >> /etc/ssh/sshd_config
-echo "PermitTunnel no" >> /etc/ssh/sshd_config
-echo "AllowTcpForwarding yes" >> /etc/ssh/sshd_config
-echo "X11Forwarding no" >> /etc/ssh/sshd_config
-echo "ClientAliveInterval 180" >> /etc/ssh/sshd_config
-echo "ChallengeResponseAuthentication no" >> /etc/ssh/sshd_config
-echo "UsePAM yes" >> /etc/ssh/sshd_config
-
+cat <<'EOF' >> /etc/ssh/sshd_config
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin without-password
+PermitTunnel no
+AllowTcpForwarding yes
+X11Forwarding no
+ClientAliveInterval 180
+ChallengeResponseAuthentication no
+UsePAM yes
+EOF
 
 # ssh client config
 # Override old values
 
 rm /etc/ssh/ssh_config
 
-echo "Host *" >> /etc/ssh/ssh_config
-echo "Protocol 2" >> /etc/ssh/ssh_config
-echo "ForwardAgent no" >> /etc/ssh/ssh_config
-echo "ForwardX11 no" >> /etc/ssh/ssh_config
-echo "HostbasedAuthentication no" >> /etc/ssh/ssh_config
-echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
-echo "Ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-cbc,3des-cbc" >> /etc/ssh/ssh_config
-echo "Tunnel no" >> /etc/ssh/ssh_config
-echo "ServerAliveInterval 180" >> /etc/ssh/ssh_config
+cat <<'EOF' >> /etc/ssh/ssh_config
+Host *
+Protocol 2
+ForwardAgent no
+ForwardX11 no
+HostbasedAuthentication no
+StrictHostKeyChecking no
+Ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-cbc,3des-cbc
+Tunnel no
+ServerAliveInterval 180
+EOF
 
+# shellcheck disable=SC2016
 sed -i 's/$photon_cmdline $systemd_cmdline/init=\/lib\/systemd\/systemd loglevel=3 ro console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 fsck.repair=yes rootdelay=300/' /boot/grub/grub.cfg
 
 
