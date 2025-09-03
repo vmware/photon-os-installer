@@ -4,6 +4,7 @@
 # */
 
 import os
+
 import commons
 
 install_phase = commons.POST_INSTALL
@@ -45,7 +46,7 @@ def execute(installer):
             [
                 "sed",
                 "-i",
-                "s/^\\s*PermitRootLogin\s\+no/PermitRootLogin yes/",
+                r"s/^\s*PermitRootLogin\s\+no/PermitRootLogin yes/",
                 sshd_config_filename,
             ]
         )

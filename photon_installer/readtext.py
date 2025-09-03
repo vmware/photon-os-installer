@@ -6,8 +6,8 @@
 
 import curses
 
-from actionresult import ActionResult
 from action import Action
+from actionresult import ActionResult
 from confirmwindow import ConfirmWindow
 
 

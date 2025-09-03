@@ -3,13 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 #
 import os
-import stat
 import shutil
+import stat
 import subprocess
 
-from tdnf import Tdnf, create_repo_conf
 from commandutils import CommandUtils
-
+from tdnf import Tdnf, create_repo_conf
 
 INITRD_FSTAB = """# Begin /etc/fstab for a bootable CD
 

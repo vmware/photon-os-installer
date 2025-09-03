@@ -3,13 +3,13 @@
 #  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 #  */
 
-from window import Window
-from partitionpane import PartitionPane
-from readmultext import ReadMulText
-from confirmwindow import ConfirmWindow
 from actionresult import ActionResult
+from confirmwindow import ConfirmWindow
 from device import Device
 from installer import BIOSSIZE, ESPSIZE
+from partitionpane import PartitionPane
+from readmultext import ReadMulText
+from window import Window
 
 
 class CustomPartition(object):

@@ -6,11 +6,11 @@
 
 import secrets
 
+from actionresult import ActionResult
 from menu import Menu
+from readmultext import ReadMulText
 from window import Window
 from windowstringreader import WindowStringReader
-from readmultext import ReadMulText
-from actionresult import ActionResult
 
 
 class NetworkConfigure(object):

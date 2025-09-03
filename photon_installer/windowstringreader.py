@@ -4,8 +4,8 @@
 #  */
 #
 
-from window import Window
 from readtext import ReadText
+from window import Window
 
 
 class WindowStringReader(object):

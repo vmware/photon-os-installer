@@ -4,13 +4,12 @@
 #  */
 #
 
-from window import Window
-from menu import Menu
 from actionresult import ActionResult
+from menu import Menu
+from window import Window
 
 
 class ConfirmWindow(Window):
-
     def __init__(self, height, width, maxy, maxx, menu_starty, message, info=False):
         if info:
             items = [('OK', self.exit_function, True)]

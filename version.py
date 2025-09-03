@@ -5,15 +5,15 @@
 # SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 #
 
+import os
+from subprocess import PIPE, STDOUT, Popen, call
+
 __all__ = ('get_installer_version')
 
 # Default Tag represents tag value in case git is not available on system.
 # This need not be updated with every tag release.
 defaultTag = "2.2"
 
-import os
-from subprocess import Popen, PIPE
-from subprocess import call, STDOUT
 
 def get_version():
     try:
@@ -22,8 +22,9 @@ def get_version():
         p.stderr.close()
         line = p.stdout.readlines()[0].decode()
         return line.strip()
-    except:
+    except Exception:
         raise ValueError('Cannot get the version number!')
+
 
 def get_latest_tag():
     try:
@@ -32,8 +33,9 @@ def get_latest_tag():
         p.stderr.close()
         line = p.stdout.readlines()[0].decode().strip()
         return line[1:]
-    except:
+    except Exception:
         raise ValueError('Cannot get the latest tag!')
+
 
 def is_dirty():
     try:
@@ -42,7 +44,7 @@ def is_dirty():
         p.stderr.close()
         lines = p.stdout.readlines()
         return len(lines) > 0
-    except:
+    except Exception:
         return False
 
 

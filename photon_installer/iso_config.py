@@ -3,29 +3,29 @@
 #  * SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-only
 #  */
 
-import sys
-import re
-import secrets
-import requests
-import cracklib
 import curses
 import getopt
 import json
+import re
+import secrets
+import sys
 
-from logger import Logger
-from custompartition import CustomPartition
-from packageselector import PackageSelector
-from windowstringreader import WindowStringReader
+import cracklib
+import requests
+from commandutils import CommandUtils
 from confirmwindow import ConfirmWindow
-from selectdisk import SelectDisk
+from custompartition import CustomPartition
+from filedownloader import FileDownloader
 from license import License
 from linuxselector import LinuxSelector
+from logger import Logger
+from netconfig import NetworkConfigure
 from ostreeserverselector import OSTreeServerSelector
 from ostreewindowstringreader import OSTreeWindowStringReader
-from commandutils import CommandUtils
-from filedownloader import FileDownloader
-from netconfig import NetworkConfigure
+from packageselector import PackageSelector
+from selectdisk import SelectDisk
 from stigenable import StigEnable
+from windowstringreader import WindowStringReader
 
 
 class IsoConfig(object):

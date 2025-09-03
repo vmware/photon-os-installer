@@ -7,16 +7,15 @@
 import os
 import tempfile
 
+from actionresult import ActionResult
 from commandutils import CommandUtils
+from confirmwindow import ConfirmWindow
+from networkmanager import NetworkManager
 from window import Window
 from windowstringreader import WindowStringReader
-from actionresult import ActionResult
-from networkmanager import NetworkManager
-from confirmwindow import ConfirmWindow
 
 
 class FileDownloader(object):
-
     def __init__(self, maxy, maxx, install_config, title, intro, dest, setup_network=False, root_dir="/"):
         self.install_config = install_config
         self.maxy = maxy

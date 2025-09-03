@@ -5,8 +5,8 @@
 #
 
 import curses
-import threading
 import math
+import threading
 from curses import panel
 
 

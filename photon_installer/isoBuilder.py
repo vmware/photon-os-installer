@@ -11,12 +11,12 @@ import os
 import platform
 import shutil
 import tempfile
-import yaml
+from argparse import ArgumentParser
 
+import yaml
+from commandutils import CommandUtils
 from generate_initrd import IsoInitrd
 from logger import Logger
-from argparse import ArgumentParser
-from commandutils import CommandUtils
 from tdnf import Tdnf, create_repo_conf
 
 DEFAULT_INSTALL_OPTIONS_FILE = "build_install_options_custom.json"

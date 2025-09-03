@@ -1,10 +1,11 @@
 #!/bin/env python3
 
 import getopt
-import gitlab
 import os
 import sys
 import time
+
+import gitlab
 
 
 def main():
@@ -18,9 +19,17 @@ def main():
 
     try:
         opts, args = getopt.getopt(
-                sys.argv[1:],
-                "",
-                longopts=["branch=", "keep-branch", "parent-branch=", "private-token=", "project-id=", "submodule-path=", "submodule-sha="]
+            sys.argv[1:],
+            "",
+            longopts=[
+                "branch=",
+                "keep-branch",
+                "parent-branch=",
+                "private-token=",
+                "project-id=",
+                "submodule-path=",
+                "submodule-sha=",
+            ],
         )
     except getopt.GetoptError as e:
         print(e.msg)

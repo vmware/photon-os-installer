@@ -4,10 +4,11 @@
 #  */
 #
 
-from window import Window
+from os.path import dirname, join
+
 from actionresult import ActionResult
 from textpane import TextPane
-from os.path import join, dirname
+from window import Window
 
 
 class License(object):

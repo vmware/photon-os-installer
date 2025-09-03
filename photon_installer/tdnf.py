@@ -5,11 +5,12 @@
 # pylint: disable=invalid-name,missing-docstring
 
 import json
-import shutil
-from logger import Logger
-import subprocess
 import os
 import platform
+import shutil
+import subprocess
+
+from logger import Logger
 
 
 class TdnfError(Exception):

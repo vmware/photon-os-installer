@@ -7,10 +7,10 @@
 import os
 import platform
 
+from actionresult import ActionResult
 from jsonwrapper import JsonWrapper
 from menu import Menu
 from window import Window
-from actionresult import ActionResult
 
 
 class PackageSelector(object):

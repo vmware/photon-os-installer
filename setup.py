@@ -4,8 +4,10 @@
 #
 
 import os
+
+from setuptools import find_packages, setup
+
 from version import get_installer_version
-from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 

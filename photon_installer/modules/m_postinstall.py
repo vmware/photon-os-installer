@@ -4,9 +4,9 @@
 # */
 
 import os
-import commons
 import shutil
 
+import commons
 
 install_phase = commons.POST_INSTALL
 enabled = True

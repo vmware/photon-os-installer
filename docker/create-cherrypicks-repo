@@ -3,9 +3,10 @@
 import getopt
 import json
 import os
+import subprocess
 import sys
 import tempfile
-import subprocess
+
 from photon_installer import tdnf
 
 
