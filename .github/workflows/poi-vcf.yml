@@ -1,13 +1,32 @@
 name: photon-os-installer CI on VCF
 
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
 
 env:
-    POI_IMAGE_NAME_BASE: photon/installer
-    GITHUB_BRANCH: master
-    POI_REGISTRY: poi-registry:5000
+  POI_IMAGE_NAME_BASE: photon/installer
+  GITHUB_BRANCH: master
+  POI_REGISTRY: poi-registry:5000
 
 jobs:
+    lint-checks:
+        runs-on: self-hosted
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+
+          - name: Lint checks
+            run: |
+              VENV_DIR="$(mktemp -d /tmp/venv.XXXXXX)"
+              python3 -m venv "$VENV_DIR"
+              "$VENV_DIR/bin/pip" install isort black flake8 shellcheck-py
+              export PATH="$VENV_DIR/bin:$PATH"
+              bash lint-checks.sh
+              STATUS=$?
+              rm -r "$VENV_DIR"
+              exit $STATUS
+
     build-container:
         runs-on: [ self-hosted, "docker:root" ]
         steps:
