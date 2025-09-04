@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # Copyright 2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -10,7 +10,7 @@ import subprocess
 POI_TEST_PATH = os.path.dirname(os.path.abspath(__file__))
 POI_PATH = os.path.dirname(POI_TEST_PATH)
 
-REMOTE_REPO_PATH = "https://packages.vmware.com/photon"
+REMOTE_REPO_PATH = "https://packages-prod.broadcom.com/photon"
 LOCAL_REPO_PATH = POI_TEST_PATH + "/repo"
 
 BASE_COMMAND = f"{POI_PATH}/create-image-util --poi-path {POI_PATH} --local-repo-path"
@@ -129,6 +129,8 @@ class TestBuildPh4ImageWithLocalRepo:
     def test_build_ph4_local_ovf_mf_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --ovf --mf"
         subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ovf")
+        assert image_exist("ova", "minimal.mf")
 
     def test_build_ph4_local_lvm_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_lvm_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0"
