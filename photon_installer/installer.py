@@ -1244,16 +1244,20 @@ class Installer(object):
             if partition.get('shadow', False):
                 continue
 
-            options = None
-            if 'fs_options' in partition:
-                if type(partition['fs_options']) is str:
-                    options = partition['fs_options'].split(",")
-                elif type(partition['fs_options']) is list:
-                    options = partition['fs_options']
-            self._mount(partition['path'], partition['mountpoint'], options=options, create=True)
+            mntpoint = os.path.join(self.photon_root, partition['mountpoint'].strip('/'))
+            if not partition.get('no_build_mount', False):
+                options = None
+                if 'fs_options' in partition:
+                    if type(partition['fs_options']) is str:
+                        options = partition['fs_options'].split(",")
+                    elif type(partition['fs_options']) is list:
+                        options = partition['fs_options']
+                self._mount(partition['path'], partition['mountpoint'], options=options, create=True)
+            else:
+                # we need the directory, even if we do not mount it
+                os.makedirs(mntpoint, exist_ok=True)
 
             if partition['filesystem'] == "btrfs" and "btrfs" in partition:
-                mntpoint = os.path.join(self.photon_root, partition['mountpoint'].strip('/'))
                 if 'label' in partition['btrfs']:
                     self.cmd.run(f"btrfs filesystem label {mntpoint} {partition['btrfs']['label']}")
                 if 'subvols' in partition["btrfs"]:
