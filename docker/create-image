@@ -13,7 +13,9 @@ create_image() {
         params+=("--param")
         params+=("$p")
     done
-    printf "%s\0" "${params[@]}" | xargs -0 photon-installer
+    echo "running 'photon-installer'"
+    printf "%s\0" "${params[@]}" | xargs -t -0 photon-installer
+    echo "done with 'photon-installer'"
 }
 
 usage() {

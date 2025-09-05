@@ -4,6 +4,10 @@ OVA_NAME=
 RELEASE_VER=5.0
 POI_IMAGE="${POI_IMAGE:-photon/installer}"
 
+fail() {
+    echo "$1"
+    exit 1
+}
 
 build_image() {
 
@@ -23,14 +27,16 @@ build_image() {
         volumes+=("$v")
     done
 
-    printf "%s\0" "${params[@]}" | xargs -0 \
+    echo "running 'create-image'"
+    printf "%s\0" "${params[@]}" | xargs -t -0 \
         docker run --rm --privileged \
         -v /dev:/dev \
         -v $(pwd):/workdir \
         "${volumes[@]}" \
         --network=host \
         ${POI_IMAGE} \
-        create-image -c ${KS_CFG_FILE} -v ${RELEASE_VER} --repo-paths=
+        create-image -c ${KS_CFG_FILE} -v ${RELEASE_VER} --repo-paths= || fail "'create-image' failed with $?"
+    echo "done with 'create-image'"
 }
 
 build_ovf() {
@@ -62,7 +68,8 @@ build_ovf() {
     ova_name=
     [ -z "${OVA_NAME}" ] || ova_name="--ova-name=${OVA_NAME}"
 
-    printf "%s\0" "${params[@]}" | xargs -0 \
+    echo "running 'create-ova'"
+    printf "%s\0" "${params[@]}" | xargs -t -0 \
         docker run --rm \
         -v $(pwd):/workdir \
         --network=none \
@@ -73,7 +80,8 @@ build_ovf() {
             ${ovf_args} \
             --installer-config ${KS_CFG_FILE} \
             --ova-config ${OVA_CFG_FILE} \
-            ${ova_name}
+            ${ova_name} || fail "'create-ova' failed with $?"
+    echo "done with 'create-ova'"
 }
 
 usage() {
