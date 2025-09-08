@@ -220,8 +220,8 @@ class CommandUtils(object):
                 pem = ssl.get_server_certificate((u.netloc, port))
                 cert = load_certificate(FILETYPE_PEM, pem.encode('utf-8'))
                 fp = cert.digest("sha1").decode()
-            except Exception:
-                return False, "Failed to get server certificate"
+            except Exception as e:
+                return False, "Failed to get server certificate: {e}"
             if ask_fn is not None:
                 if not ask_fn(fp):
                     return False, "Aborted on user request"
