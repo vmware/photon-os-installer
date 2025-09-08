@@ -6,19 +6,19 @@
 #  */
 #
 
-import os
-import subprocess
-import shlex
-import requests
-import time
 import base64
-
-from device import Device
+import os
+import shlex
+import subprocess
+import time
 from argparse import ArgumentParser
-from installer import Installer
+
+import requests
 from commandutils import CommandUtils
-from jsonwrapper import JsonWrapper
 from defaults import Defaults
+from device import Device
+from installer import Installer
+from jsonwrapper import JsonWrapper
 
 
 class IsoInstaller(object):

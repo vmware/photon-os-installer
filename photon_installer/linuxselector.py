@@ -4,10 +4,10 @@
 #  */
 #
 
-from menu import Menu
-from window import Window
 from actionresult import ActionResult
 from commandutils import CommandUtils
+from menu import Menu
+from window import Window
 
 
 class LinuxSelector(object):

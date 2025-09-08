@@ -15,7 +15,7 @@ PARENT_SIZE="$(<"$SYSFSP/../size")"
 PARTNUM="$(<"$SYSFSP/partition")"
 
 # Align to 1M (512 * 2048)
-WANT_SIZE="$(( PARENT_SIZE / 2048 * 9 / 10 * 2048))"
+WANT_SIZE="$(( PARENT_SIZE * 9 / 10 / 2048 * 2048 ))"
 
 get_partmap() {
   parted -m -s "/dev/$PARENT_DEV" unit s p

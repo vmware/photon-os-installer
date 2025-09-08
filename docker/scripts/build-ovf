@@ -3,7 +3,6 @@
 OVA_NAME=
 RELEASE_VER=5.0
 POI_IMAGE="${POI_IMAGE:-photon/installer}"
-PARAMS=()
 
 
 build_image() {

@@ -4,8 +4,9 @@
 # */
 
 import os
-import commons
 import shutil
+
+import commons
 
 install_phase = commons.PRE_PKGS_INSTALL
 enabled = True

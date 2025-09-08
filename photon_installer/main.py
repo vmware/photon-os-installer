@@ -5,9 +5,9 @@
 
 import sys
 import traceback
-import yaml
-
 from argparse import ArgumentParser
+
+import yaml
 from commandutils import CommandUtils
 
 

@@ -4,23 +4,23 @@
 #  */
 #
 
-import subprocess
+import copy
+import crypt
+import glob
+import json
 import os
 import re
-import glob
-import crypt
+import shlex
 import shutil
 import ssl
-import requests
-import copy
-import json
+import subprocess
 import tempfile
-import shlex
-import yaml
-
 from urllib.parse import urlparse
 from urllib.request import urlopen
-from OpenSSL.crypto import load_certificate, FILETYPE_PEM
+
+import requests
+import yaml
+from OpenSSL.crypto import FILETYPE_PEM, load_certificate
 
 
 class CommandUtils(object):

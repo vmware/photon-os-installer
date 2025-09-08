@@ -10,7 +10,6 @@ import re
 import subprocess
 import sys
 
-
 SYSTEMD_NETWORK_DIR = "etc/systemd/network"
 HOSTS_FILE = "etc/hosts"
 HOSTNAME_FILE = "etc/hostname"
@@ -91,6 +90,8 @@ def write_systemd_config(fout, config):
 
 
 # should we allow '_' ?
+
+
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
         return False

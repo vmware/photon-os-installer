@@ -4,8 +4,8 @@
 #  */
 #
 
-import os
 import logging
+import os
 
 
 class Logger(object):

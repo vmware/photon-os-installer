@@ -6,10 +6,10 @@
 
 import sys
 
-from device import Device
-from window import Window
 from actionresult import ActionResult
+from device import Device
 from menu import Menu
+from window import Window
 
 
 class SelectDisk(object):

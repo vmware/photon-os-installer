@@ -7,34 +7,33 @@ Photon installer
 #  */
 #
 
-import subprocess
+import copy
+import curses
+import datetime
+import glob
+import json
 import os
+import platform
+import secrets
 import shutil
 import signal
-import sys
-import glob
-import modules.commons
-import secrets
-import curses
 import stat
+import subprocess
+import sys
 import tempfile
 import time
-import copy
-import jc
-import json
-import datetime
-import platform
+from collections import abc
+from enum import Enum
 
+import jc
+import modules.commons
+import tdnf
+from commandutils import CommandUtils
 from defaults import Defaults
 from logger import Logger
-from commandutils import CommandUtils
+from networkmanager import NetworkManager
 from progressbar import ProgressBar
 from window import Window
-from networkmanager import NetworkManager
-from enum import Enum
-from collections import abc
-import tdnf
-
 
 BIOSSIZE = 4
 ESPSIZE = 10
@@ -162,7 +161,6 @@ class Installer(object):
     """
     create, append and validate configuration date - install_config
     """
-
     def configure(self, install_config, ui_config=None):
         # Initialize logger and cmd first
         if not install_config:
@@ -1975,7 +1973,6 @@ class Installer(object):
         return ptv
 
     def _insert_boot_partitions(self):
-
         def create_partition(size, filesystem, mountpoint):
             device = self.install_config['disks']['default']['device']
             return {

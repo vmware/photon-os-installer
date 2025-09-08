@@ -48,7 +48,7 @@ def make_script(dir, script_name, lines):
     script = os.path.join(dir, script_name)
 
     with open(script, "wt") as f:
-        for l in lines:
-            f.write(f"{l}\n")
+        for line in lines:
+            f.write(f"{line}\n")
 
     os.chmod(script, 0o700)

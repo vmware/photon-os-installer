@@ -5,9 +5,9 @@ RELEASE_VER=5.0
 create_repo()
 {
     tdnf install -y --releasever=${RELEASE_VER} --alldeps --downloadonly --downloaddir=/repo $(poi-pkglist -c${CFG_FILE})
-    pushd /repo
+    pushd /repo || exit 1
     createrepo .
-    popd
+    popd || exit 1
 }
 
 usage() {

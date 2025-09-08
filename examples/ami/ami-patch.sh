@@ -1,9 +1,8 @@
 #!/bin/bash
 
-cd /lib/systemd/system/multi-user.target.wants/
+cd /lib/systemd/system/multi-user.target.wants/ || exit 1
 
 ln -s ../docker.service docker.service
-cd /
 
 echo "127.0.0.1 localhost" >> /etc/hosts
 
@@ -30,35 +29,40 @@ rm /root/.ssh/authorized_keys
 # Override old values
 rm /etc/ssh/sshd_config
 
-echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config
-echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
-echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
-echo "PermitRootLogin without-password" >> /etc/ssh/sshd_config
-echo "PermitTunnel no" >> /etc/ssh/sshd_config
-echo "AllowTcpForwarding yes" >> /etc/ssh/sshd_config
-echo "X11Forwarding no" >> /etc/ssh/sshd_config
-echo "ClientAliveInterval 420" >> /etc/ssh/sshd_config
-echo "UseDNS no" >> /etc/ssh/sshd_config
-echo "ChallengeResponseAuthentication no" >> /etc/ssh/sshd_config
-echo "UsePAM yes" >> /etc/ssh/sshd_config
-
+cat <<'EOF' >> /etc/ssh/sshd_config
+AuthorizedKeysFile .ssh/authorized_keys
+PubkeyAuthentication yes
+PasswordAuthentication no
+PermitRootLogin without-password
+PermitTunnel no
+AllowTcpForwarding yes
+X11Forwarding no
+ClientAliveInterval 420
+UseDNS no
+ChallengeResponseAuthentication no
+UsePAM yes
+EOF
 
 # ssh client config
 # Override old values
 
 rm /etc/ssh/ssh_config
 
-echo "Host *" >> /etc/ssh/ssh_config
-echo "Protocol 2" >> /etc/ssh/ssh_config
-echo "ForwardAgent no" >> /etc/ssh/ssh_config
-echo "ForwardX11 no" >> /etc/ssh/ssh_config
-echo "HostbasedAuthentication no" >> /etc/ssh/ssh_config
-echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
-echo "Ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-cbc,3des-cbc" >> /etc/ssh/ssh_config
-echo "Tunnel no" >> /etc/ssh/ssh_config
-echo "ServerAliveInterval 420" >> /etc/ssh/ssh_config
+cat <<'EOF' >> /etc/ssh/ssh_config
+Host *
+Protocol 2
+ForwardAgent no
+ForwardX11 no
+HostbasedAuthentication no
+StrictHostKeyChecking no
+Ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-cbc,3des-cbc
+Tunnel no
+ServerAliveInterval 420
+EOF
 
 sed -i 's/net.ifnames=0//' /boot/grub/grub.cfg
+
+# shellcheck disable=SC2016
 sed -i 's/$photon_cmdline/init=\/lib\/systemd\/systemd loglevel=3 ro console=ttyS0 earlyprintk=ttyS0 nvme_core.io_timeout=4294967295/' /boot/grub/grub.cfg
 
 # Disable loading/unloading of modules

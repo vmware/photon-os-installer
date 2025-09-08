@@ -4,10 +4,11 @@
 #  */
 #
 
-from window import Window
+import os
+
 from actionresult import ActionResult
 from textpane import TextPane
-from os.path import join, dirname
+from window import Window
 
 
 class License(object):
@@ -30,7 +31,7 @@ class License(object):
         if eula_file_path:
             self.eula_file_path = eula_file_path
         else:
-            self.eula_file_path = join(dirname(__file__), 'EULA.txt')
+            self.eula_file_path = os.path.join(os.path.dirname(__file__), 'EULA.txt')
 
         if display_title:
             self.title = display_title

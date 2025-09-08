@@ -4,10 +4,9 @@
 #  */
 #
 
+from actionresult import ActionResult
 from menu import Menu
 from window import Window
-from actionresult import ActionResult
-
 
 KS_STIG_ANSIBLE = [
     {

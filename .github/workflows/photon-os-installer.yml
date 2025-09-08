@@ -10,6 +10,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Lint checks
+    - run: |
+        apt update
+        apt install -y black isort shellcheck flake8
+        bash lint-checks.sh
+
     - name: Build Docker image
       run: |
         POI_IMAGE_NAME=photon/installer:${{ github.sha }}

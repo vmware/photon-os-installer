@@ -5,8 +5,8 @@
 #  */
 #
 
-from windowstringreader import WindowStringReader
 from actionresult import ActionResult
+from windowstringreader import WindowStringReader
 
 
 class OSTreeWindowStringReader:

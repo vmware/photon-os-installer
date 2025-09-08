@@ -6,7 +6,6 @@
 
 import subprocess
 
-
 # see https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
 LSBLK_EXCLUDE = "2,9,11,15,16,17,18,19,20,23,24,25,26,27,28,29,30,32,35"
 LSBLK_EXCLUDE += ",37,46,103,113,144,145,146"

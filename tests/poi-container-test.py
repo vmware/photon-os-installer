@@ -1,17 +1,16 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # Copyright 2023 VMware, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import subprocess
-import shutil
 import glob
-
+import os
+import shutil
+import subprocess
 
 POI_TEST_PATH = os.path.dirname(os.path.abspath(__file__))
 POI_PATH = os.path.dirname(POI_TEST_PATH)
 
-REMOTE_REPO_PATH = "https://packages.vmware.com/photon"
+REMOTE_REPO_PATH = "https://packages-prod.broadcom.com/photon"
 LOCAL_REPO_PATH = POI_TEST_PATH + "/repo"
 
 BASE_COMMAND = f"{POI_PATH}/create-image-util --poi-path {POI_PATH} --local-repo-path"
@@ -58,47 +57,47 @@ class TestBuildPh5ImageWithLocalRepo:
     def test_build_ph5_local_azure_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image photon-azure.raw --config-file azure_ks.yaml --flavor azure"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("azure", "photon-azure.vhd.tar.gz") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("azure", "photon-azure.vhd.tar.gz")
         print("workflow is working!!!")
 
     def test_build_ph5_local_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph5_local_vmdk_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --vmdk-only"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.vmdk") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.vmdk")
 
     def test_build_ph5_local_ovf_mf_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --ovf --mf"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ovf") == True)
-        assert(image_exist("ova", "minimal.mf") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ovf")
+        assert image_exist("ova", "minimal.mf")
 
     def test_build_ph5_local_lvm_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_lvm_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph5_local_ami_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --config-file ami_ks.yaml --flavor ami"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ami", "photon-ami.raw") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ami", "photon-ami.raw")
 
     '''
     def test_build_ph5_local_rpi_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --config-file rpi_ks.yaml --flavor rpi --arch aarch64"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("rmi", "rpi.img") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("rmi", "rpi.img")
     '''
 
 
@@ -112,41 +111,44 @@ class TestBuildPh4ImageWithLocalRepo:
     def test_build_ph4_local_azure_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image photon-azure-4.0.raw --config-file azure_40_ks.yaml --flavor azure --releasever 4.0"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("azure", "photon-azure-4.0.vhd.tar.gz") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("azure", "photon-azure-4.0.vhd.tar.gz")
 
     def test_build_ph4_local_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph4_local_vmdk_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --vmdk-only"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.vmdk") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.vmdk")
 
     def test_build_ph4_local_ovf_mf_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --ovf --mf"
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ovf")
+        assert image_exist("ova", "minimal.mf")
 
     def test_build_ph4_local_lvm_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_lvm_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph4_local_ami_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file ami_40_ks.yaml --flavor ami --releasever 4.0"
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ami", "photon-ami-4.0.raw") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ami", "photon-ami-4.0.raw")
 
     '''
     def test_build_ph4_local_rpi_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file rpi_ks.yaml --flavor rpi --arch aarch64 --releasever 4.0"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("rmi", "rpi.img") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("rmi", "rpi.img")
     '''
 
 
@@ -160,46 +162,46 @@ class TestBuildPh5ImageWithRemoteRepo:
     def test_build_ph5_remote_azure_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image photon-azure.raw --config-file azure_ks.yaml --flavor azure --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("azure", "photon-azure.vhd.tar.gz") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("azure", "photon-azure.vhd.tar.gz")
 
     def test_build_ph5_remote_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph5_remote_vmdk_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/ --vmdk-only"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.vmdk") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.vmdk")
 
     def test_build_ph5_remote_ovf_mf_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/ --ovf --mf"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ovf") == True)
-        assert(image_exist("ova", "minimal.mf") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ovf")
+        assert image_exist("ova", "minimal.mf")
 
     def test_build_ph5_remote_lvm_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --raw-image minimal.img --config-file minimal_lvm_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph5_remote_ami_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --config-file ami_ks.yaml --flavor ami --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ami", "photon-ami.raw") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ami", "photon-ami.raw")
 
     '''
     def test_build_ph5_remote_rpi_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/5.0 --config-file rpi_ks.yaml --flavor rpi --arch aarch64 --src-repo-url={REMOTE_REPO_PATH}/5.0/photon_updates_5.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("rmi", "rpi.img") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("rmi", "rpi.img")
     '''
 
 
@@ -213,44 +215,44 @@ class TestBuildPh4ImageWithRemoteRepo:
     def test_build_ph4_remote_azure_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image photon-azure-4.0.raw --config-file azure_40_ks.yaml --flavor azure --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("azure", "photon-azure-4.0.vhd.tar.gz") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("azure", "photon-azure-4.0.vhd.tar.gz")
 
     def test_build_ph4_remote_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph4_remote_vmdk_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/ --vmdk-only"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.vmdk") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.vmdk")
 
     def test_build_ph4_remote_ovf_mf_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/ --ovf --mf"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ovf") == True)
-        assert(image_exist("ova", "minimal.mf") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ovf")
+        assert image_exist("ova", "minimal.mf")
 
     def test_build_ph4_remote_lvm_ova_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --raw-image minimal.img --config-file minimal_lvm_ks.yaml --ova-config minimal.yaml --ova-name minimal --flavor ova --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ova", "minimal.ova") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ova", "minimal.ova")
 
     def test_build_ph4_remote_ami_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file ami_40_ks.yaml --flavor ami --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("ami", "photon-ami-4.0.raw") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("ami", "photon-ami-4.0.raw")
 
     '''
     def test_build_ph4_remote_rpi_image(self):
         exec_command = f"{BASE_COMMAND} {LOCAL_REPO_PATH}/4.0 --config-file rpi_ks.yaml --flavor rpi --arch aarch64 --releasever 4.0 --src-repo-url={REMOTE_REPO_PATH}/4.0/photon_updates_4.0_x86_64/"
 
-        subprocess.check_call(exec_command, shell = True)
-        assert(image_exist("rmi", "rpi.img") == True)
+        subprocess.check_call(exec_command, shell=True)
+        assert image_exist("rmi", "rpi.img")
     '''
