@@ -90,8 +90,6 @@ def write_systemd_config(fout, config):
 
 
 # should we allow '_' ?
-
-
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
         return False
