@@ -9,6 +9,10 @@ CREATE_OVF="false"
 CREATE_MF="false"
 CREATE_VMDK="false"
 
+fail() {
+    echo "$1"
+    exit 1
+}
 
 create_ova()
 {
@@ -17,7 +21,11 @@ create_ova()
         # TODO: tools version
         for img in ${img_list[@]} ; do
             name=${img%.*} # remove extension
-            vmdk-convert ${img} ${name}.vmdk
+            echo "running 'vmdk-convert'"
+            echo "VMDKCONVERT_COMPRESSION_LEVEL=${VMDKCONVERT_COMPRESSION_LEVEL}"
+            echo "VMDKCONVERT_NUM_THREADS=${VMDKCONVERT_NUM_THREADS}"
+            time vmdk-convert ${img} ${name}.vmdk || fail "'vmdk-convert ${img} ${name}.vmdk' failed with $?"
+            echo "done with 'vmdk-convert'"
         done
     fi
 
@@ -41,7 +49,10 @@ create_ova()
             params+=("$p")
         done
 
-        printf "%s\0" "${params[@]}" | xargs -0 ova-compose -i ${OVA_CFG_FILE} -o ${output_file} ${opt_mf}
+        echo "running 'ova-compose'"
+        printf "%s\0" "${params[@]}" | xargs -t -0 ova-compose -i ${OVA_CFG_FILE} -o ${output_file} ${opt_mf} || \
+            fail "ova-compose failed with $?"
+        echo "done with 'ova-compose'"
 
         # nuke vmdk's if we created an OVA
         if [ "${CREATE_OVA}" = "true" ] ; then
@@ -79,20 +90,20 @@ eval set -- "$OPTS"
 while true; do
     case "$1" in
         --compression-level) VMDKCONVERT_COMPRESSION_LEVEL=${2}; shift 2 ;;
-        -h) usage ; exit 0;;
-        --installer-config) CFG_FILE=${2} ; shift 2 ;;
-        --installer-param)  INSTALLER_PARAMS+=("${2}"); shift 2 ;;
-        --mf)               CREATE_MF="true"; shift ;;
-        --num-threads)      VMDKCONVERT_NUM_THREADS=${2}; shift 2 ;;
-        --raw-images)       RAW_IMAGES=${2} ; shift 2 ;;
-        --ova-config)       OVA_CFG_FILE=${2} ; shift 2 ;;
-        --ova-name)         OVA_NAME=${2} ; shift 2 ;;
-        --ovf)              CREATE_OVF="true"; CREATE_OVA="false"; shift ;;
-        --param)            PARAMS+=("${2}"); shift 2 ;;
-        --vmdk)             CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
-        --vmdk-only)        CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
-        --)                 shift; break ;;
-        *)                  break ;;
+        -h)                  usage ; exit 0;;
+        --installer-config)  CFG_FILE=${2} ; shift 2 ;;
+        --installer-param)   INSTALLER_PARAMS+=("${2}"); shift 2 ;;
+        --mf)                CREATE_MF="true"; shift ;;
+        --num-threads)       VMDKCONVERT_NUM_THREADS=${2}; shift 2 ;;
+        --raw-images)        RAW_IMAGES=${2} ; shift 2 ;;
+        --ova-config)        OVA_CFG_FILE=${2} ; shift 2 ;;
+        --ova-name)          OVA_NAME=${2} ; shift 2 ;;
+        --ovf)               CREATE_OVF="true"; CREATE_OVA="false"; shift ;;
+        --param)             PARAMS+=("${2}"); shift 2 ;;
+        --vmdk)              CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
+        --vmdk-only)         CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
+        --)                  shift; break ;;
+        *)                   break ;;
     esac
 done
 
