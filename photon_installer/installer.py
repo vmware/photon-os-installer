@@ -1119,6 +1119,10 @@ class Installer(object):
                         self.logger.error("fs_options must be of type str or list")
                         self.exit_gracefully()
 
+                if partition.get('readonly', False):
+                    # we already specify 'noatime' below
+                    options += ",ro"
+
                 # Add supported options according to partition filesystem
                 if partition.get('mountpoint', '') == '/':
                     part_fstype = partition.get('filesystem', '')
