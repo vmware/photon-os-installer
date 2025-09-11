@@ -11,9 +11,9 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Lint checks
-    - run: |
-        apt update
-        apt install -y black isort shellcheck flake8
+      run: |
+        sudo apt update
+        sudo apt install -y black isort shellcheck flake8
         bash lint-checks.sh
 
     - name: Build Docker image
