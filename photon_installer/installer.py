@@ -238,10 +238,11 @@ class Installer(object):
             if 'device' not in disk:
                 filename = disk['filename']
                 size = disk['size']
+                sector_size = disk.get('sector_size', 512)
                 retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
                 if retval != 0:
                     raise InstallerError(f"failed to create disk image '{filename}'")
-                device = subprocess.check_output(["losetup", "--show", "-f", filename], text=True).strip()
+                device = subprocess.check_output(["losetup", "--show", "-f", "--sector-size", str(sector_size), filename], text=True).strip()
                 disk['device'] = device
 
             # handle symlinks like /dev/disk/by-path/pci-* -> ../../dev/sd*
@@ -569,6 +570,9 @@ class Installer(object):
                         raise InstallerConfigError(f"a filename or a device needs to be set for disk '{disk_id}'")
                     if 'size' not in disk:
                         raise InstallerConfigError(f"a size needs to be set for disk image '{disk_id}'")
+                    if 'sector_size' in disk:
+                        if disk['sector_size'] not in [512, 4096]:
+                            raise InstallerConfigError("disk sector size must be 512 or 4096")
 
         # if not we'll use Installer.default_partitions in _add_defaults()
         if 'partitions' in install_config:
