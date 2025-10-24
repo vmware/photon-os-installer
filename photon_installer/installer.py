@@ -1020,7 +1020,7 @@ class Installer(object):
             # only fstrim fs types that are supported to avoid error messages
             # instead of filtering for the fs type we could use '--quiet-unsupported',
             # but this is not implemented in older fstrim versions in Photon 3.0
-            if p['filesystem'] in ['ext4', 'btrfs', 'xfs']:
+            if p['filesystem'] in ['ext4', 'btrfs', 'xfs'] and p['mountpoint'] is not None:
                 mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
                 retval = self.cmd.run(["fstrim", mntpoint])
 
@@ -1246,6 +1246,8 @@ class Installer(object):
             if self._get_partition_type(partition) in [PartitionType.BIOS, PartitionType.SWAP]:
                 continue
             if partition.get('shadow', False):
+                continue
+            if partition['mountpoint'] is None:
                 continue
 
             mntpoint = os.path.join(self.photon_root, partition['mountpoint'].strip('/'))
@@ -2116,13 +2118,19 @@ class Installer(object):
                     else:
                         l2['partition']['path'] = self._get_partition_path(device, part_idx)
 
+                    this_cmd = partition_cmd
                     if l2['size'] == 0:
                         last_partition = []
-                        last_partition.extend([f'-n{part_idx}'])
-                        last_partition.extend([f"-t{part_idx}:{l2['type']}"])
+                        this_cmd = last_partition
+                        this_cmd.append(f'-n{part_idx}')
                     else:
-                        partition_cmd.extend([f"-n{part_idx}::+{l2['size']}M"])
-                        partition_cmd.extend([f"-t{part_idx}:{l2['type']}"])
+                        this_cmd.append(f"-n{part_idx}::+{l2['size']}M")
+
+                    this_cmd.append(f"-t{part_idx}:{l2['type']}")
+
+                    if 'partition' in l2 and l2['partition'].get('partlabel') is not None:
+                        this_cmd.append(f"-c{part_idx}:{l2['partition']['partlabel']}")
+
                     part_idx += 1
 
                 # if extensible partition present, add it to the end of the disk
@@ -2188,6 +2196,10 @@ class Installer(object):
 
         # Format the filesystem
         for partition in partitions:
+            # unformatted partition
+            if partition['filesystem'] is None:
+                continue
+
             ptype = self._get_partition_type(partition)
             # Do not format BIOS boot partition
             if ptype == PartitionType.BIOS:
