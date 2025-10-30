@@ -2205,17 +2205,25 @@ class Installer(object):
             if ptype == PartitionType.BIOS:
                 continue
             if ptype == PartitionType.SWAP:
-                mkfs_cmd = ['mkswap']
+                mkfs_cmd = ["mkswap"]
             else:
-                mkfs_cmd = ['mkfs', '-t', partition['filesystem']]
+                mkfs_cmd = ["mkfs", "-t", partition['filesystem']]
 
             # Add force option to mkfs to override previously created partition
             if partition["filesystem"] in ["btrfs", "xfs"]:
-                mkfs_cmd.extend(['-f'])
+                mkfs_cmd.append("-f")
 
             if 'mkfs_options' in partition:
                 options = partition['mkfs_options'].split()
                 mkfs_cmd.extend(options)
+
+            # fs level label
+            if partition.get('label') is not None:
+                # label options are "-L" for all supqported filesystems including swap, except for vfat
+                if partition["filesystem"] == "vfat":
+                    mkfs_cmd.extend(["-n", partition['label']])
+                else:
+                    mkfs_cmd.extend(["-L", partition['label']])
 
             mkfs_cmd.extend([partition['path']])
             retval = self.cmd.run(mkfs_cmd)
