@@ -1148,31 +1148,36 @@ class Installer(object):
                 else:
                     mountpoint = partition['mountpoint']
 
-                # Use PARTUUID/UUID instead of bare path.
-                # Prefer PARTUUID over UUID as it is supported by kernel
-                # and UUID only by initrd.
                 path = partition['path']
-                mnt_src = None
-                partuuid = self._get_partuuid(path)
-                if partuuid != '':
-                    mnt_src = f"PARTUUID={partuuid}"
+                if partition.get('mount_by') is None:
+                    # Use PARTUUID/UUID instead of bare path.
+                    # Prefer PARTUUID over UUID as it is supported by kernel
+                    # and UUID only by initrd.
+                    mnt_src = None
+                    partuuid = self._get_partuuid(path)
+                    if partuuid != '':
+                        mnt_src = f"PARTUUID={partuuid}"
+                    else:
+                        uuid = self._get_uuid(path)
+                        if uuid != '':
+                            mnt_src = f"UUID={uuid}"
                 else:
-                    uuid = self._get_uuid(path)
-                    if uuid != '':
-                        mnt_src = f"UUID={uuid}"
-                if not mnt_src:
-                    raise RuntimeError(f"Cannot get PARTUUID/UUID of: {path}")
+                    mount_by = partition['mount_by']
+                    if mount_by == "partuuid":
+                        mnt_src = "PARTUUID=" + self._get_partuuid(path)
+                    elif mount_by == "uuid":
+                        mnt_src = "UUID=" + self._get_uuid(path)
+                    elif mount_by == "partlabel":
+                        mnt_src = "PARTLABEL=" + partition.get('partlabel')
+                    elif mount_by == "label":
+                        mnt_src = "LABEL=" + partition.get('label')
+                    else:
+                        raise InstallerConfigError(f"unsupported 'mount_by' '{mount_by}'")
 
-                fstab_file.write(
-                    "{}\t{}\t{}\t{}\t{}\t{}\n".format(
-                        mnt_src,
-                        mountpoint,
-                        partition['filesystem'],
-                        options,
-                        dump,
-                        fsck,
-                    )
-                )
+                if not mnt_src:
+                    raise RuntimeError(f"Cannot get mount source for: {path}")
+
+                fstab_file.write(f"{mnt_src}\t{mountpoint}\t{partition['filesystem']}\t{options}\t{dump}\t{fsck}\n")
 
                 if partition.get('filesystem', '') == "btrfs" and "btrfs" in partition and "subvols" in partition["btrfs"]:
                     self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, partition["btrfs"])
