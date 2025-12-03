@@ -1020,7 +1020,7 @@ class Installer(object):
             # only fstrim fs types that are supported to avoid error messages
             # instead of filtering for the fs type we could use '--quiet-unsupported',
             # but this is not implemented in older fstrim versions in Photon 3.0
-            if p['filesystem'] in ['ext4', 'btrfs', 'xfs']:
+            if p['filesystem'] in ['ext4', 'btrfs', 'xfs'] and p['mountpoint'] is not None:
                 mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
                 retval = self.cmd.run(["fstrim", mntpoint])
 
@@ -1148,31 +1148,36 @@ class Installer(object):
                 else:
                     mountpoint = partition['mountpoint']
 
-                # Use PARTUUID/UUID instead of bare path.
-                # Prefer PARTUUID over UUID as it is supported by kernel
-                # and UUID only by initrd.
                 path = partition['path']
-                mnt_src = None
-                partuuid = self._get_partuuid(path)
-                if partuuid != '':
-                    mnt_src = f"PARTUUID={partuuid}"
+                if partition.get('mount_by') is None:
+                    # Use PARTUUID/UUID instead of bare path.
+                    # Prefer PARTUUID over UUID as it is supported by kernel
+                    # and UUID only by initrd.
+                    mnt_src = None
+                    partuuid = self._get_partuuid(path)
+                    if partuuid != '':
+                        mnt_src = f"PARTUUID={partuuid}"
+                    else:
+                        uuid = self._get_uuid(path)
+                        if uuid != '':
+                            mnt_src = f"UUID={uuid}"
                 else:
-                    uuid = self._get_uuid(path)
-                    if uuid != '':
-                        mnt_src = f"UUID={uuid}"
-                if not mnt_src:
-                    raise RuntimeError(f"Cannot get PARTUUID/UUID of: {path}")
+                    mount_by = partition['mount_by']
+                    if mount_by == "partuuid":
+                        mnt_src = "PARTUUID=" + self._get_partuuid(path)
+                    elif mount_by == "uuid":
+                        mnt_src = "UUID=" + self._get_uuid(path)
+                    elif mount_by == "partlabel":
+                        mnt_src = "PARTLABEL=" + partition.get('partlabel')
+                    elif mount_by == "label":
+                        mnt_src = "LABEL=" + partition.get('label')
+                    else:
+                        raise InstallerConfigError(f"unsupported 'mount_by' '{mount_by}'")
 
-                fstab_file.write(
-                    "{}\t{}\t{}\t{}\t{}\t{}\n".format(
-                        mnt_src,
-                        mountpoint,
-                        partition['filesystem'],
-                        options,
-                        dump,
-                        fsck,
-                    )
-                )
+                if not mnt_src:
+                    raise RuntimeError(f"Cannot get mount source for: {path}")
+
+                fstab_file.write(f"{mnt_src}\t{mountpoint}\t{partition['filesystem']}\t{options}\t{dump}\t{fsck}\n")
 
                 if partition.get('filesystem', '') == "btrfs" and "btrfs" in partition and "subvols" in partition["btrfs"]:
                     self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, partition["btrfs"])
@@ -1246,6 +1251,8 @@ class Installer(object):
             if self._get_partition_type(partition) in [PartitionType.BIOS, PartitionType.SWAP]:
                 continue
             if partition.get('shadow', False):
+                continue
+            if partition['mountpoint'] is None:
                 continue
 
             mntpoint = os.path.join(self.photon_root, partition['mountpoint'].strip('/'))
@@ -2116,13 +2123,19 @@ class Installer(object):
                     else:
                         l2['partition']['path'] = self._get_partition_path(device, part_idx)
 
+                    this_cmd = partition_cmd
                     if l2['size'] == 0:
                         last_partition = []
-                        last_partition.extend([f'-n{part_idx}'])
-                        last_partition.extend([f"-t{part_idx}:{l2['type']}"])
+                        this_cmd = last_partition
+                        this_cmd.append(f'-n{part_idx}')
                     else:
-                        partition_cmd.extend([f"-n{part_idx}::+{l2['size']}M"])
-                        partition_cmd.extend([f"-t{part_idx}:{l2['type']}"])
+                        this_cmd.append(f"-n{part_idx}::+{l2['size']}M")
+
+                    this_cmd.append(f"-t{part_idx}:{l2['type']}")
+
+                    if 'partition' in l2 and l2['partition'].get('partlabel') is not None:
+                        this_cmd.append(f"-c{part_idx}:{l2['partition']['partlabel']}")
+
                     part_idx += 1
 
                 # if extensible partition present, add it to the end of the disk
@@ -2188,22 +2201,34 @@ class Installer(object):
 
         # Format the filesystem
         for partition in partitions:
+            # unformatted partition
+            if partition['filesystem'] is None:
+                continue
+
             ptype = self._get_partition_type(partition)
             # Do not format BIOS boot partition
             if ptype == PartitionType.BIOS:
                 continue
             if ptype == PartitionType.SWAP:
-                mkfs_cmd = ['mkswap']
+                mkfs_cmd = ["mkswap"]
             else:
-                mkfs_cmd = ['mkfs', '-t', partition['filesystem']]
+                mkfs_cmd = ["mkfs", "-t", partition['filesystem']]
 
             # Add force option to mkfs to override previously created partition
             if partition["filesystem"] in ["btrfs", "xfs"]:
-                mkfs_cmd.extend(['-f'])
+                mkfs_cmd.append("-f")
 
             if 'mkfs_options' in partition:
                 options = partition['mkfs_options'].split()
                 mkfs_cmd.extend(options)
+
+            # fs level label
+            if partition.get('label') is not None:
+                # label options are "-L" for all supqported filesystems including swap, except for vfat
+                if partition["filesystem"] == "vfat":
+                    mkfs_cmd.extend(["-n", partition['label']])
+                else:
+                    mkfs_cmd.extend(["-L", partition['label']])
 
             mkfs_cmd.extend([partition['path']])
             retval = self.cmd.run(mkfs_cmd)
