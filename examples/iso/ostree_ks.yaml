@@ -11,7 +11,7 @@ disks:
 
 ostree:
     default_repo: false
-    repo_url: https://packages-prod.broadcom.com/photon/rpm-ostree/base/5.0/x86_64/repo/
+    repo_url: https://packages.broadcom.com/photon/rpm-ostree/base/5.0/x86_64/repo/
     repo_ref: photon/5.0/x86_64/minimal
 
 partitions:
