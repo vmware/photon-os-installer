@@ -238,11 +238,10 @@ class Installer(object):
             if 'device' not in disk:
                 filename = disk['filename']
                 size = disk['size']
-                sector_size = disk.get('sector_size', 512)
                 retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
                 if retval != 0:
                     raise InstallerError(f"failed to create disk image '{filename}'")
-                device = subprocess.check_output(["losetup", "--show", "-f", "--sector-size", str(sector_size), filename], text=True).strip()
+                device = subprocess.check_output(["losetup", "--show", "-f", filename], text=True).strip()
                 disk['device'] = device
 
             # handle symlinks like /dev/disk/by-path/pci-* -> ../../dev/sd*
@@ -570,9 +569,6 @@ class Installer(object):
                         raise InstallerConfigError(f"a filename or a device needs to be set for disk '{disk_id}'")
                     if 'size' not in disk:
                         raise InstallerConfigError(f"a size needs to be set for disk image '{disk_id}'")
-                    if 'sector_size' in disk:
-                        if disk['sector_size'] not in [512, 4096]:
-                            raise InstallerConfigError("disk sector size must be 512 or 4096")
 
         # if not we'll use Installer.default_partitions in _add_defaults()
         if 'partitions' in install_config:
@@ -1020,7 +1016,7 @@ class Installer(object):
             # only fstrim fs types that are supported to avoid error messages
             # instead of filtering for the fs type we could use '--quiet-unsupported',
             # but this is not implemented in older fstrim versions in Photon 3.0
-            if p['filesystem'] in ['ext4', 'btrfs', 'xfs'] and p['mountpoint'] is not None:
+            if p['filesystem'] in ['ext4', 'btrfs', 'xfs']:
                 mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
                 retval = self.cmd.run(["fstrim", mntpoint])
 
@@ -1148,36 +1144,31 @@ class Installer(object):
                 else:
                     mountpoint = partition['mountpoint']
 
+                # Use PARTUUID/UUID instead of bare path.
+                # Prefer PARTUUID over UUID as it is supported by kernel
+                # and UUID only by initrd.
                 path = partition['path']
-                if partition.get('mount_by') is None:
-                    # Use PARTUUID/UUID instead of bare path.
-                    # Prefer PARTUUID over UUID as it is supported by kernel
-                    # and UUID only by initrd.
-                    mnt_src = None
-                    partuuid = self._get_partuuid(path)
-                    if partuuid != '':
-                        mnt_src = f"PARTUUID={partuuid}"
-                    else:
-                        uuid = self._get_uuid(path)
-                        if uuid != '':
-                            mnt_src = f"UUID={uuid}"
+                mnt_src = None
+                partuuid = self._get_partuuid(path)
+                if partuuid != '':
+                    mnt_src = f"PARTUUID={partuuid}"
                 else:
-                    mount_by = partition['mount_by']
-                    if mount_by == "partuuid":
-                        mnt_src = "PARTUUID=" + self._get_partuuid(path)
-                    elif mount_by == "uuid":
-                        mnt_src = "UUID=" + self._get_uuid(path)
-                    elif mount_by == "partlabel":
-                        mnt_src = "PARTLABEL=" + partition.get('partlabel')
-                    elif mount_by == "label":
-                        mnt_src = "LABEL=" + partition.get('label')
-                    else:
-                        raise InstallerConfigError(f"unsupported 'mount_by' '{mount_by}'")
-
+                    uuid = self._get_uuid(path)
+                    if uuid != '':
+                        mnt_src = f"UUID={uuid}"
                 if not mnt_src:
-                    raise RuntimeError(f"Cannot get mount source for: {path}")
+                    raise RuntimeError(f"Cannot get PARTUUID/UUID of: {path}")
 
-                fstab_file.write(f"{mnt_src}\t{mountpoint}\t{partition['filesystem']}\t{options}\t{dump}\t{fsck}\n")
+                fstab_file.write(
+                    "{}\t{}\t{}\t{}\t{}\t{}\n".format(
+                        mnt_src,
+                        mountpoint,
+                        partition['filesystem'],
+                        options,
+                        dump,
+                        fsck,
+                    )
+                )
 
                 if partition.get('filesystem', '') == "btrfs" and "btrfs" in partition and "subvols" in partition["btrfs"]:
                     self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, partition["btrfs"])
@@ -1251,8 +1242,6 @@ class Installer(object):
             if self._get_partition_type(partition) in [PartitionType.BIOS, PartitionType.SWAP]:
                 continue
             if partition.get('shadow', False):
-                continue
-            if partition['mountpoint'] is None:
                 continue
 
             mntpoint = os.path.join(self.photon_root, partition['mountpoint'].strip('/'))
@@ -1892,28 +1881,6 @@ class Installer(object):
         if retval != 0:
             raise InstallerError(f"Error: Failed to create volume group, command = {command}")
 
-        def _wait_for_device(device_path, timeout=30, check_interval=0.1):
-            """
-            Wait for a device node to appear and be accessible.
-            Returns True if device appears, False if timeout.
-            """
-            import time
-            elapsed = 0
-            while elapsed < timeout:
-                if os.path.exists(device_path):
-                    # Device exists, verify it's accessible
-                    try:
-                        # Try to stat the device to ensure it's fully ready
-                        os.stat(device_path)
-                        self.logger.info(f"Device {device_path} is ready (waited {elapsed:.2f}s)")
-                        return True
-                    except OSError:
-                        pass
-                time.sleep(check_interval)
-                elapsed += check_interval
-            self.logger.error(f"Timeout waiting for device {device_path} after {timeout}s")
-            return False
-
         # create logical volumes
         for partition in lv_partitions:
             lv_cmd = ['lvcreate', '-y', '--zero', 'n']
@@ -1928,18 +1895,10 @@ class Installer(object):
                 retval = self.cmd.run(lv_cmd)
                 if retval != 0:
                     raise InstallerError(f"Error: Failed to create logical volumes , command: {lv_cmd}")
-
-            # Determine device path
             if "loop" not in partition['device']:
                 partition['path'] = os.path.join("/dev", vg_name, lv_name)
             else:
                 partition['path'] = os.path.join("/dev/mapper", f"{vg_name}-{lv_name}")
-
-            # Wait for device node to appear after lvcreate (fixes race condition in containers)
-            if size != 0:  # Only for volumes we just created
-                self.cmd.run(['udevadm', 'settle', '-E', partition['path']])
-                if not _wait_for_device(partition['path'], timeout=30):
-                    raise InstallerError(f"Device {partition['path']} did not appear after lvcreate")
 
         # create extensible logical volume
         if not extensible_logical_volume:
@@ -1952,11 +1911,6 @@ class Installer(object):
         retval = self.cmd.run(lv_cmd)
         if retval != 0:
             raise InstallerError(f"Error: Failed to create extensible logical volume, command = {lv_cmd}")
-
-        # Wait for device node to appear after lvcreate (fixes race condition in containers)
-        self.cmd.run(['udevadm', 'settle', '-E', extensible_logical_volume['path']])
-        if not _wait_for_device(extensible_logical_volume['path'], timeout=30):
-            raise InstallerError(f"Device {extensible_logical_volume['path']} did not appear after lvcreate")
 
         # remember pv/vg for detaching it later.
         self.lvs_to_detach['pvs'].append(os.path.basename(physical_partition))
@@ -2158,19 +2112,13 @@ class Installer(object):
                     else:
                         l2['partition']['path'] = self._get_partition_path(device, part_idx)
 
-                    this_cmd = partition_cmd
                     if l2['size'] == 0:
                         last_partition = []
-                        this_cmd = last_partition
-                        this_cmd.append(f'-n{part_idx}')
+                        last_partition.extend([f'-n{part_idx}'])
+                        last_partition.extend([f"-t{part_idx}:{l2['type']}"])
                     else:
-                        this_cmd.append(f"-n{part_idx}::+{l2['size']}M")
-
-                    this_cmd.append(f"-t{part_idx}:{l2['type']}")
-
-                    if 'partition' in l2 and l2['partition'].get('partlabel') is not None:
-                        this_cmd.append(f"-c{part_idx}:{l2['partition']['partlabel']}")
-
+                        partition_cmd.extend([f"-n{part_idx}::+{l2['size']}M"])
+                        partition_cmd.extend([f"-t{part_idx}:{l2['type']}"])
                     part_idx += 1
 
                 # if extensible partition present, add it to the end of the disk
@@ -2236,34 +2184,22 @@ class Installer(object):
 
         # Format the filesystem
         for partition in partitions:
-            # unformatted partition
-            if partition['filesystem'] is None:
-                continue
-
             ptype = self._get_partition_type(partition)
             # Do not format BIOS boot partition
             if ptype == PartitionType.BIOS:
                 continue
             if ptype == PartitionType.SWAP:
-                mkfs_cmd = ["mkswap"]
+                mkfs_cmd = ['mkswap']
             else:
-                mkfs_cmd = ["mkfs", "-t", partition['filesystem']]
+                mkfs_cmd = ['mkfs', '-t', partition['filesystem']]
 
             # Add force option to mkfs to override previously created partition
             if partition["filesystem"] in ["btrfs", "xfs"]:
-                mkfs_cmd.append("-f")
+                mkfs_cmd.extend(['-f'])
 
             if 'mkfs_options' in partition:
                 options = partition['mkfs_options'].split()
                 mkfs_cmd.extend(options)
-
-            # fs level label
-            if partition.get('label') is not None:
-                # label options are "-L" for all supqported filesystems including swap, except for vfat
-                if partition["filesystem"] == "vfat":
-                    mkfs_cmd.extend(["-n", partition['label']])
-                else:
-                    mkfs_cmd.extend(["-L", partition['label']])
 
             mkfs_cmd.extend([partition['path']])
             retval = self.cmd.run(mkfs_cmd)

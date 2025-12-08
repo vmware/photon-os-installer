@@ -226,10 +226,10 @@ class IsoBuilder(object):
             self.logger.info("downloading packages...")
             retval = self.tdnf.run(
                 [
-                    "--nogpgcheck",  # work around for installing locally built packages, like photon-os-installer
                     "--alldeps",
                     "--downloadonly",
-                    "--downloaddir", self.rpms_path,
+                    "--downloaddir",
+                    self.rpms_path,
                     "install",
                 ]
                 + self.pkg_list,

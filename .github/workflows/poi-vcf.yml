@@ -251,7 +251,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                name: [minimal]
+                name: [minimal, ostree]
         steps:
             - name: Checkout code
               uses: actions/checkout@master

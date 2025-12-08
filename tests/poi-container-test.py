@@ -10,7 +10,7 @@ import subprocess
 POI_TEST_PATH = os.path.dirname(os.path.abspath(__file__))
 POI_PATH = os.path.dirname(POI_TEST_PATH)
 
-REMOTE_REPO_PATH = "https://packages.broadcom.com/photon"
+REMOTE_REPO_PATH = "https://packages-prod.broadcom.com/photon"
 LOCAL_REPO_PATH = POI_TEST_PATH + "/repo"
 
 BASE_COMMAND = f"{POI_PATH}/create-image-util --poi-path {POI_PATH} --local-repo-path"

@@ -186,8 +186,7 @@ class IsoInitrd:
         self.cmd_util.remove_files(files_to_remove)
 
     def install_initrd_packages(self):
-        # nogpgcheck to work around installing locally built packages, like photon-os-installer
-        tdnf_args = ["--nogpgcheck", "install"] + self.initrd_pkgs
+        tdnf_args = ["install"] + self.initrd_pkgs
         # mount_dirs = []
         if self.ostree_iso:
             self.tdnf.config_file = None
