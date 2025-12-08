@@ -1881,6 +1881,28 @@ class Installer(object):
         if retval != 0:
             raise InstallerError(f"Error: Failed to create volume group, command = {command}")
 
+        def _wait_for_device(device_path, timeout=30, check_interval=0.1):
+            """
+            Wait for a device node to appear and be accessible.
+            Returns True if device appears, False if timeout.
+            """
+            import time
+            elapsed = 0
+            while elapsed < timeout:
+                if os.path.exists(device_path):
+                    # Device exists, verify it's accessible
+                    try:
+                        # Try to stat the device to ensure it's fully ready
+                        os.stat(device_path)
+                        self.logger.info(f"Device {device_path} is ready (waited {elapsed:.2f}s)")
+                        return True
+                    except OSError:
+                        pass
+                time.sleep(check_interval)
+                elapsed += check_interval
+            self.logger.error(f"Timeout waiting for device {device_path} after {timeout}s")
+            return False
+
         # create logical volumes
         for partition in lv_partitions:
             lv_cmd = ['lvcreate', '-y', '--zero', 'n']
@@ -1895,10 +1917,18 @@ class Installer(object):
                 retval = self.cmd.run(lv_cmd)
                 if retval != 0:
                     raise InstallerError(f"Error: Failed to create logical volumes , command: {lv_cmd}")
+
+            # Determine device path
             if "loop" not in partition['device']:
                 partition['path'] = os.path.join("/dev", vg_name, lv_name)
             else:
                 partition['path'] = os.path.join("/dev/mapper", f"{vg_name}-{lv_name}")
+
+            # Wait for device node to appear after lvcreate (fixes race condition in containers)
+            if size != 0:  # Only for volumes we just created
+                self.cmd.run(['udevadm', 'settle', '-E', partition['path']])
+                if not _wait_for_device(partition['path'], timeout=30):
+                    raise InstallerError(f"Device {partition['path']} did not appear after lvcreate")
 
         # create extensible logical volume
         if not extensible_logical_volume:
@@ -1911,6 +1941,11 @@ class Installer(object):
         retval = self.cmd.run(lv_cmd)
         if retval != 0:
             raise InstallerError(f"Error: Failed to create extensible logical volume, command = {lv_cmd}")
+
+        # Wait for device node to appear after lvcreate (fixes race condition in containers)
+        self.cmd.run(['udevadm', 'settle', '-E', extensible_logical_volume['path']])
+        if not _wait_for_device(extensible_logical_volume['path'], timeout=30):
+            raise InstallerError(f"Device {extensible_logical_volume['path']} did not appear after lvcreate")
 
         # remember pv/vg for detaching it later.
         self.lvs_to_detach['pvs'].append(os.path.basename(physical_partition))
