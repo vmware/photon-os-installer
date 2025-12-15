@@ -10,7 +10,7 @@ initrd_pkgs_list_file: packages_installer_initrd.json
 #boot_cmdline_param: ks=minimal_ks.yaml
 
 repo_paths:
-  - https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch
+  - https://packages.broadcom.com/photon/$releasever/photon_updates_$releasever_$basearch
   - /poi
 
 iso_files:
