@@ -18,7 +18,7 @@ jobs:
 
           - name: Lint checks
             run: |
-              VENV_DIR="$(mktemp -d /tmp/venv.XXXXXX)"
+              VENV_DIR="$(mktemp -d /var/tmp/venv.XXXXXX)"
               python3 -m venv "$VENV_DIR"
               "$VENV_DIR/bin/pip" install isort black flake8 shellcheck-py
               export PATH="$VENV_DIR/bin:$PATH"
