@@ -67,7 +67,8 @@ class IsoBuilder(object):
 
     def addPkgsToList(self, pkg_list_file):
         if os.path.exists(pkg_list_file):
-            pkg_data = CommandUtils.jsonread(pkg_list_file)
+            with open(pkg_list_file, "r") as f:
+                pkg_data = json.load(f)
             self.pkg_list.extend(pkg_data["packages"])
             if f"packages_{self.arch}" in pkg_data:
                 self.pkg_list.extend(pkg_data[f"packages_{self.arch}"])

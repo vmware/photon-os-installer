@@ -245,12 +245,6 @@ class CommandUtils(object):
         return True, None
 
     @staticmethod
-    def jsonread(filename):
-        with open(filename) as f:
-            data = json.load(f)
-            return data
-
-    @staticmethod
     def _yaml_param(loader, node):
         params = loader.app_params
         default = None
