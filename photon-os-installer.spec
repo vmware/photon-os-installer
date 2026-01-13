@@ -4,7 +4,7 @@ Summary:       Photon OS Installer
 Name:          photon-os-installer
 Version:       2.4
 Release:       1%{?dist}
-License:       Apache 2.0 and GPL 2.0
+License:       Apache 2.0 OR GPL 2.0-only
 Group:         System Environment/Base
 Vendor:        VMware, Inc.
 Distribution:  Photon
