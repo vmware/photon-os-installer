@@ -79,8 +79,9 @@ COPY \
      create-ostree \
      create-cherrypicks-repo \
      create-pkg \
-     poi-pkglist yjson \
-     /usr/bin
+     poi-pkglist \
+     yjson \
+     /usr/bin/
 
 VOLUME /repo /workdir
 
