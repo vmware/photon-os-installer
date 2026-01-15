@@ -72,11 +72,18 @@ build_ovf() {
         create_ova_args+=("--ova-name" "${OVA_NAME}")
     fi
 
+    volumes=()
+    for v in "${VOLUMES[@]}" ; do
+        volumes+=("-v")
+        volumes+=("$v")
+    done
+
     echo "running 'create-ova'"
     printf "%s\0" "${params[@]}" "${create_ova_args[@]}" | xargs -t -0 \
         docker run --rm \
         -v $(pwd):/workdir \
-        --network=none \
+        "${volumes[@]}" \
+        --network=host \
         -e VMDKCONVERT_COMPRESSION_LEVEL=${VMDKCONVERT_COMPRESSION_LEVEL} \
         -e VMDKCONVERT_NUM_THREADS=${VMDKCONVERT_NUM_THREADS} \
         ${POI_IMAGE} \
