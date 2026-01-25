@@ -133,6 +133,8 @@ class Installer(object):
         self.ab_present = False
         self.mounts = []
         self.cwd = os.getcwd()
+        self.progress_bar = None  # Initialize to prevent AttributeError
+        self.window = None        # Initialize to prevent AttributeError
 
         # some keys can have arch specific variations
         for key in ['packages', 'linux_flavor']:
@@ -831,8 +833,9 @@ class Installer(object):
         del frame1
         if not self.exiting and self.install_config:
             self.exiting = True
-            if self.install_config['ui']:
+            if self.install_config['ui'] and self.progress_bar is not None:
                 self.progress_bar.hide()
+            if self.install_config['ui'] and self.window is not None:
                 self.window.addstr(0, 0, 'Oops, Installer got interrupted.\n\n' +
                                    'Press any key to get to the bash...')
                 self.window.content_window().getch()
