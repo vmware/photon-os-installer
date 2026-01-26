@@ -204,39 +204,6 @@ Multiple disks:
       "log_level": "debug"
     }
     ```
-### _"ostree":_ (optional)
-- Atomic flavour of Photon OS.
-- Define the type of repo data used for installing the OS
-- There are two type:
-  1. Default Repo(comes with ISO)
-  2. Custom Repo (Remote server)
-  - _"default_repo":_ (required)
-    - **Boolean:** _true_ or _false_
-      - _true_ : Default Repo is selected
-      - _false_: Custom Repo is selected
-    - **Default value:** _true_
-   Example:
-   ```json
-   {
-     "ostree": {
-                  "default_repo": true
-               }
-   }
-   ```
-  - _"repo_url":_ (Required, Only If Custom Repo is selected)
-    - **Supported Values:** Valid "repo" URL of remote server where repo data exists
-  - _"repo_ref":_ (Required, Only If Custom Repo is selected)
-    - **Supported Value:** Valid "ref" path which was mentioned for
-                           creation of Base Tree on remote server
-
-   Example:
-   ```json
-   {
-       "ostree": {
-           "default_repo": false,
-           "repo_url": "http://<ip>:<port>/repo",
-           "repo_ref": "photon/4.0/x86_64/minimal"
-       }
    }
    ```
 

@@ -8,9 +8,6 @@ initrd_pkgs:
      - dracut
      - curl
      - dosfstools
-     - ostree
-     - ostree-grub2
-     - ostree-libs
      - lvm2
      - btrfs-progs
      - xfsprogs

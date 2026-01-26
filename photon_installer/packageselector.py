@@ -98,10 +98,6 @@ class PackageSelector(object):
                                      default_selected=default_selected, tab_enable=False)
 
     def exit_function(self, selected_item_params):
-        if selected_item_params[0] == 'ostree_host':
-            self.install_config['ostree'] = {}
-        else:
-            self.install_config.pop('ostree', None)
         self.install_config['packages'] = selected_item_params[1]
         return ActionResult(True, {'custom': False})
 

@@ -55,9 +55,6 @@ class LinuxSelector(object):
         self.window.set_action_panel(self.host_menu)
 
     def display(self):
-        if 'ostree' in self.install_config:
-            return ActionResult(None, {"inactive_screen": True})
-
         self.create_available_linux_menu()
         if len(self.menu_items) < 2:
             return ActionResult(None, {"inactive_screen": True})
