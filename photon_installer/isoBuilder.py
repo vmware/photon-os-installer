@@ -59,8 +59,6 @@ class IsoBuilder(object):
             releasever=self.photon_release_version,
             reposdir=self.yum_repos_dir,
         )
-        if self.function == "build-rpm-ostree-iso":
-            self.tdnf.reposdir = None
 
     def runCmd(self, cmd):
         retval = self.cmdUtil.run(cmd)
@@ -97,9 +95,6 @@ class IsoBuilder(object):
     def createInstallOptionJson(self):
         install_option_key = "custom"
         additional_files = [os.path.basename(file) for file in self.additional_files]
-        if self.function == "build-rpm-ostree-iso":
-            install_option_key = "ostree_host"
-            additional_files = ["ostree-repo.tar.gz"]
         install_option_data = {
             install_option_key: {
                 "title": "Photon Custom",
@@ -162,7 +157,6 @@ class IsoBuilder(object):
             photon_release_version=self.photon_release_version,
             pkg_list_file=self.packageslist_file,
             install_options_file=self.install_options_file,
-            ostree_iso=self.ostree_iso,
             initrd_files=self.initrd_files,
         )
         iso_initrd.build_initrd()
@@ -374,13 +368,6 @@ class IsoBuilder(object):
     def copyAdditionalFiles(self):
         for file in self.additional_files:
             output_file = f"{self.working_dir}/{os.path.basename(file)}"
-            # Rename ostree tar to ostree-repo.tar.gz in iso.
-            if (
-                self.ostree_tar_path
-                and os.path.basename(file) == os.path.basename(self.ostree_tar_path)
-                and os.path.basename(self.ostree_tar_path) != "ostree-repo.tar.gz"
-            ):
-                output_file = f"{self.working_dir}/ostree-repo.tar.gz"
             if not os.path.exists(output_file):
                 shutil.copy(file, output_file)
 
@@ -392,7 +379,6 @@ class IsoBuilder(object):
         self.createIsolinux()
 
         # Copy Additional Files
-        # In case of ostree-iso copy ostree tar to working directory.
         self.copyAdditionalFiles()
 
         self.createEfiImg()
@@ -441,15 +427,6 @@ class IsoBuilder(object):
         assert self.photon_release_version != "", "the Photon release version must not be empty"
         assert self.photon_release_version in (SUPPORTED_RELEASES + DEV_RELEASES), f"Photon release {self.photon_release_version} is not supported"
 
-        if self.function == "build-rpm-ostree-iso":
-            if not self.ostree_tar_path:
-                raise Exception("Ostree tar path not provided...")
-            elif not self.ostree_tar_path.startswith("http"):
-                self.ostree_tar_path = os.path.abspath(self.ostree_tar_path)
-            if not self.packageslist_file:
-                self.packageslist_file = (
-                    f"{os.path.dirname(__file__)}/packages_ostree_host.json"
-                )
         path = f"{self.initrd_path}/installer"
         os.makedirs(path)
 
@@ -471,11 +448,6 @@ class IsoBuilder(object):
         if not os.path.exists(self.working_dir):
             self.logger.info(f"Creating working directory: {self.working_dir}")
             os.makedirs(self.working_dir)
-
-        self.ostree_iso = False
-        if self.function == "build-rpm-ostree-iso":
-            self.ostree_iso = True
-        self.logger.info(f"building for ostree: {self.ostree_iso}")
 
         # read list of RPMs from file, if given
         self.rpms_list = None
@@ -504,20 +476,16 @@ class IsoBuilder(object):
             json.dump(pkg_json, f, indent=4)
 
         # Download all packages before installing them during initrd generation.
-        # Skip downloading packages if ostree iso.
-        if not self.ostree_iso:
-            self.setupReposDir()
-            # if we have a list of RPMs to ship with the iso, use that
-            # (generic ISO use case)
-            if self.rpms_list is not None:
-                self.copyRPMs()
-            # otherwise, use the packages list, which will also be used for
-            # installation
-            # (custom ISO use case)
-            else:
-                self.downloadPkgs()
+        self.setupReposDir()
+        # if we have a list of RPMs to ship with the iso, use that
+        # (generic ISO use case)
+        if self.rpms_list is not None:
+            self.copyRPMs()
+        # otherwise, use the packages list, which will also be used for
+        # installation
+        # (custom ISO use case)
         else:
-            self.additional_files.append(self.ostree_tar_path)
+            self.downloadPkgs()
 
 
 def main():
@@ -531,7 +499,7 @@ def main():
         dest="function",
         default="",
         help="<Required> Building Options",
-        choices=["build-iso", "build-initrd", "build-rpm-ostree-iso"],
+        choices=["build-iso", "build-initrd"],
     )
     parser.add_argument(
         "-v",
@@ -539,13 +507,6 @@ def main():
         dest="photon_release_version",
         default=None,
         help="<Required> Photon release version to build custom iso/initrd.",
-    )
-    parser.add_argument(
-        "-o",
-        "--ostree-tar-path",
-        dest="ostree_tar_path",
-        default="",
-        help="Path to custom ostree tar.",
     )
     parser.add_argument(
         "-i",
@@ -692,7 +653,6 @@ def main():
         log_level=options.log_level,
         initrd_pkg_list_file=options.initrd_pkgs_list_file,
         initrd_pkgs=options.initrd_pkgs.split(",") if options.initrd_pkgs else [],
-        ostree_tar_path=options.ostree_tar_path,
         additional_repos=options.additional_repos,
         boot_cmdline_param=options.boot_cmdline_param,
         artifact_path=options.artifact_path,
@@ -714,7 +674,7 @@ def main():
     isoBuilder.setup()
     isoBuilder.generateInitrd()
 
-    if options.function in ["build-iso", "build-rpm-ostree-iso"]:
+    if options.function == "build-iso":
         isoBuilder.logger.info(
             f"Starting to generate photon {isoBuilder.photon_release_version} iso..."
         )

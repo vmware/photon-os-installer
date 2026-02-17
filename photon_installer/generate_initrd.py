@@ -36,7 +36,6 @@ class IsoInitrd:
             "photon_release_version",
             "pkg_list_file",
             "install_options_file",
-            "ostree_iso",
             "initrd_files",
         ]
         for key in kwargs:
@@ -188,14 +187,6 @@ class IsoInitrd:
     def install_initrd_packages(self):
         # nogpgcheck to work around installing locally built packages, like photon-os-installer
         tdnf_args = ["--nogpgcheck", "install"] + self.initrd_pkgs
-        # mount_dirs = []
-        if self.ostree_iso:
-            self.tdnf.config_file = None
-            self.tdnf.reposdir = None
-        else:
-            # mount_dirs = [self.rpms_path, self.working_dir]
-            pass
-
         self.tdnf.run(tdnf_args, do_json=False)
 
     def prepare_installer_dir(self):
@@ -218,20 +209,19 @@ class IsoInitrd:
         # Explicitly set permission to 755 as it is ignored when passed through mode= in os.makedirs
         os.chmod(self.initrd_path, 0o755)
 
-        if not self.ostree_iso:
-            # Create Local Repo
-            create_repo_conf(
-                {
-                    "photon-local": {
-                        "name": "VMWare Photon Linux (x86_64)",
-                        "baseurl": f"file://{self.rpms_path}",
-                        "gpgcheck": 0,
-                        "enabled": 1,
-                        "skip_if_unavailable": True,
-                    }
-                },
-                reposdir=self.working_dir,
-            )
+        # Create Local Repo
+        create_repo_conf(
+            {
+                "photon-local": {
+                    "name": "VMWare Photon Linux (x86_64)",
+                    "baseurl": f"file://{self.rpms_path}",
+                    "gpgcheck": 0,
+                    "enabled": 1,
+                    "skip_if_unavailable": True,
+                }
+            },
+            reposdir=self.working_dir,
+        )
         self.install_initrd_packages()
 
         with open(

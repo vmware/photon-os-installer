@@ -84,7 +84,6 @@ class Installer(object):
         'live',
         'log_level',
         'manifest_file',
-        'ostree',
         'packages',
         'packagelist_file',
         'packagelist_files',
@@ -792,26 +791,21 @@ class Installer(object):
         self._partition_disks()
         self._format_partitions()
         self._mount_partitions()
-        if 'ostree' in self.install_config:
-            from ostreeinstaller import OstreeInstaller
-            ostree = OstreeInstaller(self)
-            ostree.install()
-        else:
-            self._mount_special_folders()
-            self._build_mounts()
-            self._setup_install_repo()
-            self._initialize_system()
-            self._execute_modules(modules.commons.PRE_PKGS_INSTALL)
-            self._install_packages()
-            self._install_additional_rpms()
-            self._enable_network_in_chroot()
-            self._setup_network()
-            self._finalize_system()
-            self._cleanup_tdnf_cache()
-            self._setup_security()
-            self._setup_grub()
-            self._create_fstab()
-            self._update_abupdate()
+        self._mount_special_folders()
+        self._build_mounts()
+        self._setup_install_repo()
+        self._initialize_system()
+        self._execute_modules(modules.commons.PRE_PKGS_INSTALL)
+        self._install_packages()
+        self._install_additional_rpms()
+        self._enable_network_in_chroot()
+        self._setup_network()
+        self._finalize_system()
+        self._cleanup_tdnf_cache()
+        self._setup_security()
+        self._setup_grub()
+        self._create_fstab()
+        self._update_abupdate()
         self._ansible_run()
         self._docker_images()
         self._execute_modules(modules.commons.POST_INSTALL)
@@ -980,9 +974,8 @@ class Installer(object):
 
         manifest['install_config'] = self.install_config
 
-        if 'ostree' not in self.install_config:
-            retval, pkg_list = self.tdnf.run(["list", "--installed", "--disablerepo=*"])
-            manifest['packages'] = pkg_list
+        retval, pkg_list = self.tdnf.run(["list", "--installed", "--disablerepo=*"])
+        manifest['packages'] = pkg_list
 
         with open(os.path.join(self.photon_root, "etc/fstab"), "rt") as f:
             manifest['fstab'] = jc.parse("fstab", f.read())
@@ -2048,13 +2041,6 @@ class Installer(object):
             if ptype == PartitionType.ESP:
                 esp_found = True
                 efi_partition = partition
-
-        # Adding boot partition required for ostree if already not present in partitions table
-        if 'ostree' in self.install_config:
-            mount_points = [partition['mountpoint'] for partition in partitions if 'mountpoint' in partition]
-            if '/boot' not in mount_points:
-                boot_partition = create_partition(300, "ext4", "/boot")
-                partitions.insert(0, boot_partition)
 
         bootmode = self.install_config.get('bootmode', 'bios')
 

@@ -61,6 +61,4 @@ class StigEnable(object):
         return ActionResult(True, None)
 
     def display(self):
-        if 'ostree' not in self.install_config:
-            return self.window.do_action()
-        return ActionResult(True, None)
+        return self.window.do_action()

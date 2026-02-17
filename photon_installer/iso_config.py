@@ -20,8 +20,6 @@ from license import License
 from linuxselector import LinuxSelector
 from logger import Logger
 from netconfig import NetworkConfigure
-from ostreeserverselector import OSTreeServerSelector
-from ostreewindowstringreader import OSTreeWindowStringReader
 from packageselector import PackageSelector
 from selectdisk import SelectDisk
 from stigenable import StigEnable
@@ -29,7 +27,6 @@ from windowstringreader import WindowStringReader
 
 
 class IsoConfig(object):
-    g_ostree_repo_url = None
     """This class handles iso installer configuration."""
     def __init__(self, root_dir="/"):
         self.alpha_chars = list(range(65, 91))
@@ -64,74 +61,6 @@ class IsoConfig(object):
         machinename = fields[0]
         return (len(machinename) <= 64 and
                 machinename[0].isalpha(), error_hostname)
-
-    @staticmethod
-    def validate_ostree_url_input(ostree_repo_url):
-        if not ostree_repo_url:
-            return False, "Error: Invalid input"
-
-        exception_text = "Error: Invalid or unreachable URL"
-        error_text = "Error: Repo URL not accessible"
-        ret = IsoConfig.validate_http_response(ostree_repo_url, [], exception_text, error_text)
-        if ret != "":
-            return False, ret
-
-        exception_text = "Error: Invalid repo - missing config"
-        ret = IsoConfig.validate_http_response(
-            ostree_repo_url + "/config",
-            [
-                [
-                    r".*\[core\]\s*",
-                    1,
-                    "Error: Invalid config - 'core' group expected",
-                ],
-                [
-                    r"\s*mode[ \t]*=[ \t]*archive-z2[^ \t]",
-                    1,
-                    "Error: can't pull from repo in 'bare' mode, 'archive-z2' mode required",
-                ],
-            ],
-            exception_text,
-            exception_text,
-        )
-        if ret != "":
-            return False, ret
-
-        exception_text = "Error: Invalid repo - missing refs"
-        ret = IsoConfig.validate_http_response(ostree_repo_url + "/refs/heads", [], exception_text, exception_text)
-        if ret != "":
-            return False, ret
-
-        exception_text = "Error: Invalid repo - missing objects"
-        ret = IsoConfig.validate_http_response(ostree_repo_url + "/objects", [], exception_text, exception_text)
-        if ret != "":
-            return False, ret
-
-        IsoConfig.g_ostree_repo_url = ostree_repo_url
-        return True, None
-
-    @staticmethod
-    def validate_ostree_refs_input(ostree_repo_ref):
-        if not ostree_repo_ref:
-            return False, "Error: Invalid input"
-
-        ret = IsoConfig.validate_http_response(
-            # 'http://10.110.19.153:8000/repo/refs/heads/' + ostree_repo_ref,
-            IsoConfig.g_ostree_repo_url + '/refs/heads/' + ostree_repo_ref,
-            [
-                [
-                    r"^\s*[0-9A-Fa-f]{64}\s*$",
-                    1,
-                    "Error: Incomplete Refspec path, or unexpected Refspec format",
-                ]
-            ],
-            "Error: Invalid Refspec path",
-            "Error: Refspec not accessible",
-        )
-        if ret != "":
-            return False, ret
-
-        return True, None
 
     @staticmethod
     def validate_http_response(url, checks, exception_text, error_text):
@@ -241,29 +170,6 @@ class IsoConfig(object):
             CommandUtils.generate_password_hash,  # post processing of the input field
             'Confirm root password', 'Confirm Root password:', 2, install_config)
 
-        ostree_server_selector = OSTreeServerSelector(maxy, maxx, install_config)
-        ostree_url_reader = OSTreeWindowStringReader(
-            maxy, maxx, 10, 80,
-            'repo_url',
-            None,  # confirmation error msg if it's a confirmation text
-            None,  # echo char
-            None,  # set of accepted chars
-            IsoConfig.validate_ostree_url_input,  # validation function of the input
-            None,  # post processing of the input field
-            'Please provide the URL of OSTree repo', 'OSTree Repo URL:', 2, install_config,
-            "http://")
-        ostree_ref_reader = OSTreeWindowStringReader(
-            maxy, maxx, 10, 70,
-            'repo_ref',
-            None,  # confirmation error msg if it's a confirmation text
-            None,  # echo char
-            None,  # set of accepted chars
-            IsoConfig.validate_ostree_refs_input,  # validation function of the input
-            None,  # post processing of the input field
-            'Please provide the Refspec in OSTree repo', 'OSTree Repo Refspec:', 2, install_config,
-            "photon/3.0/x86_64/minimal"
-        )
-
         confirm_window = ConfirmWindow(
             11,
             60,
@@ -299,9 +205,6 @@ class IsoConfig(object):
         items.append((hostname_reader.get_user_string, True))
         items.append((root_password_reader.get_user_string, True))
         items.append((confirm_password_reader.get_user_string, False))
-        items.append((ostree_server_selector.display, True))
-        items.append((ostree_url_reader.get_user_string, True))
-        items.append((ostree_ref_reader.get_user_string, True))
         items.append((confirm_window.do_action, True))
 
         return items

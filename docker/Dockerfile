@@ -60,7 +60,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     python3-PyYAML \
     python3-rpm \
     qemu-img \
-    open-vmdk ostree rpm-ostree \
+    open-vmdk \
     stig-hardening \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
@@ -76,7 +76,6 @@ COPY \
      create-ova \
      create-repo \
      create-azure \
-     create-ostree \
      create-cherrypicks-repo \
      create-pkg \
      poi-pkglist yjson \
