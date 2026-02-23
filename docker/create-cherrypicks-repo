@@ -29,7 +29,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "d:hs:p:", longopts=["base-repo-url=", "requires", "source-repo-url="])
     except:
-        print (f"{sys.argv[0]}: invalid option")
+        print(f"{sys.argv[0]}: invalid option")
         sys.exit(2)
 
     for o, a in opts:
@@ -66,7 +66,7 @@ def main():
 
     upstream_repos = plf_json.get('upstream-repos', {})
     if src_repo_url is not None:
-        upstream_repos['_src_repo'] = {'baseurl' : src_repo_url, 'enabled': 1, 'gpgcheck': 0}
+        upstream_repos['_src_repo'] = {'baseurl': src_repo_url, 'enabled': 1, 'gpgcheck': 0}
     for _, ur in upstream_repos.items():
         if 'priority' not in ur:
             ur['priority'] = 75
@@ -75,8 +75,20 @@ def main():
 
     base_repos = plf_json.get('base-repos', {})
     for i, br_url in enumerate(base_repo_urls):
+        snapshot = None
+        # snapshot is optional, and is specified as a comma separated value
+        # after the base URL
+        if "," in br_url:
+            br_url, snapshot = br_url.split(",", maxsplit=1)
         # make sure priority is higher (lower value), so this gets prefered over upstream_repos
-        base_repos[f'_base_repo_{i}'] = {'baseurl' : br_url, 'enabled': 1, 'gpgcheck': 0, 'priority': 25}
+        base_repos[f'_base_repo_{i}'] = {'baseurl': br_url, 'enabled': 1, 'gpgcheck': 0, 'priority': 25}
+        if snapshot is not None:
+            base_repos[f'_base_repo_{i}']['snapshot'] = snapshot
+
+    print("upstream repos:")
+    print(json.dumps(upstream_repos, indent=4))
+    print("base repos:")
+    print(json.dumps(base_repos, indent=4))
 
     packages = []
     if 'packages' in plf_json:
@@ -103,6 +115,15 @@ def main():
         tdnf_inst = tdnf.Tdnf(reposdir=repos_dir, installroot=install_root, releasever="5.0")
 
         if do_requires:
+            # cherry picked packages may have requirements that are not explictely listed,
+            # but may be satisfied in the "base" repository. If so, we do not need to add them into
+            # the temporary repository. We test for this by simulating an install, but with "downloadonly",
+            # and using the "assumeno" option. Only packages from the upstream repo will be downloaded.
+
+            # Example: if we cherry-pick python3=3.11.13-4.ph5, it will require python3-libs=3.11.3-4.ph5, which will
+            # also only be available in the upstream repo. However, it requires "openssl" as well, which is available in the base repo,
+            # so we do not need to add it to the temporary repository.
+
             # get list of all available packages
             retval, pkginfo_available = tdnf_inst.run(["list", "--available"])
             assert retval == 0, "tdnf failed while listing packages"
@@ -164,6 +185,9 @@ def main():
             packages = list(set(pkgs_all + packages))
 
         retval, tdnf_out = tdnf_inst.run(["--downloadonly", f"--downloaddir={dst_repo_dir}", "--nodeps", "install"] + packages)
+        print("tdnf output:")
+        print(json.dumps(tdnf_out, indent=4))
+        print(f"tdnf retval: {retval}")
         assert retval == 0, "tdnf failed while downloading packages"
 
     subprocess.run(["createrepo", dst_repo_dir], check=True)
