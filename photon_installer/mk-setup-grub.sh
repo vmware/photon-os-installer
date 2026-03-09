@@ -53,13 +53,6 @@ set timeout=5
 search -n -u ${BOOT_UUID} -s
 loadfont ascii
 
-insmod gfxterm
-insmod vbe
-insmod tga
-insmod png
-insmod ext2
-insmod part_gpt
-
 set gfxmode="640x480"
 gfxpayload=keep
 
@@ -81,8 +74,16 @@ fi
 
 set rootpartition=${ROOT_PARTITION_PATH}
 
-menuentry "Photon" {
+menuentry "Photon" --unrestricted {
   linux ${BOOT_DIR}/\$photon_linux root=\$rootpartition \$photon_cmdline \$systemd_cmdline ${POI_CMDLINE} \$user_cmdline ${EXTRA_PARAMS}
+
+  if [ -f ${BOOT_DIR}/\$photon_initrd ]; then
+    initrd ${BOOT_DIR}/\$photon_initrd
+  fi
+}
+
+menuentry "Photon (recovery mode)" --unrestricted {
+  linux ${BOOT_DIR}/\$photon_linux root=\$rootpartition \$photon_cmdline \$systemd_cmdline ${POI_CMDLINE} \$user_cmdline ${EXTRA_PARAMS} fsck.mode=force fsck.repair=yes
 
   if [ -f ${BOOT_DIR}/\$photon_initrd ]; then
     initrd ${BOOT_DIR}/\$photon_initrd

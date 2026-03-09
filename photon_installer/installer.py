@@ -14,6 +14,7 @@ import glob
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import signal
@@ -24,6 +25,7 @@ import tempfile
 import time
 from collections import abc
 from enum import Enum
+from pathlib import Path
 
 import jc
 import modules.commons
@@ -37,6 +39,7 @@ from window import Window
 
 BIOSSIZE = 4
 ESPSIZE = 10
+DEFAULT_GRUB_PASSWORD_HASH = "grub.pbkdf2.sha512.10000.REPLACEWITHHASH"
 
 
 class PartitionType(Enum):
@@ -78,6 +81,7 @@ class Installer(object):
         'eject_cdrom',
         'environment',
         'firstboot',
+        'grub',
         'hostname',
         'insecure_repo',
         'linux_flavor',
@@ -542,6 +546,10 @@ class Installer(object):
                 script = os.path.join(self.cwd, script)
             self.user_grub_cfg_fn = script
 
+        # A grub password is mandatory by default. If not provided, use a default hash that is impossible to use.
+        if 'grub' not in install_config or 'password_pbkdf2' not in install_config['grub']:
+            install_config['grub'] = {'password_pbkdf2': DEFAULT_GRUB_PASSWORD_HASH}
+
     def _check_install_config(self, install_config):
         """
         Sanity check of install_config before its execution.
@@ -704,6 +712,50 @@ class Installer(object):
                     raise InstallerConfigError(f"Environment variable value must be a string: {value} for key {key}")
                 if not key.strip():
                     raise InstallerConfigError("Environment variable name cannot be empty or whitespace")
+
+        # Validate grub password_pbkdf2 format
+        if 'grub' in install_config and 'password_pbkdf2' in install_config['grub']:
+            password_hash = install_config['grub']['password_pbkdf2']
+            # Allow the default placeholder hash to pass validation
+            if password_hash != DEFAULT_GRUB_PASSWORD_HASH:
+                # Validate the PBKDF2 format: grub.pbkdf2.sha512.{iterations}.{salt}.{hash}
+                if not password_hash.startswith('grub.pbkdf2.sha512.'):
+                    raise InstallerConfigError("GRUB password_pbkdf2 must start with 'grub.pbkdf2.sha512.'")
+
+                parts = password_hash.split('.')
+                if len(parts) < 5:
+                    raise InstallerConfigError("GRUB password_pbkdf2 format must be 'grub.pbkdf2.sha512.{iterations}.{salt}.{hash}'")
+
+                # Validate iterations is a number
+                try:
+                    iterations = int(parts[3])
+                    if iterations <= 0:
+                        raise InstallerConfigError("GRUB password_pbkdf2 iterations must be a positive integer")
+                except ValueError:
+                    raise InstallerConfigError("GRUB password_pbkdf2 iterations must be a valid integer")
+
+                # Validate salt and hash are present and non-empty
+                if len(parts) < 6 or not parts[4] or not parts[5]:
+                    raise InstallerConfigError("GRUB password_pbkdf2 must include both salt and hash components")
+
+                salt = parts[4]
+                hash_value = parts[5]
+
+                # Validate salt is hexadecimal and correct length (64 bytes = 128 hex chars)
+                if len(salt) != 128:
+                    raise InstallerConfigError("GRUB password_pbkdf2 salt must be exactly 128 hexadecimal characters (64 bytes)")
+                try:
+                    int(salt, 16)  # Test if it's valid hexadecimal
+                except ValueError:
+                    raise InstallerConfigError("GRUB password_pbkdf2 salt must contain only hexadecimal characters (0-9, A-F)")
+
+                # Validate hash is hexadecimal and correct length (64 bytes = 128 hex chars)
+                if len(hash_value) != 128:
+                    raise InstallerConfigError("GRUB password_pbkdf2 hash must be exactly 128 hexadecimal characters (64 bytes)")
+                try:
+                    int(hash_value, 16)  # Test if it's valid hexadecimal
+                except ValueError:
+                    raise InstallerConfigError("GRUB password_pbkdf2 hash must contain only hexadecimal characters (0-9, A-F)")
 
         # No error found
         return None
@@ -1424,6 +1476,72 @@ class Installer(object):
                 except FileNotFoundError:
                     pass
 
+    def _setup_grub_password(self):
+        grub_cfg = self.install_config.get('grub')
+        if not grub_cfg or 'password_pbkdf2' not in grub_cfg:
+            return
+
+        grub_password_hash = grub_cfg['password_pbkdf2']
+        if not grub_password_hash:
+            return
+
+        # Check if a specific user is configured in the grub config, default to 'root'
+        grub_user = grub_cfg.get('user', "root")
+
+        grub_cfg_path = os.path.join(self.photon_root, "boot/grub2/grub.cfg")
+        grub_cfg_file = Path(grub_cfg_path)
+
+        # Check if file exists
+        if not grub_cfg_file.exists():
+            self.logger.error(f"Error: grub.cfg file not found: {grub_cfg_path}")
+            return False
+
+        # Check if file is readable and writable
+        if not os.access(grub_cfg_path, os.R_OK | os.W_OK):
+            self.logger.error(f"Error: Insufficient permissions to modify {grub_cfg_path}")
+            return False
+
+        # Read the current grub.cfg content
+        with open(grub_cfg_path, 'r') as f:
+            content = f.read()
+
+        # Remove existing password protection if present
+        if 'set superusers=' in content or 'password_pbkdf2' in content:
+            self.logger.info("Found existing GRUB password protection - replacing it...")
+            # Remove existing password lines
+            content = re.sub(r'\n# GRUB Password Protection\n.*?\n.*?\n\n', '', content, flags=re.DOTALL)
+            content = re.sub(r'set superusers="[^"]*"\n', '', content)
+            content = re.sub(r'password_pbkdf2 [^\n]*\n', '', content)
+
+        # Define the lines to insert
+        password_lines = f"""
+# GRUB Password Protection
+set superusers="{grub_user}"
+password_pbkdf2 {grub_user} {grub_password_hash}
+"""
+
+        # Find the insertion point - right after "set rootpartition=..."
+        rootpartition_match = re.search(r'(set rootpartition=[^\n]*\n)', content)
+
+        if rootpartition_match:
+            # Insert after the rootpartition line
+            insertion_point = rootpartition_match.end()
+            new_content = content[:insertion_point] + password_lines + content[insertion_point:]
+        else:
+            # Fallback: insert before the first menuentry
+            menuentry_match = re.search(r'menuentry\s+', content)
+            if menuentry_match:
+                insertion_point = menuentry_match.start()
+                new_content = content[:insertion_point] + password_lines + content[insertion_point:]
+            else:
+                self.logger.error("Error: Could not find suitable insertion point in grub.cfg")
+                return False
+
+        # Write the modified content
+        with open(grub_cfg_path, 'w') as f:
+            f.write(new_content)
+        os.chmod(grub_cfg_path, 0o600)
+
     def _setup_grub(self):
         bootmode = self.install_config['bootmode']
 
@@ -1444,9 +1562,7 @@ class Installer(object):
 
         # Setup efi grub
         if bootmode == 'dualboot' or bootmode == 'efi':
-            esp_pn = '1'
-            if bootmode == 'dualboot':
-                esp_pn = '2'
+            arch = self.install_config['arch']
 
             os.makedirs(os.path.join(self.photon_root, "boot/efi/boot/grub2"), exist_ok=True)
             with open(os.path.join(self.photon_root, 'boot/efi/boot/grub2/grub.cfg'), "w") as grub_cfg:
@@ -1455,7 +1571,10 @@ class Installer(object):
                 grub_cfg.write(f"configfile {self.install_config['partitions_data']['bootdirectory']}grub2/grub.cfg\n")
 
             if self.install_config.get('live', True):
-                arch = self.install_config['arch']
+                esp_pn = '1'
+                if bootmode == 'dualboot':
+                    esp_pn = '2'
+
                 # 'x86_64' -> 'bootx64.efi', 'aarch64' -> 'bootaa64.efi'
                 exe_name = 'boot' + arch[:-5] + arch[-2:] + '.efi'
                 # Some platforms do not support adding boot entry. Thus, ignore failures
@@ -1464,20 +1583,20 @@ class Installer(object):
 
         # Create custom grub.cfg
         partitions_data = self.install_config['partitions_data']
-        retval = self.cmd.run(
-            [
-                self.setup_grub_command,
-                self.photon_root,
-                partitions_data['root'],
-                partitions_data['boot'],
-                partitions_data['bootdirectory'],
-                self.user_grub_cfg_fn,
-                self.poi_kernel_cmdline,
-            ]
-        )
+        retval = self.cmd.run([
+            self.setup_grub_command,
+            self.photon_root,
+            partitions_data['root'],
+            partitions_data['boot'],
+            partitions_data['bootdirectory'],
+            self.user_grub_cfg_fn,
+            self.poi_kernel_cmdline,
+        ])
 
         if retval != 0:
             raise InstallerError("Bootloader (grub2) setup failed")
+
+        self._setup_grub_password()
 
     def _execute_modules(self, phase):
         """
