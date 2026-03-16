@@ -50,9 +50,11 @@ ARG TDNF_OPTIONS
 ARG TARGETARCH
 
 RUN tdnf ${TDNF_OPTIONS} makecache && \
+    tdnf ${TDNF_OPTIONS} -y remove toybox && \
     tdnf ${TDNF_OPTIONS} -y update && \
     tdnf ${TDNF_OPTIONS} -y install \
     zlib tar \
+    gzip cpio \
     util-linux coreutils findutils gawk binutils cdrkit \
     gptfdisk grub2 \
     e2fsprogs btrfs-progs xfsprogs kpartx lvm2 dosfstools \

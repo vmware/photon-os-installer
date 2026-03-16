@@ -19,21 +19,23 @@ BuildRequires: python3-cracklib
 BuildRequires: python3-curses
 BuildRequires: python3-jc
 
+Requires: cdrkit
+Requires: cpio
 Requires: dosfstools
 Requires: efibootmgr
+Requires: findutils
 Requires: glibc
 Requires: gptfdisk
 Requires: grub2
 %ifarch x86_64
 Requires: grub2-pc
 %endif
+Requires: gzip
 Requires: kpartx
 Requires: lvm2
-Requires: zlib
-Requires: cdrkit
-Requires: findutils
 # needed for --rpmdefine option
 Requires: tdnf >= 3.5.6
+Requires: zlib
 
 Requires: python3-pyOpenSSL
 Requires: python3-requests
