@@ -357,10 +357,7 @@ class Installer(object):
 
         # 'bootmode' mode
         if 'bootmode' not in install_config:
-            if "x86_64" in arch:
-                install_config['bootmode'] = 'dualboot'
-            else:
-                install_config['bootmode'] = 'efi'
+            install_config['bootmode'] = 'efi'
 
         # arch specific setting takes precedence
         if f'linux_flavor_{arch}' in install_config:
