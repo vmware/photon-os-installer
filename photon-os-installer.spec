@@ -33,10 +33,12 @@ Requires: grub2-pc
 Requires: gzip
 Requires: kpartx
 Requires: lvm2
+Requires: mkpasswd
 # needed for --rpmdefine option
 Requires: tdnf >= 3.5.6
 Requires: zlib
 
+Requires: python3
 Requires: python3-pyOpenSSL
 Requires: python3-requests
 Requires: python3-cracklib
