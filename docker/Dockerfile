@@ -18,7 +18,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     git && \
     rm -rf /var/cache/tdnf
 
-RUN cd / && git clone https://github.com/vmware/photon-os-installer.git
+RUN cd / && git clone --depth 1 https://github.com/vmware/photon-os-installer.git
 
 
 # this stage is a place holder that can be overidden with the
@@ -64,6 +64,7 @@ RUN tdnf ${TDNF_OPTIONS} makecache && \
     qemu-img \
     open-vmdk \
     stig-hardening \
+    mkpasswd \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
     rm -rf /var/cache/tdnf
 

@@ -5,7 +5,6 @@
 #
 
 import copy
-import crypt
 import glob
 import json
 import os
@@ -142,8 +141,13 @@ class CommandUtils(object):
 
     @staticmethod
     def generate_password_hash(password):
-        """Generate hash for the password"""
-        return crypt.crypt(password)
+        result = subprocess.run(
+            ["mkpasswd", "-m", "sha-512", password],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
 
     @staticmethod
     def _requests_get(url, verify):

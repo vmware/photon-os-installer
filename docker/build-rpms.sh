@@ -32,7 +32,6 @@ fi
 
 tdnf install -y ${TDNF_OPTIONS} "${BUILD_REQUIRES[@]}"
 
-mkdir -p ${RPM_BUILD_DIR}
 mkdir -p ${RPM_BUILD_DIR}/{SOURCES,BUILD,RPMS,SRPMS}
 mv ${TARBALL} ${RPM_BUILD_DIR}/SOURCES/
 
