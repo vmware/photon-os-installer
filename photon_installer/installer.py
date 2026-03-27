@@ -970,7 +970,8 @@ class Installer(object):
         socket_file = os.path.join(self.photon_root, "var/run/docker.sock")
         if os.path.exists(socket_file):
             os.remove(socket_file)
-        docker_process = subprocess.Popen(["chroot", self.photon_root, "dockerd"], text=True)
+        # use --feature containerd-snapshotter=false because this is used in the Photon docker systemd unit file
+        docker_process = subprocess.Popen(["chroot", self.photon_root, "dockerd", "--feature", "containerd-snapshotter=false"], text=True)
         for timeout in range(15, 0, -1):
             if os.path.exists(socket_file):
                 mode = os.stat(socket_file).st_mode
