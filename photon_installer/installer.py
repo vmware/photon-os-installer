@@ -71,6 +71,7 @@ class Installer(object):
         'additional_rpms_path',
         'ansible',
         'arch',
+        'archives',
         'autopartition',
         'bootmode',
         'build_mounts',
@@ -863,6 +864,7 @@ class Installer(object):
         self._write_manifest()
         self._selinux_label()  # run after last possible file creation
         self._cleanup_install_repo()
+        self._create_archive()
         self._unmount_all()
 
     def exit_gracefully(self, signal1=None, frame1=None):
@@ -1052,6 +1054,34 @@ class Installer(object):
         with open(mf_file, "wt") as f:
             f.write(json.dumps(manifest))
         subprocess.run(["gzip", mf_file])
+
+    def _create_archive(self):
+        if 'archives' not in self.install_config:
+            return
+
+        archives = self.install_config['archives']
+        for archive in archives:
+            filename = archive.get('filename', "rootfs.tar.gz")
+            skip_mounts = archive.get('skip_mounts', False)
+            exclude_paths = archive.get('exclude_paths', [])
+            exclude_paths.extend(["/proc", "/dev", "/sys", "/run", "/tmp"])
+            root = archive.get('root', "/").strip("/")
+
+            # filename may be an absolute path, os.path.join() will do as intended
+            dest_path = os.path.join(self.cwd, filename)
+            command = ["tar", "--numeric-owner", "-czf", dest_path]
+            src_path = os.path.join(self.photon_root, root)
+            command.extend(["-C", src_path])
+            for path in exclude_paths:
+                command.extend(["--exclude", "." + path])
+            if skip_mounts:
+                command.append("--one-file-system")
+            command.append(".")
+            retval = self.cmd.run(command)
+            if retval != 0:
+                self.logger.error(f"Failed to create archive {filename}")
+                self.exit_gracefully()
+            self.logger.info(f"Created archive {filename}")
 
     def _unmount_all(self):
         """
