@@ -1450,13 +1450,10 @@ class Installer(object):
             shutil.rmtree(cache_dir)
 
     def _selinux_label(self):
-        if 'security' not in self.install_config:
+        if "selinux-policy" not in self.install_config['packages']:
             return
 
-        security = self.install_config['security']
-        selinux = security.get('selinux', None)
-        if selinux is not None:
-            subprocess.check_call(["chroot", self.photon_root, "/usr/sbin/setfiles", "/etc/selinux/default/contexts/files/file_contexts", "/"])
+        subprocess.check_call(["chroot", self.photon_root, "/usr/sbin/setfiles", "/etc/selinux/default/contexts/files/file_contexts", "/"])
 
     def _cleanup_install_repo(self):
         if self.install_config.get('no_clean', False):
