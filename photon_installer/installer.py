@@ -713,8 +713,8 @@ class Installer(object):
         # Validate grub password_pbkdf2 format
         if 'grub' in install_config and 'password_pbkdf2' in install_config['grub']:
             password_hash = install_config['grub']['password_pbkdf2']
-            # Allow the default placeholder hash to pass validation
-            if password_hash != DEFAULT_GRUB_PASSWORD_HASH:
+            # Allow disabled (None) and the default placeholder hash to pass validation
+            if password_hash is not None and password_hash != DEFAULT_GRUB_PASSWORD_HASH:
                 # Validate the PBKDF2 format: grub.pbkdf2.sha512.{iterations}.{salt}.{hash}
                 if not password_hash.startswith('grub.pbkdf2.sha512.'):
                     raise InstallerConfigError("GRUB password_pbkdf2 must start with 'grub.pbkdf2.sha512.'")
