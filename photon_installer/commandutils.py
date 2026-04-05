@@ -158,7 +158,7 @@ class CommandUtils(object):
         return r
 
     @staticmethod
-    def exists_in_file(target_string, file_path):
+    def exists_in_file(target_string, file_path, errors="ignore"):
         """
         Check if a given string exists in a file.
         If the file doesn't exists return False.
@@ -171,7 +171,7 @@ class CommandUtils(object):
         - bool: True if the string exists in the file, False otherwise.
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, "r", encoding="utf-8", errors=errors) as file:
                 for line in file:
                     if target_string in line:
                         return True
@@ -351,14 +351,14 @@ class CommandUtils(object):
             json.dump(packages_list, json_file, indent=4)
         return file_path
 
-    def replace_in_file(self, file_path, pattern, replacement):
+    def replace_in_file(self, file_path, pattern, replacement, errors="ignore"):
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, "r", encoding="utf-8", errors=errors) as file:
                 file_contents = file.read()
 
             modified_contents = re.sub(pattern, replacement, file_contents)
 
-            with open(file_path, "w", encoding="utf-8") as file:
+            with open(file_path, "w", encoding="utf-8", errors=errors) as file:
                 file.write(modified_contents)
 
             self.logger.info(f"Replacement completed in {file_path}")

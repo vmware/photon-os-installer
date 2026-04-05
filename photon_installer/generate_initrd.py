@@ -79,8 +79,10 @@ class IsoInitrd:
             try_run_installer || exec /bin/bash
             """
 
+        # EULA may contain non utf8 characters, so ignore errors
         with open(
-            f"{self.initrd_path}/bin/bootphotoninstaller", "w", encoding="utf-8"
+            f"{self.initrd_path}/bin/bootphotoninstaller", "w",
+            encoding="utf-8", errors="ignore"
         ) as f:
             f.write(script_content)
         os.chmod(f"{self.initrd_path}/bin/bootphotoninstaller", 0o755)
