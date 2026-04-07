@@ -12,7 +12,8 @@ ARG DOCKER_PROXY
 ARG TDNF_OPTIONS
 FROM ${DOCKER_PROXY}library/photon:5.0 AS builder
 
-RUN tdnf ${TDNF_OPTIONS} makecache && \
+RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
+    tdnf ${TDNF_OPTIONS} makecache && \
     tdnf ${TDNF_OPTIONS} -y update && \
     tdnf ${TDNF_OPTIONS} -y install \
     git && \
@@ -33,7 +34,8 @@ ARG DOCKER_PROXY
 FROM ${DOCKER_PROXY}library/photon:5.0 AS poi-rpm-builder
 ARG TDNF_OPTIONS
 
-RUN tdnf ${TDNF_OPTIONS} makecache && \
+RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
+    tdnf ${TDNF_OPTIONS} makecache && \
     tdnf ${TDNF_OPTIONS} -y install git rpm-build python3 createrepo
 
 COPY --from=poi-helper / /photon-os-installer
@@ -49,7 +51,8 @@ FROM ${DOCKER_PROXY}library/photon:5.0
 ARG TDNF_OPTIONS
 ARG TARGETARCH
 
-RUN tdnf ${TDNF_OPTIONS} makecache && \
+RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
+    tdnf ${TDNF_OPTIONS} makecache && \
     tdnf ${TDNF_OPTIONS} -y remove toybox && \
     tdnf ${TDNF_OPTIONS} -y update && \
     tdnf ${TDNF_OPTIONS} -y install \
