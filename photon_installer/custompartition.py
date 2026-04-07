@@ -223,7 +223,7 @@ class CustomPartition(object):
 
             partitions = partitions + [{"mountpoint": mtdata,
                                         "size": sizedata,
-                                        "filesystem": typedata},]
+                                        "filesystem": typedata}, ]
         self.install_config['partitions'] = partitions
 
         return ActionResult(True, {'goNext': True})
