@@ -2345,7 +2345,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
 
         # add btrfs-progs if any partition uses btrfs
         if any(p.get('filesystem') == 'btrfs' for p in partitions):
-            self._add_packages_to_install('btrfs-progs')        
+            self._add_packages_to_install('btrfs-progs')
 
         # Create partitions_data (needed for mk-setup-grub.sh)
         for partition in partitions:
