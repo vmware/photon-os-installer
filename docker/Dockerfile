@@ -7,10 +7,16 @@
 # Example run:
 # sudo docker run -ti --rm --privileged -v/dev:/dev -v$(pwd):/workdir -v /home/okurth/poi/repo/:/repo poi-debug create-image -c sample_ks.yaml -v 4.0
 
+# base stage
+ARG DOCKER_PROXY
+FROM ${DOCKER_PROXY}library/photon:5.0 AS base
+RUN tdnf-config edit photon-snapshot enabled=1 && \
+    tdnf-config edit photon-updates enabled=0
+
 # stage to clone poi
 ARG DOCKER_PROXY
 ARG TDNF_OPTIONS
-FROM ${DOCKER_PROXY}library/photon:5.0 AS builder
+FROM base AS builder
 
 RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
     tdnf ${TDNF_OPTIONS} makecache && \
@@ -31,7 +37,7 @@ COPY --from=builder /photon-os-installer /
 # this stage builds an RPM from photon-os-installer which can
 # be installed into the final image and into the initrd
 ARG DOCKER_PROXY
-FROM ${DOCKER_PROXY}library/photon:5.0 AS poi-rpm-builder
+FROM base AS poi-rpm-builder
 ARG TDNF_OPTIONS
 
 RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
@@ -47,7 +53,7 @@ RUN cd /photon-os-installer && build-rpms.sh photon-os-installer
 
 # final image
 ARG DOCKER_PROXY
-FROM ${DOCKER_PROXY}library/photon:5.0
+FROM base
 ARG TDNF_OPTIONS
 ARG TARGETARCH
 
