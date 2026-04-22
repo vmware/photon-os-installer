@@ -95,6 +95,7 @@ class Installer(object):
         'partition_type',
         'partitions',
         'security',
+        'services',
         'network',
         'no_unmount',
         'no_clean',
@@ -712,6 +713,15 @@ class Installer(object):
                     raise InstallerConfigError(f"Environment variable value must be a string: {value} for key {key}")
                 if not key.strip():
                     raise InstallerConfigError("Environment variable name cannot be empty or whitespace")
+
+        if 'services' in install_config:
+            services = install_config['services']
+            if not isinstance(services, dict):
+                raise InstallerConfigError("'services' must be a dictionary of service states")
+            allowed_states = ['enabled', 'disabled', 'masked']
+            for service, state in services.items():
+                if state not in allowed_states:
+                    raise InstallerConfigError(f"Invalid state '{state}' for service '{service}'. Allowed states are: {', '.join(allowed_states)}")
 
         # Validate grub password_pbkdf2 format
         if 'grub' in install_config and 'password_pbkdf2' in install_config['grub']:

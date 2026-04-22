@@ -753,6 +753,21 @@ Used to configure the network.
   }
   ```
 
+### _"services":_ (optional)
+- A dictionary of systemd service names and their desired states.
+- The state must be one of: `enabled`, `disabled`, `masked`.
+- By default, `sshd` is `masked` unless explicitly enabled or disabled. This prevents it from being started automatically by other services via `Wants=` dependencies.
+
+  Example:
+  ```json
+  {
+    "services": {
+      "sshd": "enabled",
+      "docker": "enabled"
+    }
+  }
+  ```
+
 ### _"shadow_password":_ (optional)
 - Contains encrypted root password <encrypted password here>.
 - Short form of:
