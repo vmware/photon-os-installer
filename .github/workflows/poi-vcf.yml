@@ -20,7 +20,7 @@ jobs:
             run: |
               VENV_DIR="$(mktemp -d /var/tmp/venv.XXXXXX)"
               python3 -m venv "$VENV_DIR"
-              "$VENV_DIR/bin/pip" install isort black flake8 shellcheck-py
+              "$VENV_DIR/bin/pip" install isort black flake8 shellcheck-py --index-url https://packages.vcfd.broadcom.net/artifactory/api/pypi/pypi/simple/
               export PATH="$VENV_DIR/bin:$PATH"
               bash lint-checks.sh
               STATUS=$?
