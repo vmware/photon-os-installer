@@ -1047,6 +1047,12 @@ class Installer(object):
             m['mount_point'] = m['mount_point'][len(self.photon_root):]
         manifest['mount'] = mount
 
+        systemd_units = jc.parse("systemctl-luf", subprocess.check_output(
+            ["systemctl", f"--root={self.photon_root}", "list-unit-files", "--type=service", "--all"],
+            text=True
+        ))
+        manifest['systemd-units'] = systemd_units
+
         with open(mf_file, "wt") as f:
             f.write(json.dumps(manifest))
 
