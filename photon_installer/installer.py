@@ -1642,6 +1642,40 @@ password_pbkdf2 {grub_user} {grub_password_hash}
 
         self._setup_grub_password()
 
+    def _execute_external_plugins(self, phase):
+        """
+        Execute phase-specific functions from external plugins.
+        """
+        import importlib
+
+        # Convert phase string (e.g. 'pre-install') to function name (e.g. 'pre_install')
+        func_name = phase.replace('-', '_')
+
+        # Always try to load the default plugin module
+        plugins_to_load = ['poi_plugins']
+
+        # Add any user-specified plugins from the config
+        plugins_to_load.extend(self.install_config.get('plugins', []))
+
+        for plugin_name in plugins_to_load:
+            try:
+                plugin_mod = importlib.import_module(plugin_name)
+            except ImportError as e:
+                # Ignore if the default plugin is missing, but error on user-specified ones
+                if plugin_name == 'poi_plugins':
+                    continue
+                self.logger.error(f"Error importing plugin {plugin_name}: {e}")
+                raise InstallerError(f"Failed to load plugin {plugin_name}: {e}")
+
+            if hasattr(plugin_mod, func_name):
+                self.logger.info(f"Executing {func_name} from plugin {plugin_name}")
+                try:
+                    func = getattr(plugin_mod, func_name)
+                    func(self)
+                except Exception as e:
+                    self.logger.error(f"Error executing {func_name} in plugin {plugin_name}: {e}")
+                    raise InstallerError(f"Plugin {plugin_name} failed during {func_name}: {e}")
+
     def _execute_modules(self, phase):
         """
         Execute the scripts in the modules folder
@@ -1674,6 +1708,8 @@ password_pbkdf2 {grub_user} {grub_password_hash}
             self.logger.info("Executing: " + module)
 
             mod.execute(self)
+
+        self._execute_external_plugins(phase)
 
     def _adjust_packages_based_on_selected_flavor(self):
         """
@@ -2441,6 +2477,8 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 with open(machine_id_file, "rt") as f:
                     content = f.read().strip()
                     assert content == "uninitialized" or content == "", f"file {machine_id_file} content is {content}, but should be 'uninitialized' or empty"
+
+        self._execute_external_plugins(modules.commons.FINAL_CHECK)
 
     def getfile(self, filename):
         """

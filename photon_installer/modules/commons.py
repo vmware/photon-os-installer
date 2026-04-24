@@ -9,6 +9,7 @@ import re
 PRE_INSTALL = "pre-install"
 PRE_PKGS_INSTALL = "pre-pkgs-install"
 POST_INSTALL = "post-install"
+FINAL_CHECK = "final-check"
 
 
 def replace_string_in_file(filename, search_string, replace_string):
