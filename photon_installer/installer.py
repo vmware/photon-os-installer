@@ -1652,7 +1652,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         func_name = phase.replace('-', '_')
 
         # Always try to load the default plugin module
-        plugins_to_load = ['poi_plugins']
+        plugins_to_load = ['photon_installer.plugins']
 
         # Add any user-specified plugins from the config
         plugins_to_load.extend(self.install_config.get('plugins', []))
@@ -1662,7 +1662,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 plugin_mod = importlib.import_module(plugin_name)
             except ImportError as e:
                 # Ignore if the default plugin is missing, but error on user-specified ones
-                if plugin_name == 'poi_plugins':
+                if plugin_name == 'photon_installer.plugins':
                     continue
                 self.logger.error(f"Error importing plugin {plugin_name}: {e}")
                 raise InstallerError(f"Failed to load plugin {plugin_name}: {e}")
