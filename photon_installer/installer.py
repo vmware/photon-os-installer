@@ -11,6 +11,7 @@ import copy
 import curses
 import datetime
 import glob
+import importlib
 import json
 import os
 import platform
@@ -108,6 +109,7 @@ class Installer(object):
         'prepkgsinstallscripts',
         'public_key',
         'photon_docker_image',
+        'plugins',
         'repos',
         'search_path',
         'setup_grub_script',
@@ -132,6 +134,7 @@ class Installer(object):
         self.rpm_path = rpm_path
         self.log_path = log_path
         self.logger = None
+        self.loaded_plugins = []
         self.cmd = None
         self.working_directory = working_directory
         self.photon_release_version = photon_release_version
@@ -142,6 +145,7 @@ class Installer(object):
         self.window = None        # Initialize to prevent AttributeError
 
         # some keys can have arch specific variations
+        self.known_keys = set(Installer.known_keys)
         for key in ['packages', 'linux_flavor']:
             for arch in ['x86_64', 'aarch64']:
                 self.known_keys.add(f'{key}_{arch}')
@@ -200,6 +204,8 @@ class Installer(object):
             self.interactive = True
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
+
+        self._load_plugins(install_config)
 
         # _check_install_config will raise InstallerConfigError if there's an issue
         self._check_install_config(install_config)
@@ -557,7 +563,7 @@ class Installer(object):
         Raises InstallerConfigError if the configuration is invalid.
         """
 
-        unknown_keys = install_config.keys() - Installer.known_keys
+        unknown_keys = install_config.keys() - self.known_keys
         if len(unknown_keys) > 0:
             raise InstallerConfigError("Unknown install_config keys: " + ", ".join(unknown_keys))
 
@@ -1642,32 +1648,46 @@ password_pbkdf2 {grub_user} {grub_password_hash}
 
         self._setup_grub_password()
 
-    def _execute_external_plugins(self, phase):
+    def _load_plugins(self, install_config):
         """
-        Execute phase-specific functions from external plugins.
+        Load external plugins and add their known keys to the installer.
         """
-        import importlib
 
-        # Convert phase string (e.g. 'pre-install') to function name (e.g. 'pre_install')
-        func_name = phase.replace('-', '_')
-
-        # Always try to load the default plugin module
         plugins_to_load = ['photon_installer.plugins']
-
-        # Add any user-specified plugins from the config
-        plugins_to_load.extend(self.install_config.get('plugins', []))
+        plugins_to_load.extend(install_config.get('plugins', []))
 
         for plugin_name in plugins_to_load:
             try:
                 plugin_mod = importlib.import_module(plugin_name)
             except ImportError as e:
-                # Ignore if the default plugin is missing, but error on user-specified ones
                 if plugin_name == 'photon_installer.plugins':
                     continue
                 self.logger.error(f"Error importing plugin {plugin_name}: {e}")
                 raise InstallerError(f"Failed to load plugin {plugin_name}: {e}")
 
+            self.loaded_plugins.append(plugin_mod)
+
+            # Let plugins register their own known keys
+            if hasattr(plugin_mod, 'known_keys'):
+                self.known_keys.update(plugin_mod.known_keys)
+
+            # If the plugin has a get_known_keys function, call it
+            if hasattr(plugin_mod, 'get_known_keys'):
+                try:
+                    self.known_keys.update(plugin_mod.get_known_keys())
+                except Exception as e:
+                    self.logger.warning(f"Failed to get known keys from plugin {plugin_name}: {e}")
+
+    def _execute_external_plugins(self, phase):
+        """
+        Execute phase-specific functions from external plugins.
+        """
+        # Convert phase string (e.g. 'pre-install') to function name (e.g. 'pre_install')
+        func_name = phase.replace('-', '_')
+
+        for plugin_mod in self.loaded_plugins:
             if hasattr(plugin_mod, func_name):
+                plugin_name = plugin_mod.__name__
                 self.logger.info(f"Executing {func_name} from plugin {plugin_name}")
                 try:
                     func = getattr(plugin_mod, func_name)
@@ -2089,7 +2109,6 @@ password_pbkdf2 {grub_user} {grub_password_hash}
             Wait for a device node to appear and be accessible.
             Returns True if device appears, False if timeout.
             """
-            import time
             elapsed = 0
             while elapsed < timeout:
                 if os.path.exists(device_path):

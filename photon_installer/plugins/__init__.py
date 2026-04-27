@@ -45,3 +45,24 @@ def post_install(installer):
 
 def final_check(installer):
     _execute_phase('final_check', installer)
+
+
+def get_known_keys():
+    """
+    Iterate through all modules in the plugins package
+    and collect their known_keys if they exist.
+    """
+    keys = set()
+    for _, module_name, ispkg in pkgutil.iter_modules(__path__):
+        if ispkg or module_name.startswith('_'):
+            continue
+
+        full_module_name = f"{__name__}.{module_name}"
+        try:
+            mod = importlib.import_module(full_module_name)
+            if hasattr(mod, 'known_keys'):
+                keys.update(mod.known_keys)
+        except Exception:
+            # Ignore errors here, they will be caught during execution
+            pass
+    return keys
