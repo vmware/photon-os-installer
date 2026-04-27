@@ -205,12 +205,15 @@ class Installer(object):
             config = IsoConfig()
             install_config = curses.wrapper(config.configure, ui_config)
 
+        self.install_config = install_config
         self._load_plugins(install_config)
 
         # _check_install_config will raise InstallerConfigError if there's an issue
         self._check_install_config(install_config)
+        self._execute_external_plugins(modules.commons.CHECK_CONFIG)
 
         self._add_defaults(install_config)
+        self._execute_external_plugins(modules.commons.ADD_DEFAULTS)
 
         self.tdnf = tdnf.Tdnf(logger=self.logger,
                               config_file=self.tdnf_conf_path,
@@ -218,8 +221,6 @@ class Installer(object):
                               reposdir=self.working_directory,
                               releasever=self.photon_release_version,
                               installroot=self.photon_root)
-
-        self.install_config = install_config
 
         self.ab_present = self._is_ab_present()
         self._prepare_devices()

@@ -10,6 +10,8 @@ PRE_INSTALL = "pre-install"
 PRE_PKGS_INSTALL = "pre-pkgs-install"
 POST_INSTALL = "post-install"
 FINAL_CHECK = "final-check"
+CHECK_CONFIG = "check-config"
+ADD_DEFAULTS = "add-defaults"
 
 
 def replace_string_in_file(filename, search_string, replace_string):

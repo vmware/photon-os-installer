@@ -31,6 +31,14 @@ def _execute_phase(phase_name, installer):
 # hasattr(plugin_mod, 'pre_install') check succeeds on the plugins package.
 
 
+def check_config(installer):
+    _execute_phase('check_config', installer)
+
+
+def add_defaults(installer):
+    _execute_phase('add_defaults', installer)
+
+
 def pre_install(installer):
     _execute_phase('pre_install', installer)
 
@@ -62,6 +70,11 @@ def get_known_keys():
             mod = importlib.import_module(full_module_name)
             if hasattr(mod, 'known_keys'):
                 keys.update(mod.known_keys)
+            if hasattr(mod, 'get_known_keys'):
+                try:
+                    keys.update(mod.get_known_keys())
+                except Exception:
+                    pass
         except Exception:
             # Ignore errors here, they will be caught during execution
             pass
