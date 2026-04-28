@@ -17,7 +17,7 @@ with open(os.path.join(here, "requirements.txt")) as requirements_txt:
 setup(
     name='photon-installer',
     description='Installer code for photon',
-    packages=find_packages(include=['photon_installer', 'photon_installer.modules']),
+    packages=find_packages(include=['photon_installer', 'photon_installer.modules', 'photon_installer.plugins']),
     install_requires=REQUIRES,
     include_package_data=True,
     zip_safe=False,
