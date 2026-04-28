@@ -95,6 +95,7 @@ class Installer(object):
         'partition_type',
         'partitions',
         'security',
+        'services',
         'network',
         'no_unmount',
         'no_clean',
@@ -713,6 +714,15 @@ class Installer(object):
                 if not key.strip():
                     raise InstallerConfigError("Environment variable name cannot be empty or whitespace")
 
+        if 'services' in install_config:
+            services = install_config['services']
+            if not isinstance(services, dict):
+                raise InstallerConfigError("'services' must be a dictionary of service states")
+            allowed_states = ['enabled', 'disabled', 'masked']
+            for service, state in services.items():
+                if state not in allowed_states:
+                    raise InstallerConfigError(f"Invalid state '{state}' for service '{service}'. Allowed states are: {', '.join(allowed_states)}")
+
         # Validate grub password_pbkdf2 format
         if 'grub' in install_config and 'password_pbkdf2' in install_config['grub']:
             password_hash = install_config['grub']['password_pbkdf2']
@@ -1046,6 +1056,12 @@ class Installer(object):
         for m in mount:
             m['mount_point'] = m['mount_point'][len(self.photon_root):]
         manifest['mount'] = mount
+
+        systemd_units = jc.parse("systemctl-luf", subprocess.check_output(
+            ["systemctl", f"--root={self.photon_root}", "list-unit-files", "--type=service", "--all"],
+            text=True
+        ))
+        manifest['systemd-units'] = systemd_units
 
         with open(mf_file, "wt") as f:
             f.write(json.dumps(manifest))
