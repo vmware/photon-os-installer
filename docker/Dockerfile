@@ -10,7 +10,31 @@
 # base stage
 ARG DOCKER_PROXY
 FROM ${DOCKER_PROXY}library/photon:5.0 AS base
-RUN tdnf-config edit photon-snapshot enabled=1 && \
+
+# SNAPSHOT_BASEURL: where the snapshot's repodata lives. Override with
+#   --build-arg SNAPSHOT_BASEURL=http://internal-mirror/photon/...
+# for airgapped or alternate-mirror builds. Default is the canonical
+# Broadcom Photon 5.0 main repo (which carries repodata).
+# SNAPSHOT_LISTURL: optional snapshot=URL pinning (TDNF on Photon 5.0
+# honors this); empty leaves the repo unpinned.
+ARG SNAPSHOT_BASEURL=https://packages.broadcom.com/photon/5.0/photon_5.0_x86_64
+ARG SNAPSHOT_LISTURL=
+
+RUN set -eu; \
+    if [ ! -f /etc/yum.repos.d/photon-snapshot.repo ]; then \
+        { \
+            echo '[photon-snapshot]'; \
+            echo 'name=VMware Photon Linux $releasever ($basearch) Snapshot for Updates'; \
+            echo "baseurl=${SNAPSHOT_BASEURL}"; \
+            [ -n "${SNAPSHOT_LISTURL}" ] && echo "snapshot=${SNAPSHOT_LISTURL}"; \
+            echo 'gpgkey=file:///etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY file:///etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY-4096'; \
+            echo 'gpgcheck=1'; \
+            echo 'enabled=1'; \
+            echo 'skip_if_unavailable=1'; \
+            echo 'skip_md_filelists=1'; \
+        } > /etc/yum.repos.d/photon-snapshot.repo; \
+    fi && \
+    tdnf-config edit photon-snapshot enabled=1 && \
     tdnf-config edit photon-updates enabled=0
 
 # stage to clone poi
