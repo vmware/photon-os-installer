@@ -215,6 +215,8 @@ class Installer(object):
         self._add_defaults(install_config)
         self._execute_external_plugins(modules.commons.ADD_DEFAULTS)
 
+        self._convert_partition_options()
+
         self.tdnf = tdnf.Tdnf(logger=self.logger,
                               config_file=self.tdnf_conf_path,
                               arch=install_config['arch'],
@@ -231,6 +233,43 @@ class Installer(object):
         self._check_disk_space()
         self._get_vg_names()
         self._clear_vgs()
+
+    def _convert_partition_options(self):
+        def _convert_options(partition, key, sep=","):
+            if key in partition:
+                if type(partition[key]) is str:
+                    partition[key] = partition[key].split(sep)
+                elif type(partition[key]) is not list:
+                    self.logger.error(f"{key} must be of type str or list")
+                    self.exit_gracefully()
+
+        def _process_partition(partition):
+            _convert_options(partition, 'fs_options', sep=",")
+            _convert_options(partition, 'mkfs_options', sep=",")
+
+            if 'mkfs_options' in partition:
+                options = []
+                for opt in partition['mkfs_options']:
+                    opt = opt.strip()
+                    if opt.startswith("-O"):
+                        opt = opt[2:].strip()
+                    if opt:
+                        options.append(opt)
+
+                if options:
+                    partition['mkfs_options'] = options
+                else:
+                    del partition['mkfs_options']
+
+            if 'btrfs' in partition and 'subvols' in partition['btrfs']:
+                for subvol in partition['btrfs']['subvols']:
+                    _process_partition(subvol)
+            elif 'subvols' in partition:
+                for subvol in partition['subvols']:
+                    _process_partition(subvol)
+
+        for partition in self.install_config['partitions']:
+            _process_partition(partition)
 
     # collect LVM Volume Group names
     def _get_vg_names(self):
@@ -1214,13 +1253,7 @@ class Installer(object):
                 fsck = 2
 
                 if 'fs_options' in partition:
-                    if type(partition['fs_options']) is str:
-                        options += f",{partition['fs_options']}"
-                    elif type(partition['fs_options']) is list:
-                        options += "," + ",".join(partition['fs_options'])
-                    else:
-                        self.logger.error("fs_options must be of type str or list")
-                        self.exit_gracefully()
+                    options += "," + ",".join(partition['fs_options'])
 
                 if partition.get('readonly', False):
                     # we already specify 'noatime' below
@@ -1358,10 +1391,7 @@ class Installer(object):
             if not partition.get('no_build_mount', False):
                 options = None
                 if 'fs_options' in partition:
-                    if type(partition['fs_options']) is str:
-                        options = partition['fs_options'].split(",")
-                    elif type(partition['fs_options']) is list:
-                        options = partition['fs_options']
+                    options = partition['fs_options']
                 self._mount(partition['path'], partition['mountpoint'], options=options, create=True)
             else:
                 # we need the directory, even if we do not mount it
@@ -2039,11 +2069,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         If fs_options provided then append fs_options to given mount options.
         """
 
-        options = []
-        if type(fs_options) is str:
-            options = fs_options.split(",")
-        elif type(fs_options) is list:
-            options = fs_options
+        options = fs_options.copy() if fs_options else []
         options.append(f"subvol={os.path.join(parent_subvol, subvol_name)}")
         self._mount(disk, mountpoint, options=options, create=True)
 
@@ -2459,8 +2485,9 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 mkfs_cmd.append("-f")
 
             if 'mkfs_options' in partition:
-                options = partition['mkfs_options'].split()
-                mkfs_cmd.extend(options)
+                options = partition['mkfs_options']
+                if options:
+                    mkfs_cmd.extend(["-O", ",".join(options)])
 
             # fs level label
             if partition.get('label') is not None:
