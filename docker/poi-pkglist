@@ -106,9 +106,8 @@ def main():
     pkg_list.add("grub2-efi-image")
 
     # needed for ISO
-    pkg_list.add("photon-iso-config")
     if arch == "x86_64":
-        pkg_list.add("syslinux")
+        pkg_list.add("grub2-pc")
 
     for p in pkg_list:
         print(p)
