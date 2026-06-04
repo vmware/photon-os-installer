@@ -177,7 +177,19 @@ class Tdnf:
 
             return retval, out_json
         else:
-            return subprocess.check_call(args)
+            # Capture output and route it to the log instead of inheriting the
+            # parent's stdout/stderr. During a UI (curses) install the latter
+            # overlays the progress bar with tdnf/rpm messages such as file
+            # paths (e.g. /etc/os-release).
+            process = subprocess.Popen(
+                args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            for line in process.stdout:
+                self.logger.info(line.decode('utf-8', errors='replace').rstrip())
+            retval = process.wait()
+            if retval != 0:
+                raise subprocess.CalledProcessError(retval, args)
+            return retval
 
     def run(self, args=None, do_json=True):
         # Fix mutable default arguments issue
