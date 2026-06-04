@@ -252,6 +252,7 @@ jobs:
             fail-fast: false
             matrix:
                 name: [minimal]
+                boot_mode: [efi, bios]
         steps:
             - name: Checkout code
               uses: actions/checkout@master
@@ -268,12 +269,13 @@ jobs:
             - name: build ISO
               env:
                   NAME: ${{ matrix.name }}
+                  BOOT_MODE: ${{ matrix.boot_mode }}
               run: |
                   POI_IMAGE_NAME=${POI_IMAGE_NAME_BASE}:${GITHUB_SHA::7}
                   VM_NAME_BASE=poi-iso-boot-${GITHUB_SHA::7}
-                  ISO_OVF=photon5-iso-boot-${GITHUB_SHA::7}.ovf
+                  ISO_OVF=photon5-iso-boot-${GITHUB_SHA::7}-${BOOT_MODE}.ovf
                   KS_FILE=${NAME}_ks.yaml
-                  VM_NAME=${VM_NAME_BASE}-${NAME}
+                  VM_NAME=${VM_NAME_BASE}-${NAME}-${BOOT_MODE}
                   # used by pytest
                   export VC_IP=${{ vars.VC_IP }}
                   export VC_USER=${{ vars.VC_USER }}
@@ -288,12 +290,12 @@ jobs:
                   # create OVF that includes that ISO, and a blank hard disk
                   # base64 encode the ks file, must have no new lines (-w0)
                   KSDATA64=$(base64 -w0 < ${KS_FILE})
-                  docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o ${ISO_OVF} -m --param ksdata64=${KSDATA64}
+                  docker run --rm -v$(pwd):/workdir ${POI_IMAGE_NAME} ova-compose -i iso_ova.yaml -o ${ISO_OVF} -m --param ksdata64=${KSDATA64} --param boot_mode=${BOOT_MODE}
                   sudo chown -R $(id -u -n):$(id -g -n) .
                   popd
 
                   (cd poi-harness && echo "poi-harness sha is $(git rev-parse --short HEAD)")
-                  pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf examples/iso/${ISO_OVF} --name ${VM_NAME} --ks_config examples/iso/${KS_FILE} --ova_config examples/iso/iso_ova.yaml --param ksdata64=${KSDATA64}
+                  pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf examples/iso/${ISO_OVF} --name ${VM_NAME} --ks_config examples/iso/${KS_FILE} --ova_config examples/iso/iso_ova.yaml --param ksdata64=${KSDATA64} --param boot_mode=${BOOT_MODE}
 
     github-public:
         runs-on: self-hosted

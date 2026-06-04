@@ -4,6 +4,8 @@ password:
 
 hostname: minimal
 
+bootmode: dualboot
+
 disks:
     default:
         device: /dev/sda

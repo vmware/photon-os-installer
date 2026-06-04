@@ -2,7 +2,7 @@ system:
     name: minimal
     type: vmx-14 vmx-20 vmx-21
     os_vmw: vmwarePhoton64Guest
-    firmware: efi
+    firmware: !param boot_mode=efi
     secure_boot: false
 
 networks:
