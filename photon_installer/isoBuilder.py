@@ -357,7 +357,7 @@ class IsoBuilder(object):
         self.logger.info(f"Generating Iso: {self.iso_name}")
         build_iso_cmd = f"cd {self.working_dir} && "
         build_iso_cmd += (
-            "mkisofs -R -l -L -D -c isolinux/boot.cat "
+            "xorrisofs -R -l -L -D -c isolinux/boot.cat "
         )
 
         # important:

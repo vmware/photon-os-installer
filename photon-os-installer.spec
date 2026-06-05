@@ -19,7 +19,7 @@ BuildRequires: python3-cracklib
 BuildRequires: python3-curses
 BuildRequires: python3-jc
 
-Requires: cdrkit
+Requires: xorriso
 Requires: cpio
 Requires: dosfstools
 Requires: efibootmgr
