@@ -299,52 +299,19 @@ class IsoBuilder(object):
 
     def createIsolinux(self):
         """
-        Install photon-iso-config rpm in working dir.
+        Create isolinux directory and generate GRUB2 BIOS image.
         """
         os.makedirs(f"{self.working_dir}/isolinux", exist_ok=True)
         shutil.move(f"{self.working_dir}/initrd.img", f"{self.working_dir}/isolinux")
 
-        self.logger.info(
-            "Installing photon-iso-config and syslinux in working directory..."
-        )
-        os.makedirs(f"{self.working_dir}/isolinux-temp")
-        pkg_list = ["photon-iso-config"]
-        if self.arch == "x86_64":
-            pkg_list.append("syslinux")
-
-        self.logger.info("installing packages for isolinux...")
-        isolinux_dir = os.path.join(self.working_dir, "isolinux-temp")
-        retval, tdnf_out = self.tdnf.run(
-            ["install", "--installroot", isolinux_dir] + pkg_list,
-        )
-        if retval != 0:
-            raise Exception(f"tdnf failed: {tdnf_out}")
-        self.logger.info("...done.")
-
-        for file in os.listdir(
-            f"{self.working_dir}/isolinux-temp/usr/share/photon-iso-config"
-        ):
-            shutil.copyfile(
-                f"{self.working_dir}/isolinux-temp/usr/share/photon-iso-config/{file}",
-                f"{self.working_dir}/isolinux/{file}",
-            )
         if self.arch == 'x86_64':
-            for file in [
-                "isolinux.bin",
-                "libcom32.c32",
-                "libutil.c32",
-                "vesamenu.c32",
-                "ldlinux.c32",
-            ]:
-                shutil.copyfile(
-                    f"{self.working_dir}/isolinux-temp/usr/share/syslinux/{file}",
-                    f"{self.working_dir}/isolinux/{file}",
-                )
-
-        self.cmdUtil.remove_files([f"{self.working_dir}/isolinux-temp"])
-        for file in ["tdnf.conf", "photon-local.repo"]:
-            if os.path.exists(f"{self.working_dir}/{file}"):
-                os.remove(f"{self.working_dir}/{file}")
+            self.logger.info("Generating GRUB2 BIOS image...")
+            self.runCmd(
+                f"grub2-mkimage -O i386-pc-eltorito -d /usr/lib/grub/i386-pc "
+                f"-o {self.working_dir}/isolinux/eltorito.img -p /boot/grub2 "
+                f"biosdisk iso9660 normal search search_fs_uuid search_fs_file search_label "
+                f"all_video loadenv fat ext2 gfxmenu gfxterm gfxterm_background gfxterm_menu linux probe"
+            )
 
         if self.kickstart_path:
             self.logger.info(
@@ -353,17 +320,9 @@ class IsoBuilder(object):
             shutil.copy(f"{self.kickstart_path}", f"{self.working_dir}/isolinux")
 
         if self.boot_cmdline_param:
-            self.logger.info("adding Boot command line parameters to isolinux menu")
-            with open(f"{self.working_dir}/isolinux/menu.cfg", "rt") as fin:
-                with open(f"{self.working_dir}/isolinux/menu.cfg.tmp", "wt") as fout:
-                    for line in fin:
-                        if line.lstrip().startswith("append"):
-                            append = f"{line.rstrip()} {self.boot_cmdline_param}\n"
-                            self.logger.info(f"boot cmdline: {append}")
-                            fout.write(append)
-                        else:
-                            fout.write(line)
-            os.rename(f"{self.working_dir}/isolinux/menu.cfg.tmp", f"{self.working_dir}/isolinux/menu.cfg")
+            # Note: with GRUB2, the boot command line is added in addGrubConfig()
+            # so we don't need to modify a menu.cfg file here anymore.
+            pass
 
     def copyAdditionalFiles(self):
         for file in self.additional_files:
@@ -398,7 +357,7 @@ class IsoBuilder(object):
         self.logger.info(f"Generating Iso: {self.iso_name}")
         build_iso_cmd = f"cd {self.working_dir} && "
         build_iso_cmd += (
-            "mkisofs -R -l -L -D -c isolinux/boot.cat "
+            "xorrisofs -R -l -L -D -c isolinux/boot.cat "
         )
 
         # important:
@@ -410,7 +369,7 @@ class IsoBuilder(object):
 
         # BIOS, x86_64 only
         if self.arch == "x86_64":
-            build_iso_cmd += "-b isolinux/isolinux.bin "
+            build_iso_cmd += "-b isolinux/eltorito.img "
             build_iso_cmd += "-no-emul-boot -boot-load-size 4 -boot-info-table "
             build_iso_cmd += "-eltorito-alt-boot "
 

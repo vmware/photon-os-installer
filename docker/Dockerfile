@@ -62,7 +62,7 @@ RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
     tdnf ${TDNF_OPTIONS} -y install \
     zlib tar \
     gzip cpio \
-    util-linux coreutils findutils gawk binutils cdrkit \
+    util-linux coreutils findutils gawk binutils xorriso \
     gptfdisk grub2 \
     e2fsprogs btrfs-progs xfsprogs kpartx lvm2 dosfstools \
     createrepo rpm jq jc \
