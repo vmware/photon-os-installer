@@ -13,15 +13,21 @@ partitions:
       filesystem: ext4
       # this file is shared for 4.0 and 5.0 test builds,
       # and 4.0 needs these options disabled
-      mkfs_options: "-O ^orphan_file,^metadata_csum_seed"
+      mkfs_options:
+        - ^orphan_file
+        - ^metadata_csum_seed
     - mountpoint: /boot
       size: 128
       filesystem: ext4
-      mkfs_options: "-O ^orphan_file,^metadata_csum_seed"
+      mkfs_options:
+        - ^orphan_file
+        - ^metadata_csum_seed
     - mountpoint: /root
       sizepercent: 5
       filesystem: ext4
-      mkfs_options: "-O ^orphan_file,^metadata_csum_seed"
+      mkfs_options:
+        - ^orphan_file
+        - ^metadata_csum_seed
     - sizepercent: 5
       filesystem: swap
 
