@@ -1148,9 +1148,9 @@ class Installer(object):
                 self.exit_gracefully()
             self.logger.info(f"Created archive {filename}")
 
-    def _compress_squashfs(self):
+    def _compress_filesystem(self):
         """
-        Compress the squashfs filesystem to the target partition
+        Compress the squashfs or erofs filesystem to the target partition
         """
         for partition in self.install_config['partitions']:
             if partition['filesystem'] == 'squashfs':
@@ -1161,6 +1161,14 @@ class Installer(object):
                 self.logger.info(f"compressed squashfs filesystem to {partition_path}")
                 shutil.rmtree(squashfs_dir)
                 self.logger.info(f"removed {squashfs_dir}")
+            elif partition['filesystem'] == 'erofs':
+                partition_path = partition['path']
+
+                erofs_dir = os.path.join(self.working_directory, "erofs_" + partition['mountpoint'].replace("/", "_"))
+                subprocess.run(["mkfs.erofs", partition_path, erofs_dir], check=True)
+                self.logger.info(f"compressed erofs filesystem to {partition_path}")
+                shutil.rmtree(erofs_dir)
+                self.logger.info(f"removed {erofs_dir}")
 
     def _unmount_all(self, success=True):
         """
@@ -1193,7 +1201,7 @@ class Installer(object):
         if success:
             # must be done after all partitions are unmounted,
             # but before loop devices are unmapped
-            self._compress_squashfs()
+            self._compress_filesystem()
 
         # Deactivate LVM VGs
         for vg in self.lvs_to_detach['vgs']:
@@ -1271,7 +1279,7 @@ class Installer(object):
                 options = 'defaults'
                 dump = 1
                 fsck = 2
-                if partition.get('filesystem', '') == 'squashfs' or ptype == PartitionType.SWAP:
+                if partition.get('filesystem', '') in ['squashfs', 'erofs'] or ptype == PartitionType.SWAP:
                     dump = 0
                     fsck = 0
                 elif partition.get('mountpoint', '') == '/':
@@ -1280,7 +1288,7 @@ class Installer(object):
                 if 'fs_options' in partition:
                     options += "," + ",".join(partition['fs_options'])
 
-                if partition.get('readonly', False) or partition.get('filesystem', '') == 'squashfs':
+                if partition.get('readonly', False) or partition.get('filesystem', '') in ['squashfs', 'erofs']:
                     # we already specify 'noatime' below
                     options += ",ro"
 
@@ -1291,7 +1299,7 @@ class Installer(object):
                         options += ',barrier,noatime,data=ordered'
                     elif part_fstype == 'btrfs':
                         options += ',barrier,noatime'
-                    elif part_fstype == 'xfs' or part_fstype == 'squashfs':
+                    elif part_fstype in ['xfs', 'squashfs', 'erofs']:
                         pass
                     else:
                         self.logger.error(f"Filesystem type not supported: {part_fstype}")
@@ -1415,6 +1423,10 @@ class Installer(object):
                     squashfs_dir = os.path.join(self.working_directory, "squashfs_" + partition['mountpoint'].replace("/", "_"))
                     os.makedirs(squashfs_dir, exist_ok=True)
                     self._mount(squashfs_dir, partition['mountpoint'], bind=True, create=True)
+                elif partition['filesystem'] == 'erofs':
+                    erofs_dir = os.path.join(self.working_directory, "erofs_" + partition['mountpoint'].replace("/", "_"))
+                    os.makedirs(erofs_dir, exist_ok=True)
+                    self._mount(erofs_dir, partition['mountpoint'], bind=True, create=True)
                 else:
                     options = None
                     if 'fs_options' in partition:
@@ -1675,7 +1687,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 if uuid:
                     grub_cfg.write(f"search -n -u {uuid} -s\n")
                 else:
-                    # Fallback to searching by file if filesystem (like squashfs) has no UUID
+                    # Fallback to searching by file if filesystem (like squashfs or erofs) has no UUID
                     grub_cfg.write(f"search -n -f {self.install_config['partitions_data']['bootdirectory']}grub2/grub.cfg -s\n")
                 grub_cfg.write(f"set prefix=($root){self.install_config['partitions_data']['bootdirectory']}grub2\n")
                 grub_cfg.write(f"configfile {self.install_config['partitions_data']['bootdirectory']}grub2/grub.cfg\n")
@@ -2504,8 +2516,8 @@ password_pbkdf2 {grub_user} {grub_password_hash}
             if partition['filesystem'] is None:
                 continue
 
-            # skip squashfs filesystem, will be copied later
-            if partition['filesystem'] == 'squashfs':
+            # skip squashfs or erofs filesystem, will be copied later
+            if partition['filesystem'] in ['squashfs', 'erofs']:
                 continue
 
             ptype = self._get_partition_type(partition)
