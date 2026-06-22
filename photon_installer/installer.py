@@ -942,7 +942,7 @@ class Installer(object):
                 self.window.content_window().getch()
 
             self._cleanup_install_repo()
-            self._unmount_all()
+            self._unmount_all(success=False)
         raise InstallerError("Installer failed")
 
     def _setup_network(self):
@@ -1148,19 +1148,42 @@ class Installer(object):
                 self.exit_gracefully()
             self.logger.info(f"Created archive {filename}")
 
-    def _unmount_all(self):
+    def _compress_filesystem(self):
+        """
+        Compress the squashfs or erofs filesystem to the target partition
+        """
+        for partition in self.install_config['partitions']:
+            if partition['filesystem'] == 'squashfs':
+                partition_path = partition['path']
+
+                squashfs_dir = os.path.join(self.working_directory, "squashfs_" + partition['mountpoint'].replace("/", "_"))
+                subprocess.run(["mksquashfs", squashfs_dir, partition_path, "-noappend", "-comp", "gzip"], check=True)
+                self.logger.info(f"compressed squashfs filesystem to {partition_path}")
+                shutil.rmtree(squashfs_dir)
+                self.logger.info(f"removed {squashfs_dir}")
+            elif partition['filesystem'] == 'erofs':
+                partition_path = partition['path']
+
+                erofs_dir = os.path.join(self.working_directory, "erofs_" + partition['mountpoint'].replace("/", "_"))
+                subprocess.run(["mkfs.erofs", partition_path, erofs_dir], check=True)
+                self.logger.info(f"compressed erofs filesystem to {partition_path}")
+                shutil.rmtree(erofs_dir)
+                self.logger.info(f"removed {erofs_dir}")
+
+    def _unmount_all(self, success=True):
         """
         Unmount partitions and special folders
         """
 
         partitions = self.install_config['partitions']
-        for p in partitions:
-            # only fstrim fs types that are supported to avoid error messages
-            # instead of filtering for the fs type we could use '--quiet-unsupported',
-            # but this is not implemented in older fstrim versions in Photon 3.0
-            if p['filesystem'] in ['ext4', 'btrfs', 'xfs'] and p['mountpoint'] is not None:
-                mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
-                retval = self.cmd.run(["fstrim", mntpoint])
+        if success:
+            for p in partitions:
+                # only fstrim fs types that are supported to avoid error messages
+                # instead of filtering for the fs type we could use '--quiet-unsupported',
+                # but this is not implemented in older fstrim versions in Photon 3.0
+                if p['filesystem'] in ['ext4', 'btrfs', 'xfs'] and p['mountpoint'] is not None:
+                    mntpoint = os.path.join(self.photon_root, p['mountpoint'].strip('/'))
+                    retval = self.cmd.run(["fstrim", mntpoint])
 
         if self.install_config.get('no_unmount', False):
             return
@@ -1175,6 +1198,11 @@ class Installer(object):
         if os.path.exists(self.photon_root):
             shutil.rmtree(self.photon_root)
 
+        if success:
+            # must be done after all partitions are unmounted,
+            # but before loop devices are unmapped
+            self._compress_filesystem()
+
         # Deactivate LVM VGs
         for vg in self.lvs_to_detach['vgs']:
             retval = self.cmd.run(["vgchange", "-v", "-an", vg])
@@ -1188,11 +1216,11 @@ class Installer(object):
                 self.logger.error(f"Failed to detach LVM physical volume: {pv}")
 
         # Get the disks from partition table
-        disk_ids = set(partition['disk_id'] for partition in self.install_config['partitions'])
+        disk_ids = set(partition['disk_id'] for partition in partitions)
         for disk_id in disk_ids:
             device = self.install_config['disks'][disk_id]['device']
             if 'loop' in device:
-                # Uninitialize device paritions mapping
+                # Uninitialize device partitions mapping
                 retval = self.cmd.run(['kpartx', '-d', device])
                 if retval != 0:
                     # don't raise an exception so we can continue with remaining devices
@@ -1251,11 +1279,16 @@ class Installer(object):
                 options = 'defaults'
                 dump = 1
                 fsck = 2
+                if partition.get('filesystem', '') in ['squashfs', 'erofs'] or ptype == PartitionType.SWAP:
+                    dump = 0
+                    fsck = 0
+                elif partition.get('mountpoint', '') == '/':
+                    fsck = 1
 
                 if 'fs_options' in partition:
                     options += "," + ",".join(partition['fs_options'])
 
-                if partition.get('readonly', False):
+                if partition.get('readonly', False) or partition.get('filesystem', '') in ['squashfs', 'erofs']:
                     # we already specify 'noatime' below
                     options += ",ro"
 
@@ -1266,17 +1299,14 @@ class Installer(object):
                         options += ',barrier,noatime,data=ordered'
                     elif part_fstype == 'btrfs':
                         options += ',barrier,noatime'
-                    elif part_fstype == 'xfs':
+                    elif part_fstype in ['xfs', 'squashfs', 'erofs']:
                         pass
                     else:
                         self.logger.error(f"Filesystem type not supported: {part_fstype}")
                         self.exit_gracefully()
-                    fsck = 1
 
                 if ptype == PartitionType.SWAP:
                     mountpoint = 'swap'
-                    dump = 0
-                    fsck = 0
                 else:
                     mountpoint = partition['mountpoint']
 
@@ -1389,10 +1419,19 @@ class Installer(object):
 
             mntpoint = os.path.join(self.photon_root, partition['mountpoint'].strip('/'))
             if not partition.get('no_build_mount', False):
-                options = None
-                if 'fs_options' in partition:
-                    options = partition['fs_options']
-                self._mount(partition['path'], partition['mountpoint'], options=options, create=True)
+                if partition['filesystem'] == 'squashfs':
+                    squashfs_dir = os.path.join(self.working_directory, "squashfs_" + partition['mountpoint'].replace("/", "_"))
+                    os.makedirs(squashfs_dir, exist_ok=True)
+                    self._mount(squashfs_dir, partition['mountpoint'], bind=True, create=True)
+                elif partition['filesystem'] == 'erofs':
+                    erofs_dir = os.path.join(self.working_directory, "erofs_" + partition['mountpoint'].replace("/", "_"))
+                    os.makedirs(erofs_dir, exist_ok=True)
+                    self._mount(erofs_dir, partition['mountpoint'], bind=True, create=True)
+                else:
+                    options = None
+                    if 'fs_options' in partition:
+                        options = partition['fs_options']
+                    self._mount(partition['path'], partition['mountpoint'], options=options, create=True)
             else:
                 # we need the directory, even if we do not mount it
                 os.makedirs(mntpoint, exist_ok=True)
@@ -1632,14 +1671,11 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         device = self.install_config['disks']['default']['device']
         # Setup bios grub
         if bootmode == 'dualboot' or bootmode == 'bios':
-            path = os.path.join(self.photon_root, "boot")
-            retval = self.cmd.run(f"grub2-install --target=i386-pc --force --boot-directory={path} {device}")
+            boot_path = os.path.join(self.photon_root, "boot")
+            efi_path = os.path.join(self.photon_root, "boot/efi")
+            retval = self.cmd.run(f"grub2-install --target=i386-pc --force --boot-directory={boot_path} --efi-directory={efi_path} {device}")
             if retval != 0:
-                retval = self.cmd.run(['grub-install', '--target=i386-pc', '--force',
-                                       f"--boot-directory={path}",
-                                       device])
-                if retval != 0:
-                    raise InstallerError("Unable to setup grub")
+                raise InstallerError("Unable to setup grub")
 
         # Setup efi grub
         if bootmode == 'dualboot' or bootmode == 'efi':
@@ -1647,7 +1683,12 @@ password_pbkdf2 {grub_user} {grub_password_hash}
 
             os.makedirs(os.path.join(self.photon_root, "boot/efi/boot/grub2"), exist_ok=True)
             with open(os.path.join(self.photon_root, 'boot/efi/boot/grub2/grub.cfg'), "w") as grub_cfg:
-                grub_cfg.write(f"search -n -u {self._get_uuid(self.install_config['partitions_data']['boot'])} -s\n")
+                uuid = self._get_uuid(self.install_config['partitions_data']['boot'])
+                if uuid:
+                    grub_cfg.write(f"search -n -u {uuid} -s\n")
+                else:
+                    # Fallback to searching by file if filesystem (like squashfs or erofs) has no UUID
+                    grub_cfg.write(f"search -n -f {self.install_config['partitions_data']['bootdirectory']}grub2/grub.cfg -s\n")
                 grub_cfg.write(f"set prefix=($root){self.install_config['partitions_data']['bootdirectory']}grub2\n")
                 grub_cfg.write(f"configfile {self.install_config['partitions_data']['bootdirectory']}grub2/grub.cfg\n")
 
@@ -2473,6 +2514,10 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         for partition in partitions:
             # unformatted partition
             if partition['filesystem'] is None:
+                continue
+
+            # skip squashfs or erofs filesystem, will be copied later
+            if partition['filesystem'] in ['squashfs', 'erofs']:
                 continue
 
             ptype = self._get_partition_type(partition)

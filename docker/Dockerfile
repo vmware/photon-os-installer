@@ -70,6 +70,8 @@ RUN echo '%__transaction_unshare %{nil}' >> /etc/rpm/macros.unshare && \
     python3-rpm \
     qemu-img \
     open-vmdk \
+    squashfs-tools \
+    erofs-utils \
     stig-hardening \
     mkpasswd \
     $([ "${TARGETARCH}" == "amd64" ] && echo grub2-pc) && \
