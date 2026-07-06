@@ -42,9 +42,13 @@ jobs:
         pip install -r requirements.txt  # Ensure this file lists the necessary dependencies
 
     - name: install pytest
-      run: pip install pytest
+      run: pip install pytest pexpect
 
     - name: Run Pytest
       run: |
         pytest -x tests/poi-container-test.py
+
+    - name: Run interactive installer dialog tests
+      run: |
+        pytest -x tests/test_iso_dialogs.py
 
