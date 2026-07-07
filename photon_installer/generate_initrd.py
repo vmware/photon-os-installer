@@ -95,27 +95,23 @@ class IsoInitrd:
         os.chmod(f"{self.initrd_path}/init", 0o755)
 
     def strip_if_needed(self, file_path):
-        try:
-            output = subprocess.check_output(["file", file_path], text=True)
-            stripped_files = [
-                line.split(":")[0]
-                for line in output.splitlines()
-                if "ELF" in line and "not stripped" in line
-            ]
-            for stripped_file in stripped_files:
-                self.cmd_util.run(["strip", stripped_file])
-        except Exception as err:
-            raise Exception(f"Failed to strip {file_path} with err: {err}")
+        output = subprocess.check_output(["file", file_path], text=True)
+        stripped_files = [
+            line.split(":")[0]
+            for line in output.splitlines()
+            if "ELF" in line and "not stripped" in line
+        ]
+        for stripped_file in stripped_files:
+            self.cmd_util.run(["strip", stripped_file])
 
     def process_files(self):
         try:
             lib_directory = os.path.join(self.initrd_path, "usr/lib/")
 
             for file in os.listdir(lib_directory):
-                if os.path.isfile(file):
-                    self.strip_if_needed(
-                        os.path.join(self.initrd_path, "usr/lib", file)
-                    )
+                full_path = os.path.join(lib_directory, file)
+                if os.path.isfile(full_path):
+                    self.strip_if_needed(full_path)
         except subprocess.CalledProcessError as err:
             print(f"Error processing {file}: {err}")
 
