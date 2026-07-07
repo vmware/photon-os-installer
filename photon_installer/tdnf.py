@@ -168,7 +168,7 @@ class Tdnf:
             if retval != 0:
                 self.logger.info(f"Command failed: {args}")
                 self.logger.error(err.decode('utf-8', errors='replace'))
-                if 'Error' in out_json:
+                if out_json and 'Error' in out_json:
                     self.logger.info(f"Error code: {out_json['Error']}")
                 if out_json and 'ErrorMessage' in out_json:
                     self.logger.error(out_json['ErrorMessage'])
