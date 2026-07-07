@@ -68,8 +68,7 @@ class IsoInstaller(object):
             if self.media_mount_path:
                 repo_paths = self.media_mount_path + "/RPMS"
             else:
-                print("Please specify RPM repo path.")
-                return
+                raise Exception("Please specify RPM repo path.")
 
         if ks_path:
             if ks_path.startswith("http://") and not insecure_installation:
