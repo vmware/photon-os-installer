@@ -127,7 +127,7 @@ class NetworkConfigure(object):
             random_id = '%12x' % secrets.randbelow(16**12)
             random_hostname = 'photon-' + random_id.strip()
             accepted_chars = list(range(ord('A'), ord('Z') + 1))
-            accepted_chars = list(range(ord('a'), ord('z') + 1))
+            accepted_chars.extend(range(ord('a'), ord('z') + 1))
             accepted_chars.extend(range(ord('0'), ord('9') + 1))
             accepted_chars.extend([ord('.'), ord('-')])
             result = WindowStringReader(self.maxy, self.maxx, 13, 80, 'hostname', None, None,
