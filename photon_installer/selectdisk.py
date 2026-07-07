@@ -60,15 +60,15 @@ class SelectDisk(object):
             err_win.content_window().getch()
             sys.exit(1)
 
-            self.window.addstr(
-                0,
-                0,
-                (
-                    "Please select a disk and a method how to partition it:\n"
-                    "Auto - single partition for /, no swap partition.\n"
-                    "Custom - for customized partitioning"
-                )
+        self.window.addstr(
+            0,
+            0,
+            (
+                "Please select a disk and a method how to partition it:\n"
+                "Auto - single partition for /, no swap partition.\n"
+                "Custom - for customized partitioning"
             )
+        )
 
         # Fill in the menu items
         for index, device in enumerate(self.devices):
