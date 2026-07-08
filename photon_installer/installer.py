@@ -1254,12 +1254,11 @@ class Installer(object):
             if "subvols" in subvol:
                 self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, subvol, os.path.join(parent_subvol, subvol['name']))
 
-    def _create_fstab(self, fstab_path=None):
+    def _create_fstab(self):
         """
         update fstab
         """
-        if not fstab_path:
-            fstab_path = os.path.join(self.photon_root, "etc/fstab")
+        fstab_path = os.path.join(self.photon_root, "etc/fstab")
         with open(fstab_path, "w") as fstab_file:
             fstab_file.write("#system\tmnt-pt\ttype\toptions\tdump\tfsck\n")
 
