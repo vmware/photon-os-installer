@@ -1237,12 +1237,6 @@ class Installer(object):
     def _get_partuuid(self, path):
         partuuid = subprocess.check_output(['blkid', '-s', 'PARTUUID', '-o', 'value', path],
                                            universal_newlines=True).rstrip('\n')
-        # Backup way to get uuid/partuuid. Leave it here for later use.
-        # if partuuidval == '':
-        #    sgdiskout = Utils.runshellcommand(
-        #        "sgdisk -i 2 {} ".format(disk_device))
-        #    partuuidval = (re.findall(r'Partition unique GUID.*',
-        #                          sgdiskout))[0].split(':')[1].strip(' ').lower()
         return partuuid
 
     def _get_uuid(self, path):
