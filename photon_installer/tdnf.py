@@ -28,14 +28,6 @@ class TdnfBinaryNotUsableError(TdnfError):
     pass
 
 
-class TdnfCommandError(TdnfError):
-    """Raised when a tdnf command fails"""
-    def __init__(self, message, return_code=None, command=None):
-        super().__init__(message)
-        self.return_code = return_code
-        self.command = command
-
-
 def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md_extras=True):
     """
     Create .repo file as per configurations passed.
