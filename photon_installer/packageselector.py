@@ -4,11 +4,11 @@
 #  */
 #
 
+import json
 import os
 import platform
 
 from actionresult import ActionResult
-from jsonwrapper import JsonWrapper
 from menu import Menu
 from window import Window
 
@@ -45,10 +45,9 @@ class PackageSelector(object):
     @staticmethod
     def get_packages_to_install(option, output_data_path):
         if 'packagelist_file' in option:
-            json_wrapper_package_list = JsonWrapper(
-                os.path.join(output_data_path, option['packagelist_file'])
-            )
-            package_list_json = json_wrapper_package_list.read()
+            packagelist_path = os.path.join(output_data_path, option['packagelist_file'])
+            with open(packagelist_path) as f:
+                package_list_json = json.load(f)
 
             platform_packages = "packages_" + platform.machine()
             if platform_packages in package_list_json:
@@ -63,8 +62,8 @@ class PackageSelector(object):
             raise Exception("Install option '" + option['title'] + "' must have 'packagelist_file' or 'packages' property")
 
     def load_package_list(self, options_file):
-        json_wrapper_option_list = JsonWrapper(options_file)
-        option_list_json = json_wrapper_option_list.read()
+        with open(options_file) as f:
+            option_list_json = json.load(f)
         options_sorted = option_list_json.items()
 
         self.package_menu_items = []
