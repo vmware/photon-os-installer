@@ -1998,7 +1998,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         if os.path.exists(self.photon_root + '/etc/resolv.conf'):
             os.remove(self.photon_root + '/etc/resolv.conf')
 
-    def partition_compare(self, p):
+    def _partition_compare(self, p):
         if 'mountpoint' in p and p['mountpoint'] is not None:
             return (1, len(p['mountpoint']), p['mountpoint'])
         return (0, 0, "A")
@@ -2495,7 +2495,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
 
         # Sort partitions by mountpoint to be able to mount and
         # unmount it in proper sequence
-        partitions.sort(key=lambda p: self.partition_compare(p))
+        partitions.sort(key=lambda p: self._partition_compare(p))
 
         self.install_config['partitions_data'] = partitions_data
 
