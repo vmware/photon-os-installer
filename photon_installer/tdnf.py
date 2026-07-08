@@ -190,13 +190,3 @@ class Tdnf:
 
         command = self.get_command(args, do_json=do_json)
         return self.execute(command, do_json=do_json)
-
-
-def main():
-    tdnf = Tdnf(installroot="/installroot", releasever="5.0")
-    retval, out_json = tdnf.run(["repolist"])
-    print(json.dumps(out_json, indent=4))
-
-
-if __name__ == "__main__":
-    main()
