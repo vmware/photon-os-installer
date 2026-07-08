@@ -595,8 +595,6 @@ def main():
         # Add config arguments to options
         options.__dict__.update(config)
 
-    print(f"initrd_pkg_list_file={options.initrd_pkgs_list_file}")
-
     isoBuilder = IsoBuilder(
         function=options.function,
         packageslist_file=options.packageslist_file,
