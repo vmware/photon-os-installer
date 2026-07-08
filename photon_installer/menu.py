@@ -11,7 +11,7 @@ from actionresult import ActionResult
 
 
 class Menu(Action):
-    def __init__(self, starty, maxx, items, height=0, selector_menu=False,
+    def __init__(self, starty, maxx, items, height=0,
                  can_navigate_outside=True, horizontal=False, default_selected=0,
                  save_sel=False, tab_enable=True):
         self.can_navigate_outside = can_navigate_outside
@@ -44,12 +44,6 @@ class Menu(Action):
         for i in [1, 2]:
             if (self.num_items - self.height) >= i and (self.height - self.filled) == (i - 1):
                 self.filled -= 1
-
-        # increment the width if it's a selector menu
-        self.selector_menu = selector_menu
-        if self.selector_menu:
-            self.width += 4
-            self.selected_items = set([])
 
         if self.horizontal:
             menu_win_width = (self.width + self.horizontal_padding) * self.num_items
@@ -136,11 +130,6 @@ class Menu(Action):
             else:
                 mode = curses.color_pair(2)
 
-            if self.selector_menu:
-                if index in self.selected_items:
-                    item = '[x] ' + item
-                else:
-                    item = '[ ] ' + item
             if self.horizontal:
                 x = self.horizontal_padding // 2 + index * self.horizontal_padding
                 y = 0
@@ -169,21 +158,12 @@ class Menu(Action):
             key = self.window.getch()
 
             if key in [curses.KEY_ENTER, ord('\n')]:
-                if self.selector_menu:
-                    # send the selected indexes
-                    result = self.items[self.position][1](self.selected_items)
-                else:
-                    result = self.items[self.position][1](self.items[self.position][2])
+                result = self.items[self.position][1](self.items[self.position][2])
                 if result.success:
                     self.hide()
                     return result
 
-            if key in [ord(' ')] and self.selector_menu:
-                if self.position in self.selected_items:
-                    self.selected_items.remove(self.position)
-                else:
-                    self.selected_items.add(self.position)
-            elif key in [ord('\t')] and self.can_navigate_outside:
+            if key in [ord('\t')] and self.can_navigate_outside:
                 if not self.tab_enable:
                     continue
                 self.refresh(False)
@@ -196,8 +176,6 @@ class Menu(Action):
                 if not self.tab_enable and key == curses.KEY_LEFT:
                     if self.save_sel:
                         return ActionResult(False, {'diskIndex': self.position, 'direction': -1})
-                    elif self.selector_menu:
-                        result = self.items[self.position][1](self.selected_items)
                     else:
                         result = self.items[self.position][1](self.items[self.position][2])
                     return ActionResult(False, {'direction': -1})
