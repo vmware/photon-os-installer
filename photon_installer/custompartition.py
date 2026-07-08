@@ -168,7 +168,6 @@ class CustomPartition(object):
             None,
             self.validate_partition,   # validation function of the input
             None,
-            True,
         )
         result = self.create_window.do_action()
         if result.success:

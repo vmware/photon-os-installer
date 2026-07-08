@@ -15,7 +15,7 @@ class ReadMulText(Action):
     def __init__(self, maxy, maxx, y, config, field,
                  display_string, confirmation_error_msg,
                  echo_char, accepted_chars, validation_fn, conversion_fn,
-                 can_cancel, default_string=None):
+                 default_string=None):
         self.maxy = maxy
         self.maxx = maxx
         self.y = y
