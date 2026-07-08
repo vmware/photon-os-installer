@@ -317,12 +317,6 @@ class CommandUtils(object):
         self.logger.info(f"VG's list {vg_list}")
         return retval, vg_list
 
-    @staticmethod
-    def write_pkg_list_file(file_path, packages_list):
-        with open(file_path, "w") as json_file:
-            json.dump(packages_list, json_file, indent=4)
-        return file_path
-
     def replace_in_file(self, file_path, pattern, replacement, errors="ignore"):
         try:
             with open(file_path, "r", encoding="utf-8", errors=errors) as file:
