@@ -674,9 +674,12 @@ Used to configure the network.
 
 ### _"prepkgsinstall":_ (optional)
 - Contains list of lines to be executed as a single script on
- the target just after "filesystem" and "rpm" package is installed
- and before installing list of packages defined in _"packages"_/
- _"packagelist_file"_/_"packagelist_files"_.
+ the host (not chrooted into the target) just after "filesystem" and "rpm"
+ package is installed and before installing list of packages defined in
+ _"packages"_/_"packagelist_file"_/_"packagelist_files"_.
+- The target's root filesystem is available under the path in the
+ _$POI_ROOT_ environment variable, which the installer sets before running
+ the script.
 
   Example:
   ```json
@@ -688,10 +691,13 @@ Used to configure the network.
   }
   ```
  ### _"prepkgsinstallscripts":_ (optional)
-- Contains list of scripts to execute on the target
- just after "filesystem" and "rpm" package is installed
- and before installing list of packages defined in _"packages"_/
- _"packagelist_file"_/_"packagelist_files"_.
+- Contains list of scripts to execute on the host (not chrooted into the
+ target) just after "filesystem" and "rpm" package is installed and before
+ installing list of packages defined in _"packages"_/_"packagelist_file"_/
+ _"packagelist_files"_.
+- The target's root filesystem is available under the path in the
+ _$POI_ROOT_ environment variable, which the installer sets before running
+ the script.
 - Scripts will be looked up in _"search_path"_ list.
 
   Example:
@@ -703,7 +709,8 @@ Used to configure the network.
 
 ### _"preinstall":_ (optional)
 - Contains list of lines to be executed as a single script on
- the target before installation starts.
+ the host before installation starts. At this point the target disk has
+ not been partitioned yet, so there is no target filesystem to chroot into.
 - if ks file defines any value($VALUE) that need to be populated dynamically
  during runtime then it should be determined and exported in preinstall script.
 
@@ -719,7 +726,9 @@ Used to configure the network.
   }
   ```
 ### _"preinstallscripts":_ (optional)
-- Contains list of scripts to execute on the target before installation starts.
+- Contains list of scripts to execute on the host before installation
+ starts. At this point the target disk has not been partitioned yet, so
+ there is no target filesystem to chroot into.
 - Scripts will be looked up in _"search_path"_ list.
 
   Example:
