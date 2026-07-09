@@ -4,11 +4,14 @@
 # */
 
 import os
+import re
 
 import commons
 
 install_phase = commons.POST_INSTALL
 enabled = True
+
+PERMIT_ROOT_LOGIN_RE = re.compile(r'^\s*PermitRootLogin\s+no')
 
 
 def execute(installer):
@@ -41,14 +44,21 @@ def execute(installer):
     os.chmod(authorized_keys_filename, 0o600)
 
     # Change the sshd config to allow root login
-    return (
-        installer.cmd.run(
-            [
-                "sed",
-                "-i",
-                r"s/^\s*PermitRootLogin\s\+no/PermitRootLogin yes/",
-                sshd_config_filename,
-            ]
+    with open(sshd_config_filename) as f:
+        lines = f.readlines()
+
+    updated_lines = []
+    changed = False
+    for line in lines:
+        new_line, count = PERMIT_ROOT_LOGIN_RE.subn("PermitRootLogin yes", line)
+        if count:
+            changed = True
+        updated_lines.append(new_line)
+
+    if not changed:
+        raise Exception(
+            f"Failed to enable PermitRootLogin in {sshd_config_filename}: no matching line found"
         )
-        == 0
-    )
+
+    with open(sshd_config_filename, "w") as f:
+        f.writelines(updated_lines)
