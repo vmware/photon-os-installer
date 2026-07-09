@@ -396,9 +396,11 @@ class NetworkManager:
                 if os.path.isfile(filepath):
                     os.chmod(filepath, mode)
                     os.chown(filepath, uid, gid)
-        except PermissionError:
-            # pass if we are debugging as unprivileged user
-            pass
+        except PermissionError as e:
+            # Tolerate this so the code can still be exercised when
+            # debugging as an unprivileged user, but don't let the
+            # failure pass completely silently.
+            print(f"Warning: failed to set permissions on {self.systemd_network_dir}: {e}")
 
 
 def main():
