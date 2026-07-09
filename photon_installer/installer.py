@@ -1089,6 +1089,8 @@ class Installer(object):
         manifest['install_config'] = self.install_config
 
         retval, pkg_list = self.tdnf.run(["list", "--installed", "--disablerepo=*"])
+        if retval != 0:
+            self.logger.error(f"Failed to list installed packages for manifest (exit code: {retval})")
         manifest['packages'] = pkg_list
 
         with open(os.path.join(self.photon_root, "etc/fstab"), "rt") as f:
