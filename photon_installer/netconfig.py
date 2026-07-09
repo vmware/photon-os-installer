@@ -157,7 +157,6 @@ class NetworkConfigure(object):
                 None,
                 self.validate_static_conf,
                 None,
-                True,
             )
             result = self.create_window.do_action()
             if not result.success:

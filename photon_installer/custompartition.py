@@ -31,7 +31,6 @@ class CustomPartition(object):
         self.cp_config['partitionsnumber'] = 0
         self.devices = None
         self.has_slash = False
-        self.has_remain = False
         self.has_empty = False
 
         self.disk_size = []
@@ -168,7 +167,6 @@ class CustomPartition(object):
             None,
             self.validate_partition,   # validation function of the input
             None,
-            True,
         )
         result = self.create_window.do_action()
         if result.success:
@@ -239,6 +237,5 @@ class CustomPartition(object):
             self.disk_size.append((device.path, int(device.size) / 1048576 - (BIOSSIZE + ESPSIZE + 2)))
         del self.path_checker[:]
         self.has_slash = False
-        self.has_remain = False
         self.has_empty = False
         self.cp_config['partitionsnumber'] = 0

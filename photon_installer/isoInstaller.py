@@ -7,6 +7,7 @@
 #
 
 import base64
+import json
 import os
 import shlex
 import subprocess
@@ -18,7 +19,6 @@ from commandutils import CommandUtils
 from defaults import Defaults
 from device import Device
 from installer import Installer
-from jsonwrapper import JsonWrapper
 
 
 class IsoInstaller(object):
@@ -90,7 +90,8 @@ class IsoInstaller(object):
             install_config['insecure_repo'] = True
 
         if options.ui_config_file:
-            ui_config = (JsonWrapper(options.ui_config_file)).read()
+            with open(options.ui_config_file) as f:
+                ui_config = json.load(f)
         else:
             ui_config = {}
         ui_config['options_file'] = options.options_file

@@ -266,14 +266,6 @@ class IsoBuilder(object):
         else:
             raise Exception("no repodata folder found in {self.rpms_path}")
 
-    def cleanUp(self, temp_file):
-        if temp_file:
-            os.remove(temp_file)
-        try:
-            shutil.rmtree(self.working_dir)
-        except FileNotFoundError:
-            pass
-
     def createEfiImg(self):
         """
         create efi image
@@ -603,8 +595,6 @@ def main():
         # Add config arguments to options
         options.__dict__.update(config)
 
-    print(f"initrd_pkg_list_file={options.initrd_pkgs_list_file}")
-
     isoBuilder = IsoBuilder(
         function=options.function,
         packageslist_file=options.packageslist_file,
@@ -648,7 +638,7 @@ def main():
         raise Exception(f"{options.function} not supported...")
 
     # Clean Up Working Directory and temp config file
-#    isoBuilder.cmdUtil.remove_files([isoBuilder.working_dir, temp_file_path])
+    isoBuilder.cmdUtil.remove_files([isoBuilder.working_dir, temp_file_path])
 
 
 if __name__ == "__main__":

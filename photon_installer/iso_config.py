@@ -6,12 +6,10 @@
 import curses
 import getopt
 import json
-import re
 import secrets
 import sys
 
 import cracklib
-import requests
 from commandutils import CommandUtils
 from confirmwindow import ConfirmWindow
 from custompartition import CustomPartition
@@ -61,25 +59,6 @@ class IsoConfig(object):
         machinename = fields[0]
         return (len(machinename) <= 64 and
                 machinename[0].isalpha(), error_hostname)
-
-    @staticmethod
-    def validate_http_response(url, checks, exception_text, error_text):
-        try:
-            response = requests.get(url, verify=True, stream=True, timeout=5.0)
-        except Exception:
-            return exception_text
-        else:
-            if response.status_code != 200:
-                return error_text
-
-        html = response.content.decode('utf-8', errors="replace")
-
-        for pattern, count, failed_check_text in checks:
-            match = re.findall(pattern, html)
-            if len(match) != count:
-                return failed_check_text
-
-        return ""
 
     @staticmethod
     def validate_password(text):

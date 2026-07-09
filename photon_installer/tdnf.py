@@ -28,14 +28,6 @@ class TdnfBinaryNotUsableError(TdnfError):
     pass
 
 
-class TdnfCommandError(TdnfError):
-    """Raised when a tdnf command fails"""
-    def __init__(self, message, return_code=None, command=None):
-        super().__init__(message)
-        self.return_code = return_code
-        self.command = command
-
-
 def create_repo_conf(repos, reposdir="/etc/yum.repos.d", insecure=False, skip_md_extras=True):
     """
     Create .repo file as per configurations passed.
@@ -198,13 +190,3 @@ class Tdnf:
 
         command = self.get_command(args, do_json=do_json)
         return self.execute(command, do_json=do_json)
-
-
-def main():
-    tdnf = Tdnf(installroot="/installroot", releasever="5.0")
-    retval, out_json = tdnf.run(["repolist"])
-    print(json.dumps(out_json, indent=4))
-
-
-if __name__ == "__main__":
-    main()

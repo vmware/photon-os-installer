@@ -1237,12 +1237,6 @@ class Installer(object):
     def _get_partuuid(self, path):
         partuuid = subprocess.check_output(['blkid', '-s', 'PARTUUID', '-o', 'value', path],
                                            universal_newlines=True).rstrip('\n')
-        # Backup way to get uuid/partuuid. Leave it here for later use.
-        # if partuuidval == '':
-        #    sgdiskout = Utils.runshellcommand(
-        #        "sgdisk -i 2 {} ".format(disk_device))
-        #    partuuidval = (re.findall(r'Partition unique GUID.*',
-        #                          sgdiskout))[0].split(':')[1].strip(' ').lower()
         return partuuid
 
     def _get_uuid(self, path):
@@ -1260,12 +1254,11 @@ class Installer(object):
             if "subvols" in subvol:
                 self._add_btrfs_subvolume_to_fstab(mnt_src, fstab_file, subvol, os.path.join(parent_subvol, subvol['name']))
 
-    def _create_fstab(self, fstab_path=None):
+    def _create_fstab(self):
         """
         update fstab
         """
-        if not fstab_path:
-            fstab_path = os.path.join(self.photon_root, "etc/fstab")
+        fstab_path = os.path.join(self.photon_root, "etc/fstab")
         with open(fstab_path, "w") as fstab_file:
             fstab_file.write("#system\tmnt-pt\ttype\toptions\tdump\tfsck\n")
 
@@ -2005,7 +1998,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         if os.path.exists(self.photon_root + '/etc/resolv.conf'):
             os.remove(self.photon_root + '/etc/resolv.conf')
 
-    def partition_compare(self, p):
+    def _partition_compare(self, p):
         if 'mountpoint' in p and p['mountpoint'] is not None:
             return (1, len(p['mountpoint']), p['mountpoint'])
         return (0, 0, "A")
@@ -2502,7 +2495,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
 
         # Sort partitions by mountpoint to be able to mount and
         # unmount it in proper sequence
-        partitions.sort(key=lambda p: self.partition_compare(p))
+        partitions.sort(key=lambda p: self._partition_compare(p))
 
         self.install_config['partitions_data'] = partitions_data
 

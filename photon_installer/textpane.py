@@ -42,7 +42,6 @@ class TextPane(Action):
 
         self.window = curses.newwin(height, self.width)
         self.window.bkgd(' ', curses.color_pair(2))
-        self.popupWindow = False
 
         self.window.keypad(1)
         self.panel = curses.panel.new_panel(self.window)

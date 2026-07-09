@@ -12,14 +12,8 @@ enabled = True
 
 
 def execute(installer):
-    default_services = {}
-
     # Get user-defined services from config
-    user_services = installer.install_config.get('services', {})
-
-    # Merge configurations, prioritizing user_services
-    services = default_services.copy()
-    services.update(user_services)
+    services = dict(installer.install_config.get('services', {}))
 
     if not services:
         return
