@@ -14,8 +14,7 @@ from confirmwindow import ConfirmWindow
 class ReadMulText(Action):
     def __init__(self, maxy, maxx, y, config, field,
                  display_string, confirmation_error_msg,
-                 echo_char, accepted_chars, validation_fn, conversion_fn,
-                 default_string=None):
+                 echo_char, accepted_chars, validation_fn, conversion_fn):
         self.maxy = maxy
         self.maxx = maxx
         self.y = y
@@ -27,7 +26,6 @@ class ReadMulText(Action):
         self.accepted_chars = accepted_chars
         self.validation_fn = validation_fn
         self.conversion_fn = conversion_fn
-        self.default_string = default_string
         self.display_string = display_string
         self.textwin_width = maxx - self.horizontal_padding - 2
         self.textwin_width = self.textwin_width * 2 // 3
@@ -88,10 +86,6 @@ class ReadMulText(Action):
     def do_action(self):
         self.init_text()
         curses.curs_set(1)
-
-        if self.default_string:
-            self.textwin.addstr(self.y, 0, self.default_string)
-            self.str = self.default_string
 
         while True:
             if len(self.str[self.position]) > self.visible_text_width:
