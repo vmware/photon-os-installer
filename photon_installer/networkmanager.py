@@ -93,8 +93,12 @@ def write_systemd_config(fout, config):
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
         return False
+    # Validate per label so dotted/FQDN hostnames (e.g. "host.example.com")
+    # are accepted, matching NetworkConfigure.validate_hostname in
+    # netconfig.py, which is used to validate the same "hostname" setting
+    # in the interactive UI.
     allowed = re.compile(r"(?!-)[A-Z\d_-]{1,63}(?<!-)$", re.IGNORECASE)
-    return allowed.match(hostname)
+    return all(allowed.match(label) for label in hostname.split("."))
 
 
 def netmask_to_cidr(netmask):
