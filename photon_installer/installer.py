@@ -1601,13 +1601,11 @@ class Installer(object):
 
         # Check if file exists
         if not grub_cfg_file.exists():
-            self.logger.error(f"Error: grub.cfg file not found: {grub_cfg_path}")
-            return False
+            raise InstallerError(f"Error: grub.cfg file not found: {grub_cfg_path}")
 
         # Check if file is readable and writable
         if not os.access(grub_cfg_path, os.R_OK | os.W_OK):
-            self.logger.error(f"Error: Insufficient permissions to modify {grub_cfg_path}")
-            return False
+            raise InstallerError(f"Error: Insufficient permissions to modify {grub_cfg_path}")
 
         # Read the current grub.cfg content
         with open(grub_cfg_path, 'r') as f:
@@ -1642,8 +1640,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 insertion_point = menuentry_match.start()
                 new_content = content[:insertion_point] + password_lines + content[insertion_point:]
             else:
-                self.logger.error("Error: Could not find suitable insertion point in grub.cfg")
-                return False
+                raise InstallerError("Error: Could not find suitable insertion point in grub.cfg")
 
         # Write the modified content
         with open(grub_cfg_path, 'w') as f:
