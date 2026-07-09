@@ -56,9 +56,10 @@ def execute(installer):
         updated_lines.append(new_line)
 
     if not changed:
-        raise Exception(
-            f"Failed to enable PermitRootLogin in {sshd_config_filename}: no matching line found"
-        )
+        # No existing "PermitRootLogin no" line to replace; add one.
+        if updated_lines and not updated_lines[-1].endswith("\n"):
+            updated_lines[-1] += "\n"
+        updated_lines.append("PermitRootLogin yes\n")
 
     with open(sshd_config_filename, "w") as f:
         f.writelines(updated_lines)
