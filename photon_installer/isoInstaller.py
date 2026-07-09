@@ -118,7 +118,7 @@ class IsoInstaller(object):
         wait = 1
         while True:
             try:
-                response = requests.get(url, timeout=3, verify=verify)
+                response = requests.get(url, timeout=timeout, verify=verify)
                 response.raise_for_status()
                 break
             except Exception as e:
