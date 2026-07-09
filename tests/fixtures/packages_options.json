@@ -1,0 +1,12 @@
+{
+    "minimal": {
+        "title": "1. Minimal",
+        "packages": ["minimal", "linux", "linux-rt"],
+        "visible": true
+    },
+    "full": {
+        "title": "2. Full",
+        "packages": ["minimal", "linux", "linux-rt", "full-extra"],
+        "visible": true
+    }
+}

@@ -27,6 +27,29 @@ jobs:
               rm -r "$VENV_DIR"
               exit $STATUS
 
+    dialog-tests:
+        runs-on: self-hosted
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+
+          - name: Run interactive installer dialog tests
+            run: |
+              VENV_DIR="$(mktemp -d /var/tmp/venv.XXXXXX)"
+              # --without-pip + a --python-targeted install avoids relying on
+              # ensurepip's bundled wheels, which aren't available for every
+              # python3 in this runner fleet.
+              python3 -m venv --without-pip "$VENV_DIR"
+              # requirements.txt is needed too: the dialog code under test
+              # (photon_installer/commandutils.py, installer.py) imports
+              # requests/yaml/OpenSSL/jc transitively, even though the tests
+              # themselves never touch the network/disk/packages.
+              python3 -m pip --python "$VENV_DIR/bin/python3" install -r requirements.txt pytest pexpect --index-url https://packages.vcfd.broadcom.net/artifactory/api/pypi/pypi/simple/
+              "$VENV_DIR/bin/pytest" -x tests/test_iso_dialogs.py
+              STATUS=$?
+              rm -r "$VENV_DIR"
+              exit $STATUS
+
     build-container:
         runs-on: [ self-hosted, "docker:root" ]
         steps:
