@@ -1112,14 +1112,6 @@ class Installer(object):
         with open(mf_file, "wt") as f:
             f.write(json.dumps(manifest))
 
-        # write a copy to the image itself
-        mf_dir = os.path.join(self.photon_root, "var", "log", "poi")
-        os.makedirs(mf_dir, exist_ok=True)
-        mf_file = os.path.join(mf_dir, "manifest.json")
-        with open(mf_file, "wt") as f:
-            f.write(json.dumps(manifest))
-        subprocess.run(["gzip", mf_file])
-
     def _create_archive(self):
         if 'archives' not in self.install_config:
             return
