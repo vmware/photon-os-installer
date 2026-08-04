@@ -456,15 +456,18 @@ class Installer(object):
         if 'docker' in install_config:
             packages.append("docker")
 
-        if 'security' in install_config:
-            security = install_config['security']
-            # the mere mention will add these packages, even if disabled or False,
-            # unless set to None
-            # use case: prepare for selinux/fips, but configure it later
-            if 'selinux' in security and security['selinux'] is not None:
-                packages.append("selinux-policy")
-            if 'fips' in security and security['fips'] is not None:
-                packages.append("openssl-fips-provider")
+        if 'security' not in install_config:
+            # Inject a default 'security' section with default selinux settings
+            install_config['security'] = {'selinux': Defaults.SELINUX_DEFAULT}
+
+        security = install_config['security']
+        # the mere mention will add these packages, even if disabled or False,
+        # unless set to None
+        # use case: prepare for selinux/fips, but configure it later
+        if 'selinux' in security and security['selinux'] is not None:
+            packages.append("selinux-policy")
+        if 'fips' in security and security['fips'] is not None:
+            packages.append("openssl-fips-provider")
 
         packages = list(set(packages))
 
@@ -741,8 +744,8 @@ class Installer(object):
 
         if 'security' in install_config:
             security = install_config['security']
-            if security.get('selinux', None) is not None:
-                if security['selinux'] not in ["enforcing", "permissive", "disabled"]:
+            if 'selinux' in security:
+                if security['selinux'] not in ["enforcing", "permissive", "disabled", None]:
                     raise InstallerConfigError("selinux must be enforcing, permissive, disabled or null")
             if security.get('fips', None) is not None:
                 if not isinstance(security['fips'], bool):
@@ -1950,31 +1953,33 @@ password_pbkdf2 {grub_user} {grub_password_hash}
             self.cmd.run(['eject', '-r'])
 
     def _setup_security(self):
-        if 'security' not in self.install_config:
-            return
-
         security = self.install_config['security']
-        if security.get('selinux', "disabled") in ["enforcing", "permissive"]:
-            self.poi_kernel_cmdline += " security=selinux selinux=1"
         if security.get('fips', False):
             self.poi_kernel_cmdline += " fips=1"
 
-        selinux = security.get('selinux', None)
-        if selinux is not None:
-            file_in = self.photon_root + "/etc/selinux/config"
-            file_out = self.photon_root + "/etc/selinux/config.tmp"
-            with open(file_in, "rt") as fin:
-                with open(file_out, "wt") as fout:
-                    found = False
-                    for line in fin:
-                        if line.startswith("SELINUX="):
-                            fout.write(f"SELINUX={selinux}\n")
-                            found = True
-                        else:
-                            fout.write(line)
-                    if not found:
-                        fout.write(f"SELINUX={selinux}\n")
-            os.rename(file_out, file_in)
+        selinux = security.get('selinux', Defaults.SELINUX_DEFAULT)
+        if selinux is None:
+            return  # selinux config is explicitly bypassed
+        elif selinux == "disabled":
+            self.poi_kernel_cmdline += " selinux=0"
+        else:
+            self.poi_kernel_cmdline += " security=selinux selinux=1 enforcing="
+            self.poi_kernel_cmdline += "1" if selinux == "enforcing" else "0"
+
+        file_in = self.photon_root + "/etc/selinux/config"
+        file_out = self.photon_root + "/etc/selinux/config.tmp"
+        with open(file_in, "rt") as fin, \
+                open(file_out, "wt") as fout:
+            found = False
+            for line in fin:
+                if line.startswith("SELINUX="):
+                    fout.write(f"SELINUX={selinux}\n")
+                    found = True
+                else:
+                    fout.write(line)
+            if not found:
+                fout.write(f"SELINUX={selinux}\n")
+        os.rename(file_out, file_in)
 
     def _enable_network_in_chroot(self):
         """
