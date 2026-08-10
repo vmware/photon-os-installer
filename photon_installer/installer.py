@@ -1089,6 +1089,8 @@ class Installer(object):
         manifest['install_config'] = self.install_config
 
         retval, pkg_list = self.tdnf.run(["list", "--installed", "--disablerepo=*"])
+        if retval != 0:
+            self.logger.error(f"Failed to list installed packages for manifest (exit code: {retval})")
         manifest['packages'] = pkg_list
 
         with open(os.path.join(self.photon_root, "etc/fstab"), "rt") as f:
@@ -1601,13 +1603,11 @@ class Installer(object):
 
         # Check if file exists
         if not grub_cfg_file.exists():
-            self.logger.error(f"Error: grub.cfg file not found: {grub_cfg_path}")
-            return False
+            raise InstallerError(f"Error: grub.cfg file not found: {grub_cfg_path}")
 
         # Check if file is readable and writable
         if not os.access(grub_cfg_path, os.R_OK | os.W_OK):
-            self.logger.error(f"Error: Insufficient permissions to modify {grub_cfg_path}")
-            return False
+            raise InstallerError(f"Error: Insufficient permissions to modify {grub_cfg_path}")
 
         # Read the current grub.cfg content
         with open(grub_cfg_path, 'r') as f:
@@ -1642,8 +1642,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 insertion_point = menuentry_match.start()
                 new_content = content[:insertion_point] + password_lines + content[insertion_point:]
             else:
-                self.logger.error("Error: Could not find suitable insertion point in grub.cfg")
-                return False
+                raise InstallerError("Error: Could not find suitable insertion point in grub.cfg")
 
         # Write the modified content
         with open(grub_cfg_path, 'w') as f:
@@ -1756,6 +1755,17 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                     self.logger.error(f"Error executing {func_name} in plugin {plugin_name}: {e}")
                     raise InstallerError(f"Plugin {plugin_name} failed during {func_name}: {e}")
 
+    # The only phases _execute_modules is ever called with (see calls to
+    # _execute_modules below). A modules/m_*.py file whose install_phase is
+    # anything else (e.g. FINAL_CHECK/CHECK_CONFIG/ADD_DEFAULTS) can never
+    # match and would silently never execute; use an external plugin
+    # (photon_installer/plugins) for those phases instead.
+    MODULES_DISPATCHABLE_PHASES = (
+        modules.commons.PRE_INSTALL,
+        modules.commons.PRE_PKGS_INSTALL,
+        modules.commons.POST_INSTALL,
+    )
+
     def _execute_modules(self, phase):
         """
         Execute the scripts in the modules folder
@@ -1778,6 +1788,13 @@ password_pbkdf2 {grub_user} {grub_password_hash}
             # check for the install phase
             if not hasattr(mod, 'install_phase'):
                 self.logger.error(f"Error: can not defind module {module} phase")
+                continue
+            if mod.install_phase not in self.MODULES_DISPATCHABLE_PHASES:
+                self.logger.warning(
+                    f"module {module} has install_phase '{mod.install_phase}', which "
+                    f"_execute_modules never dispatches (only {self.MODULES_DISPATCHABLE_PHASES} "
+                    "are); this module will never execute"
+                )
                 continue
             if mod.install_phase != phase:
                 self.logger.info(f"Skipping module {module} for phase {phase}")

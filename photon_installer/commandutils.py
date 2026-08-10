@@ -132,10 +132,12 @@ class CommandUtils(object):
     @staticmethod
     def is_vmware_virtualization():
         """Detect vmware vm"""
-        process = subprocess.Popen(["systemd-detect-virt"], stdout=subprocess.PIPE)
-        out, err = process.communicate()
-        if err is not None and err != 0:
-            return False
+        try:
+            out = subprocess.check_output(["systemd-detect-virt"])
+        except subprocess.CalledProcessError as e:
+            # systemd-detect-virt exits 1 (with "none" on stdout) when no
+            # virtualization is detected; that's not a failure, so use its output.
+            out = e.output
         return out.decode() == "vmware\n"
 
     @staticmethod

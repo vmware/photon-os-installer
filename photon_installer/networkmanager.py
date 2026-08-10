@@ -93,8 +93,12 @@ def write_systemd_config(fout, config):
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
         return False
+    # Validate per label so dotted/FQDN hostnames (e.g. "host.example.com")
+    # are accepted, matching NetworkConfigure.validate_hostname in
+    # netconfig.py, which is used to validate the same "hostname" setting
+    # in the interactive UI.
     allowed = re.compile(r"(?!-)[A-Z\d_-]{1,63}(?<!-)$", re.IGNORECASE)
-    return allowed.match(hostname)
+    return all(allowed.match(label) for label in hostname.split("."))
 
 
 def netmask_to_cidr(netmask):
@@ -396,9 +400,11 @@ class NetworkManager:
                 if os.path.isfile(filepath):
                     os.chmod(filepath, mode)
                     os.chown(filepath, uid, gid)
-        except PermissionError:
-            # pass if we are debugging as unprivileged user
-            pass
+        except PermissionError as e:
+            # Tolerate this so the code can still be exercised when
+            # debugging as an unprivileged user, but don't let the
+            # failure pass completely silently.
+            print(f"Warning: failed to set permissions on {self.systemd_network_dir}: {e}")
 
 
 def main():
