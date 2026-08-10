@@ -10,3 +10,4 @@ class Defaults():
     LOG_PATH = "/var/log"
     INSECURE_INSTALLATION = False
     PHOTON_RELEASE_VERSION = "5.0"
+    SELINUX_DEFAULT = "permissive"
