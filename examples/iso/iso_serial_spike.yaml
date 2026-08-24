@@ -1,0 +1,37 @@
+function: build-iso
+
+photon_release_version: "5.0"
+
+packageslist_file: packages_minimal.json
+
+initrd_pkgs_list_file: packages_installer_initrd.json
+
+# This is a copy of iso.yaml for the serial-console spike described in
+# docs/testing-interactive-installer.md: build an ISO with no kickstart (so
+# it lands in the interactive dialogs) and a kernel command line that makes
+# the *only* active console the serial port. This should make systemd spawn
+# serial-getty@ttyS0.service (already patched in
+# photon_installer/generate_initrd.py to autologin root, whose shell runs
+# the installer) instead of getty@tty1.service, so the curses dialogs render
+# over ttyS0 rather than the VGA console.
+#
+# Deliberately kept separate from iso.yaml so this doesn't affect the real
+# iso-poi-harness CI job, which relies on iso.yaml's current (VGA) console
+# behavior.
+boot_cmdline_param: console=ttyS0,115200n8
+
+repo_paths:
+  - https://packages.broadcom.com/photon/$releasever/photon_updates_$releasever_$basearch
+  - /poi
+
+iso_files:
+    "https://raw.githubusercontent.com/vmware/photon/common/support/poi/configs/iso/sample_ks.cfg": isolinux/
+    "https://raw.githubusercontent.com/vmware/photon/common/EULA.txt": ""
+    "https://raw.githubusercontent.com/vmware/photon/common/NOTICE-Apachev2": ""
+    "https://raw.githubusercontent.com/vmware/photon/common/NOTICE-GPL2.0": ""
+    "https://github.com/vmware/photon/raw/common/support/poi/configs/iso/open_source_license.tar.gz": ""
+
+initrd_files:
+    packages_minimal.json: installer/
+    "https://raw.githubusercontent.com/vmware/photon/common/support/poi/configs/iso/sample_ui.cfg": installer/
+    "https://raw.githubusercontent.com/vmware/photon/common/EULA.txt": installer/
