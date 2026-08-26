@@ -320,6 +320,49 @@ jobs:
                   (cd poi-harness && echo "poi-harness sha is $(git rev-parse --short HEAD)")
                   pytest ./poi-harness/ci/pytest/ -rs --deploy --ovf examples/iso/${ISO_OVF} --name ${VM_NAME} --ks_config examples/iso/${KS_FILE} --ova_config examples/iso/iso_ova.yaml --param ksdata64=${KSDATA64} --param boot_mode=${BOOT_MODE}
 
+    update-cayman-poi-master:
+        runs-on: self-hosted
+        needs:
+            - cayman_poi
+            - ova-poi-harness
+            - iso-poi-harness
+        if: github.ref_name == 'master'
+        steps:
+            - name: Checkout Cayman POI
+              uses: actions/checkout@v3
+              with:
+                  repository: vcf/cayman-poi
+                  ref: vmware-master
+                  path: ./cayman-poi
+                  submodules: "true"
+                  fetch-depth: 0
+                  ssh-key: ${{ secrets.POI_CICD_SSH_KEY }}
+                  ssh-strict: "false"
+
+            - name: update poi/src and push to vmware-master
+              run: |
+                  cd ./cayman-poi
+                  git config --global user.email "poi-cd@broadcom.com"
+                  git config --global user.name "POI CI/CD"
+
+                  pushd poi/src
+
+                  # sometimes the sha is not available yet
+                  git fetch
+
+                  git checkout ${GITHUB_SHA::7}
+                  popd
+
+                  git add poi/src
+
+                  # Only commit if there are changes
+                  if git diff --cached --quiet; then
+                      echo "No changes to commit, skipping commit step"
+                  else
+                      git commit -m "update poi/src to ${GITHUB_SHA::7}"
+                      git push origin vmware-master
+                  fi
+
     github-public:
         runs-on: self-hosted
         needs:
