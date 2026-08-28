@@ -39,6 +39,10 @@ class License(object):
             self.title = 'VMWARE LICENSE AGREEMENT'
 
     def display(self):
+        if not os.path.isfile(self.eula_file_path):
+            # no EULA file on the media, don't block the install on it
+            return ActionResult(None, {"inactive_screen": True})
+
         accept_decline_items = [('<Accept>', self.accept_function),
                                 ('<Cancel>', self.exit_function)]
 
