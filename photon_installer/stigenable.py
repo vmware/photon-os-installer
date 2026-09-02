@@ -23,10 +23,7 @@ KS_STIG_PACKAGES = [
     "rsyslog",
     "openssl-fips-provider",
     "selinux-policy",
-    "libselinux-utils",
-    "ntp",
-    "aide",
-    "libgcrypt"
+    "aide"
 ]
 
 
