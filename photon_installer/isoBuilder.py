@@ -13,6 +13,7 @@ import shutil
 import tempfile
 from argparse import ArgumentParser
 
+import stigenable
 import yaml
 from commandutils import CommandUtils
 from generate_initrd import IsoInitrd
@@ -195,6 +196,19 @@ class IsoBuilder(object):
         # Add installer initrd and custom packages to package list..
         self.addPkgsToList(self.initrd_pkg_list_file)
         self.addPkgsToList(self.packageslist_file)
+        # The media must be able to satisfy what the installer can request at
+        # install time. stigenable.KS_STIG_PACKAGES is the installer's own
+        # declaration of what "Apply STIG hardening" installs, so refer to it
+        # rather than restating those names in a package list file -- restating
+        # them is how the media and the installer drifted apart, leaving the
+        # STIG menu offering an option the media could not honour
+        # ("Error(1011) : No matching packages"). These go to the ISO's RPMS/
+        # only, not into self.initrd_pkgs, so the initrd does not grow.
+        self.pkg_list.extend(stigenable.KS_STIG_PACKAGES)
+        # Packages named via --initrd-pkgs never reached this download list
+        # (only the list *file* was parsed above), so they could not be
+        # installed into the initrd from the ISO's own RPMS/ either.
+        self.pkg_list.extend(self.initrd_pkgs)
 
         linux_flavors = [
             "linux",
