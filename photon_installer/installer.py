@@ -140,6 +140,9 @@ class Installer(object):
         self.photon_release_version = photon_release_version
         self.ab_present = False
         self.mounts = []
+        # mount points (relative to photon_root) of file systems that end up
+        # in the target, used for SELinux labeling
+        self.target_mounts = []
         self.cwd = os.getcwd()
         self.progress_bar = None  # Initialize to prevent AttributeError
         self.window = None        # Initialize to prevent AttributeError
@@ -1422,6 +1425,9 @@ class Installer(object):
                     if 'fs_options' in partition:
                         options = partition['fs_options']
                     self._mount(partition['path'], partition['mountpoint'], options=options, create=True)
+                # vfat does not support SELinux labels
+                if partition['filesystem'] != 'vfat':
+                    self.target_mounts.append(partition['mountpoint'])
             else:
                 # we need the directory, even if we do not mount it
                 os.makedirs(mntpoint, exist_ok=True)
@@ -1568,7 +1574,16 @@ class Installer(object):
         if "selinux-policy" not in self.install_config['packages']:
             return
 
-        subprocess.check_call(["chroot", self.photon_root, "/usr/sbin/setfiles", "/etc/selinux/default/contexts/files/file_contexts", "/"])
+        # setfiles does not cross file system boundaries, so we need to pass
+        # all mount points that are part of the target. Temporary mounts
+        # (special folders, build mounts, tdnf cache) are not included.
+        paths = ["/"]
+        for mntpoint in self.target_mounts:
+            mntpoint = "/" + mntpoint.strip("/")
+            if mntpoint not in paths:
+                paths.append(mntpoint)
+        self.logger.info(f"SELinux labeling {paths}")
+        subprocess.check_call(["chroot", self.photon_root, "/usr/sbin/setfiles", "/etc/selinux/default/contexts/files/file_contexts"] + paths)
 
     def _cleanup_install_repo(self):
         if self.install_config.get('no_clean', False):
@@ -2120,6 +2135,7 @@ password_pbkdf2 {grub_user} {grub_password_hash}
         options = fs_options.copy() if fs_options else []
         options.append(f"subvol={os.path.join(parent_subvol, subvol_name)}")
         self._mount(disk, mountpoint, options=options, create=True)
+        self.target_mounts.append(mountpoint)
 
     def _create_btrfs_subvolumes(self, path, partition, disk, parent_subvol=""):
         """
@@ -2140,6 +2156,10 @@ password_pbkdf2 {grub_user} {grub_password_hash}
                 self.exit_gracefully()
             if "mountpoint" in subvol:
                 self._mount_btrfs_subvol(subvol["mountpoint"], disk, subvol["name"], subvol.get("fs_options", None), parent_subvol)
+            else:
+                # subvolumes are separate file systems for setfiles, so
+                # remember them even if not mounted separately
+                self.target_mounts.append("/" + os.path.relpath(os.path.join(path, subvol["name"]), self.photon_root))
             if "label" in subvol:
                 self.cmd.run("btrfs filesystem label " + os.path.join(path, subvol['name']) + f" {subvol['label']}")
             if "subvols" in subvol:
