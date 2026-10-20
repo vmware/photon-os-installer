@@ -19,14 +19,47 @@ create_ova()
     img_list=(${RAW_IMAGES})
     if [[ "${CREATE_VMDK}" = "true" || "${CREATE_OVA}" = "true" ]] ; then
         # TODO: tools version
-        for img in ${img_list[@]} ; do
-            name=${img%.*} # remove extension
-            echo "running 'vmdk-convert'"
-            echo "VMDKCONVERT_COMPRESSION_LEVEL=${VMDKCONVERT_COMPRESSION_LEVEL}"
-            echo "VMDKCONVERT_NUM_THREADS=${VMDKCONVERT_NUM_THREADS}"
-            time vmdk-convert ${img} ${name}.vmdk || fail "'vmdk-convert ${img} ${name}.vmdk' failed with $?"
-            echo "done with 'vmdk-convert'"
-        done
+        echo "VMDKCONVERT_COMPRESSION_LEVEL=${VMDKCONVERT_COMPRESSION_LEVEL}"
+        echo "VMDKCONVERT_NUM_THREADS=${VMDKCONVERT_NUM_THREADS}"
+        if [ "${VMDKCONVERT_SEQUENTIAL}" = "true" ] ; then
+            for img in ${img_list[@]} ; do
+                name=${img%.*} # remove extension
+                echo "running 'vmdk-convert ${img}'"
+                time vmdk-convert ${img} ${name}.vmdk || fail "'vmdk-convert ${img} ${name}.vmdk' failed with $?"
+                echo "done with 'vmdk-convert ${img}'"
+            done
+        else
+            # Convert all disks at once: a large sparse disk (mostly holes)
+            # takes minutes to scan but little CPU, so it should not wait
+            # for, or hold up, the compression of the others.
+            # VMDKCONVERT_SEQUENTIAL=true converts them one after the other.
+            pids=()
+            logs=()
+            for img in ${img_list[@]} ; do
+                name=${img%.*} # remove extension
+                log=$(mktemp /tmp/vmdk-convert.XXXXXX)
+                echo "running 'vmdk-convert ${img}'"
+                { time vmdk-convert ${img} ${name}.vmdk ; } > ${log} 2>&1 &
+                pids+=($!)
+                logs+=(${log})
+            done
+            failed=""
+            for i in ${!pids[@]} ; do
+                img=${img_list[$i]}
+                rc=0
+                wait ${pids[$i]} || rc=$?
+                echo "--- 'vmdk-convert ${img}' output:"
+                cat ${logs[$i]}
+                rm -f ${logs[$i]}
+                if [ ${rc} -ne 0 ] ; then
+                    echo "'vmdk-convert ${img} ${img%.*}.vmdk' failed with ${rc}"
+                    failed="${failed} ${img}"
+                else
+                    echo "done with 'vmdk-convert ${img}'"
+                fi
+            done
+            [ -z "${failed}" ] || fail "vmdk-convert failed for:${failed}"
+        fi
     fi
 
     if [[ "${CREATE_OVA}" = "true" || "${CREATE_OVF}" = "true" ]] ; then
