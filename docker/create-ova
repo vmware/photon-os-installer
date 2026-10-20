@@ -32,16 +32,17 @@ create_ova()
             # Convert all disks at once: a large sparse disk (mostly holes)
             # takes minutes to scan but little CPU, so it should not wait
             # for, or hold up, the compression of the others.
-            # VMDKCONVERT_SEQUENTIAL=true converts them one after the other.
+            # --sequential (VMDKCONVERT_SEQUENTIAL=true) converts them one
+            # after the other.
             pids=()
             logs=()
             for img in ${img_list[@]} ; do
                 name=${img%.*} # remove extension
-                log=$(mktemp /tmp/vmdk-convert.XXXXXX)
+                log=$(mktemp /tmp/vmdk-convert.XXXXXX) || fail "mktemp failed"
                 echo "running 'vmdk-convert ${img}'"
-                { time vmdk-convert ${img} ${name}.vmdk ; } > ${log} 2>&1 &
+                { time vmdk-convert ${img} ${name}.vmdk ; } > "${log}" 2>&1 &
                 pids+=($!)
-                logs+=(${log})
+                logs+=("${log}")
             done
             failed=""
             for i in ${!pids[@]} ; do
@@ -49,8 +50,8 @@ create_ova()
                 rc=0
                 wait ${pids[$i]} || rc=$?
                 echo "--- 'vmdk-convert ${img}' output:"
-                cat ${logs[$i]}
-                rm -f ${logs[$i]}
+                cat "${logs[$i]}"
+                rm -f "${logs[$i]}"
                 if [ ${rc} -ne 0 ] ; then
                     echo "'vmdk-convert ${img} ${img%.*}.vmdk' failed with ${rc}"
                     failed="${failed} ${img}"
@@ -111,12 +112,13 @@ usage() {
     echo "          [--ova-config <ova-config-file>] (required)"
     echo "          [--ovf] (create OVF, do not create OVA)"
     echo "          [--param key=val [...]] (for ova-compose)"
+    echo "          [--sequential] (convert the disks one after the other, not in parallel)"
     echo "          [--sign-script <script>] (script to sign the ova file)"
     echo "          [--vmdk-only] (don't use, use --vmdk)"
     echo "          [--vmdk] (convert raw image(s) to vmdk, do not create OVA)"
 }
 
-OPTS=$(getopt -o h --long compression-level:,installer-config:,installer-param:,num-threads:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,vmdk-only,sign-script: -n $0 -- "$@")
+OPTS=$(getopt -o h --long compression-level:,installer-config:,installer-param:,num-threads:,raw-images:,ova-config:,ova-name:,param:,ovf,mf,sequential,vmdk-only,sign-script: -n $0 -- "$@")
 if [ $? != 0 ] ; then
     usage
     echo "Terminating." >&2
@@ -138,6 +140,7 @@ while true; do
         --ova-name)          OVA_NAME=${2} ; shift 2 ;;
         --ovf)               CREATE_OVF="true"; CREATE_OVA="false"; shift ;;
         --param)             PARAMS+=("${2}"); shift 2 ;;
+        --sequential)        VMDKCONVERT_SEQUENTIAL="true"; shift ;;
         --sign-script)       SIGN_SCRIPT=${2}; shift 2 ;;
         --vmdk)              CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
         --vmdk-only)         CREATE_VMDK="true"; CREATE_OVA="false"; shift ;;
