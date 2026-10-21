@@ -18,8 +18,8 @@ fail() {
 # remove their logs. Each job is a process group (set -m), so the signal
 # reaches vmdk-convert, not only the subshell that runs it.
 stop_converters() {
-    for pid in ${pids[@]} ; do
-        kill -TERM -- -${pid} 2>/dev/null
+    for pid in "${pids[@]}" ; do
+        kill -TERM -- "-${pid}" 2>/dev/null
     done
     wait
     rm -f "${logs[@]}"
@@ -27,16 +27,15 @@ stop_converters() {
 
 create_ova()
 {
-    img_list=(${RAW_IMAGES})
     if [[ "${CREATE_VMDK}" = "true" || "${CREATE_OVA}" = "true" ]] ; then
         # TODO: tools version
         echo "VMDKCONVERT_COMPRESSION_LEVEL=${VMDKCONVERT_COMPRESSION_LEVEL}"
         echo "VMDKCONVERT_NUM_THREADS=${VMDKCONVERT_NUM_THREADS}"
         if [ "${VMDKCONVERT_SEQUENTIAL}" = "true" ] ; then
-            for img in ${img_list[@]} ; do
+            for img in "${RAW_IMAGES[@]}" ; do
                 name=${img%.*} # remove extension
                 echo "running 'vmdk-convert ${img}'"
-                time vmdk-convert ${img} ${name}.vmdk || fail "'vmdk-convert ${img} ${name}.vmdk' failed with $?"
+                time vmdk-convert "${img}" "${name}.vmdk" || fail "'vmdk-convert ${img} ${name}.vmdk' failed with $?"
                 echo "done with 'vmdk-convert ${img}'"
             done
         else
@@ -51,20 +50,20 @@ create_ova()
             trap 'exit 130' INT
             trap 'exit 143' TERM
             set -m
-            for img in ${img_list[@]} ; do
+            for img in "${RAW_IMAGES[@]}" ; do
                 name=${img%.*} # remove extension
                 log=$(mktemp /tmp/vmdk-convert.XXXXXX) || fail "mktemp failed"
                 logs+=("${log}")
                 echo "running 'vmdk-convert ${img}'"
-                { time vmdk-convert ${img} ${name}.vmdk ; } > "${log}" 2>&1 &
+                { time vmdk-convert "${img}" "${name}.vmdk" ; } > "${log}" 2>&1 &
                 pids+=($!)
             done
             set +m
             failed=""
-            for i in ${!pids[@]} ; do
-                img=${img_list[$i]}
+            for i in "${!pids[@]}" ; do
+                img=${RAW_IMAGES[$i]}
                 rc=0
-                wait ${pids[$i]} || rc=$?
+                wait "${pids[$i]}" || rc=$?
                 echo "--- 'vmdk-convert ${img}' output:"
                 cat "${logs[$i]}"
                 rm -f "${logs[$i]}"
@@ -81,7 +80,7 @@ create_ova()
     fi
 
     if [[ "${CREATE_OVA}" = "true" || "${CREATE_OVF}" = "true" ]] ; then
-        img0=${img_list[0]}
+        img0=${RAW_IMAGES[0]}
         name0=${img0%.*}
 
         if [ "${CREATE_OVA}" = "true" ] ; then
@@ -111,9 +110,9 @@ create_ova()
 
         # nuke vmdk's if we created an OVA
         if [ "${CREATE_OVA}" = "true" ] ; then
-            for img in ${img_list[@]} ; do
+            for img in "${RAW_IMAGES[@]}" ; do
                 name=${img%.*}
-                rm -f ${name}.vmdk
+                rm -f "${name}.vmdk"
             done
         fi
     fi
@@ -124,7 +123,7 @@ usage() {
     echo "          [--installer-config <config-file>] (ks file used for create-image)"
     echo "          [--installer-param key=val [...]] (params for parsing the ks file)"
     echo "          [--mf]"
-    echo "          [--raw-image <image-file>]"
+    echo "          [--raw-images <image-file>] (can be given multiple times; default: the disks in the ks file)"
     echo "          [--ova-name <name>]"
     echo "          [--ova-config <ova-config-file>] (required)"
     echo "          [--ovf] (create OVF, do not create OVA)"
@@ -152,7 +151,7 @@ while true; do
         --installer-param)   INSTALLER_PARAMS+=("${2}"); shift 2 ;;
         --mf)                CREATE_MF="true"; shift ;;
         --num-threads)       VMDKCONVERT_NUM_THREADS=${2}; shift 2 ;;
-        --raw-images)        RAW_IMAGES=${2} ; shift 2 ;;
+        --raw-images)        RAW_IMAGES+=("${2}") ; shift 2 ;;
         --ova-config)        OVA_CFG_FILE=${2} ; shift 2 ;;
         --ova-name)          OVA_NAME=${2} ; shift 2 ;;
         --ovf)               CREATE_OVF="true"; CREATE_OVA="false"; shift ;;
@@ -188,23 +187,23 @@ if [ -z "${OVA_NAME}" ] ; then
     OVA_NAME=$(printf "%s\0" "${ova_params[@]}" | xargs -0 yjson -i ${OVA_CFG_FILE} | jq -r '.system.name')
 fi
 
-if [[ -z "${RAW_IMAGES}" && -z "${CFG_FILE}" ]] ; then
+if [[ ${#RAW_IMAGES[@]} -eq 0 && -z "${CFG_FILE}" ]] ; then
     echo "need a config file or image" >&2
     usage
     echo "Terminating." >&2
     exit 1
 fi
 
-if [ -z "${RAW_IMAGES}" ] ; then
+if [ ${#RAW_IMAGES[@]} -eq 0 ] ; then
     ks_params=()
     for p in "${INSTALLER_PARAMS[@]}" ; do
         ks_params+=("--param")
         ks_params+=("$p")
     done
-    RAW_IMAGES=$(printf "%s\0" "${ks_params[@]}" | xargs -0 yjson -i ${CFG_FILE} | jq -r '.disks|values[].filename')
+    mapfile -d '' RAW_IMAGES < <(printf "%s\0" "${ks_params[@]}" | xargs -0 yjson -i ${CFG_FILE} | jq -j '.disks|values[].filename + "\u0000"')
 fi
 
-if [ -z "${RAW_IMAGES}" ] ; then
+if [ ${#RAW_IMAGES[@]} -eq 0 ] ; then
     echo "no suitable image found" >&2
     usage
     echo "Terminating." >&2
