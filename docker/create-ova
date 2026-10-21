@@ -14,6 +14,17 @@ fail() {
     exit 1
 }
 
+# Stop the vmdk-convert jobs that are still running, wait for them and
+# remove their logs. Each job is a process group (set -m), so the signal
+# reaches vmdk-convert, not only the subshell that runs it.
+stop_converters() {
+    for pid in ${pids[@]} ; do
+        kill -TERM -- -${pid} 2>/dev/null
+    done
+    wait
+    rm -f "${logs[@]}"
+}
+
 create_ova()
 {
     img_list=(${RAW_IMAGES})
@@ -36,14 +47,19 @@ create_ova()
             # after the other.
             pids=()
             logs=()
+            trap stop_converters EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+            set -m
             for img in ${img_list[@]} ; do
                 name=${img%.*} # remove extension
                 log=$(mktemp /tmp/vmdk-convert.XXXXXX) || fail "mktemp failed"
+                logs+=("${log}")
                 echo "running 'vmdk-convert ${img}'"
                 { time vmdk-convert ${img} ${name}.vmdk ; } > "${log}" 2>&1 &
                 pids+=($!)
-                logs+=("${log}")
             done
+            set +m
             failed=""
             for i in ${!pids[@]} ; do
                 img=${img_list[$i]}
@@ -59,6 +75,7 @@ create_ova()
                     echo "done with 'vmdk-convert ${img}'"
                 fi
             done
+            trap - EXIT INT TERM
             [ -z "${failed}" ] || fail "vmdk-convert failed for:${failed}"
         fi
     fi
