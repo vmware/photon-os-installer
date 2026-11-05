@@ -93,10 +93,15 @@ def _feature_names(options):
         opt = opt.strip()
         if opt.startswith("-O"):
             opt = opt[2:].strip()
-        if opt.startswith("^"):
-            disabled.add(opt[1:])
-        else:
-            enabled.add(opt)
+        # a list item can hold several features, like "-O feat1,feat2"
+        for feature in opt.split(","):
+            feature = feature.strip()
+            if not feature:
+                continue
+            if feature.startswith("^"):
+                disabled.add(feature[1:])
+            else:
+                enabled.add(feature)
     return enabled, disabled
 
 
@@ -130,7 +135,7 @@ def add_defaults(installer):
         # will be normalized by the installer later
         if isinstance(options, str):
             options = options.split(",")
-        enabled, disabled = _feature_names(options)
+        enabled, already_disabled = _feature_names(options)
 
         # explicitly enabled, keep it as an override
         for f in unsupported:
@@ -141,10 +146,10 @@ def add_defaults(installer):
                     f"{_version_str(target_version)} does not support it "
                     f"(needs e2fsprogs >= {_version_str(FEATURES[f])})")
 
-        disabled = [f for f in unsupported if f not in enabled and f not in disabled]
-        if disabled:
-            partition['mkfs_options'] = options + [f"^{f}" for f in disabled]
-            reasons = ", ".join(f"{f} (needs e2fsprogs >= {_version_str(FEATURES[f])})" for f in disabled)
+        to_disable = [f for f in unsupported if f not in enabled and f not in already_disabled]
+        if to_disable:
+            partition['mkfs_options'] = options + [f"^{f}" for f in to_disable]
+            reasons = ", ".join(f"{f} (needs e2fsprogs >= {_version_str(FEATURES[f])})" for f in to_disable)
             installer.logger.warning(
                 f"NOTE: target e2fsprogs {_version_str(target_version)} does not support "
                 f"{reasons}, disabling for {partition['filesystem']} partition "
