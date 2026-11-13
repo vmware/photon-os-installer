@@ -295,9 +295,13 @@ class Installer(object):
                 filename = disk['filename']
                 size = disk['size']
                 sector_size = disk.get('sector_size', 512)
-                retval = self.cmd.run(["dd", "if=/dev/zero", f"of={filename}", "bs=1M", f"count={size}", "conv=sparse"])
-                if retval != 0:
-                    raise InstallerError(f"failed to create disk image '{filename}'")
+                # create a sparse, zero-filled image instantly; opening with
+                # "wb" discards any previous content, like dd did
+                try:
+                    with open(filename, "wb") as f:
+                        f.truncate(size * 1024**2)
+                except OSError as e:
+                    raise InstallerError(f"failed to create disk image '{filename}': {e}")
                 device = subprocess.check_output(["losetup", "--show", "-f", "--sector-size", str(sector_size), filename], text=True).strip()
                 disk['device'] = device
 
