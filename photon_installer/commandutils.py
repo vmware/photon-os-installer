@@ -240,9 +240,14 @@ class CommandUtils(object):
             r = CommandUtils._requests_get(url, False)
             if r is None:
                 return False, "Failed to download file"
-        r.raw.decode_content = True
-        with open(out, "wb") as f:
-            shutil.copyfileobj(r.raw, f)
+        try:
+            if r.status_code != 200:
+                return False, f"HTTP error {r.status_code} ({r.reason}) for {url}"
+            r.raw.decode_content = True
+            with open(out, "wb") as f:
+                shutil.copyfileobj(r.raw, f)
+        finally:
+            r.close()
 
         return True, None
 
@@ -385,8 +390,8 @@ class CommandUtils(object):
                 src = src[7:]
             if CommandUtils.is_url(src):
                 self.logger.info(f"downloading {src} to {dest}")
-                ret, _ = CommandUtils.wget(src, dest)
-                assert ret, f"downloading {src} failed"
+                ret, msg = CommandUtils.wget(src, dest)
+                assert ret, f"downloading {src} failed: {msg}"
             else:
                 self.logger.info(f"copying {src} to {dest}")
                 shutil.copyfile(src, dest)
