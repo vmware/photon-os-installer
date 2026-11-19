@@ -4,7 +4,7 @@
         "docker","e2fsprogs","file",
         "filesystem","findutils","gdbm","grep","grub2-efi-image",
         "grub2-theme","gzip","iana-etc","iproute2","iptables",
-        "iputils","net-tools","open-vm-tools",
+        "iputils","open-vm-tools",
         "openssh","photon-release","photon-repos",
         "procps-ng","rpm","rpm-plugin-systemd-inhibit","sed",
         "systemd","systemd-libs","systemd-pam","systemd-rpm-macros",
