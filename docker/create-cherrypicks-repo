@@ -66,7 +66,7 @@ def main():
 
     upstream_repos = plf_json.get('upstream-repos', {})
     if src_repo_url is not None:
-        upstream_repos['_src_repo'] = {'baseurl': src_repo_url, 'enabled': 1, 'gpgcheck': 0}
+        upstream_repos['poi-src-repo'] = {'baseurl': src_repo_url, 'enabled': 1, 'gpgcheck': 0}
     for _, ur in upstream_repos.items():
         if 'priority' not in ur:
             ur['priority'] = 75
@@ -81,9 +81,9 @@ def main():
         if "," in br_url:
             br_url, snapshot = br_url.split(",", maxsplit=1)
         # make sure priority is higher (lower value), so this gets prefered over upstream_repos
-        base_repos[f'_base_repo_{i}'] = {'baseurl': br_url, 'enabled': 1, 'gpgcheck': 0, 'priority': 25}
+        base_repos[f'poi-base-repo-{i}'] = {'baseurl': br_url, 'enabled': 1, 'gpgcheck': 0, 'priority': 25}
         if snapshot is not None:
-            base_repos[f'_base_repo_{i}']['snapshot'] = snapshot
+            base_repos[f'poi-base-repo-{i}']['snapshot'] = snapshot
 
     print("upstream repos:")
     print(json.dumps(upstream_repos, indent=4))
@@ -138,7 +138,7 @@ def main():
             # we should only have 'Install' in json output because the installroot is empty
             pkginfo_list = tdnf_out['Install']
 
-            # filter for packages that are from _src_repo
+            # filter for packages that are from an upstream repo
             for pkginfo in pkginfo_list:
                 if pkginfo['Repo'] in upstream_repos:
                     name = pkginfo['Name']
