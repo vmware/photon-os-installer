@@ -14,13 +14,13 @@ repo_paths:
   - /poi
 
 iso_files:
-    "https://raw.githubusercontent.com/vmware/photon/5.0/support/poi/configs/iso/sample_ks.cfg": isolinux/
-    "https://raw.githubusercontent.com/vmware/photon/5.0/EULA.txt": ""
-    "https://raw.githubusercontent.com/vmware/photon/5.0/NOTICE-Apachev2": ""
-    "https://raw.githubusercontent.com/vmware/photon/5.0/NOTICE-GPL2.0": ""
-    "https://github.com/vmware/photon/raw/5.0/support/poi/configs/iso/open_source_license.tar.gz": ""
+    "https://raw.githubusercontent.com/vmware/photon/common/support/poi/configs/iso/sample_ks.cfg": isolinux/
+    "https://raw.githubusercontent.com/vmware/photon/common/EULA.txt": ""
+    "https://raw.githubusercontent.com/vmware/photon/common/NOTICE-Apachev2": ""
+    "https://raw.githubusercontent.com/vmware/photon/common/NOTICE-GPL2.0": ""
+    "https://github.com/vmware/photon/raw/common/support/poi/configs/iso/open_source_license.tar.gz": ""
 
 initrd_files:
     packages_minimal.json: installer/
-    "https://raw.githubusercontent.com/vmware/photon/5.0/support/poi/configs/iso/sample_ui.cfg": installer/
-    "https://raw.githubusercontent.com/vmware/photon/5.0/EULA.txt": installer/
+    "https://raw.githubusercontent.com/vmware/photon/common/support/poi/configs/iso/sample_ui.cfg": installer/
+    "https://raw.githubusercontent.com/vmware/photon/common/EULA.txt": installer/
