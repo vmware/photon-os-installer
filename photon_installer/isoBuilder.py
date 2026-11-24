@@ -13,6 +13,7 @@ import shutil
 import tempfile
 from argparse import ArgumentParser
 
+import stigenable
 import yaml
 from commandutils import CommandUtils
 from generate_initrd import IsoInitrd
@@ -195,6 +196,8 @@ class IsoBuilder(object):
         # Add installer initrd and custom packages to package list..
         self.addPkgsToList(self.initrd_pkg_list_file)
         self.addPkgsToList(self.packageslist_file)
+        self.pkg_list.extend(stigenable.KS_STIG_PACKAGES)
+        self.pkg_list.extend(self.initrd_pkgs)
 
         linux_flavors = [
             "linux",
