@@ -124,7 +124,7 @@ class IsoBuilder(object):
                     url = f"file://{url}"
                 create_repo_conf(
                     {
-                        f"_repo{i}": {
+                        f"poi-repo-{i}": {
                             "baseurl": url,
                             "enabled": 1,
                             "gpgcheck": 0,
