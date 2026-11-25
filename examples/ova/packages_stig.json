@@ -14,8 +14,7 @@
         "less",
         "sudo",
         "lvm2",
-        "audit", "rsyslog", "openssl-fips-provider", "selinux-policy",
-        "libselinux-utils", "ntp", "aide", "libgcrypt"
+        "audit", "rsyslog", "openssl-fips-provider", "selinux-policy", "aide"
     ],
     "packages_x86_64": ["linux-esx"]
 }
